@@ -48,10 +48,10 @@ export default function Home() {
                 <Image
                   src="/logo.png"
                   alt="SYSNEY Informática"
-                  width={280}
-                  height={90}
+                  width={260}
+                  height={260}
                   priority
-                  className="h-auto w-47.5 md:w-62.5"
+                  className="h-auto w-32 md:w-40"
                 />
               </Link>
 
