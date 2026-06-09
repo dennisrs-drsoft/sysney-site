@@ -1,13 +1,17 @@
-import type { Metadata } from "next";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "SYSNEY Informática | SISBlink",
+export const metadata = {
+  title: {
+    default: "SISBlink | Plataforma B2B para Moda e Atacado",
+    template: "%s | SISBlink",
+  },
   description:
-    "SISBlink: plataforma B2B para moda, atacado, representantes, franquias e multimarcas.",
+    "Catálogo digital, pedidos B2B, dashboards, integrações ERP e gestão comercial para marcas de moda, atacado e franquias.",
   icons: {
-    icon: "/icon.png",
-    shortcut: "/icon.png",
+    icon: [
+      { url: "/icon.png", sizes: "32x32", type: "image/png" },
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+    ],
     apple: "/icon.png",
   },
 };
