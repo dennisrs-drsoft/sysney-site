@@ -51,7 +51,7 @@ export default function Home() {
                   width={280}
                   height={90}
                   priority
-                  className="h-auto w-[190px] md:w-[250px]"
+                  className="h-auto w-47.5 md:w-62.5"
                 />
               </Link>
 
