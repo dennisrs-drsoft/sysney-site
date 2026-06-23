@@ -91,9 +91,9 @@ const reabertura = [
 
 export default function ManualConfirmacaoWhatsAppPage() {
   return (
-    <main className="min-h-screen bg-[#070b14] text-white">
+    <main className="min-h-screen bg-[#07111f] text-white">
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#13213a_0,#070b14_42%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#152642_0,#07111f_48%)]" />
 
         <div className="relative mx-auto max-w-7xl px-6 py-8 lg:px-8">
           <header className="flex items-center justify-between gap-6">
@@ -107,7 +107,7 @@ export default function ManualConfirmacaoWhatsAppPage() {
                 className="h-auto w-28 md:w-32"
               />
               <div className="hidden sm:block">
-                <p className="text-2xl font-black text-blue-400">SISBLINK</p>
+                <p className="text-2xl font-semibold text-blue-400">SISBLINK</p>
                 <p className="text-xs uppercase tracking-[0.3em] text-sky-300">
                   Manual Visual
                 </p>
@@ -116,18 +116,18 @@ export default function ManualConfirmacaoWhatsAppPage() {
 
             <Link
               href="/contato"
-              className="rounded-full bg-blue-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
+              className="rounded-full bg-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
             >
               Falar com suporte
             </Link>
           </header>
 
-          <section className="mt-12 rounded-[28px] border border-[#24314d] bg-gradient-to-br from-[#0d1424] to-[#09101f] p-8 shadow-2xl shadow-black/30 md:p-10">
-            <span className="inline-flex rounded-full border border-[#38d5c6]/40 bg-[#38d5c6]/10 px-4 py-2 text-xs font-bold uppercase tracking-wide text-[#38d5c6]">
+          <section className="mt-12 rounded-[28px] border border-[#24314d] bg-gradient-to-br from-[#0d1728] to-[#08111f] p-8 shadow-2xl shadow-black/30 md:p-10">
+            <span className="inline-flex rounded-full border border-[#38d5c6]/40 bg-[#38d5c6]/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#66f0df]">
               SISBlink • Manual Visual
             </span>
 
-            <h1 className="mt-6 max-w-4xl text-4xl font-black leading-tight tracking-tight md:text-6xl">
+            <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-tight tracking-tight md:text-6xl">
               Confirmação e Reabertura de Pedidos pelo WhatsApp
             </h1>
 
@@ -147,7 +147,9 @@ export default function ManualConfirmacaoWhatsAppPage() {
                   key={titulo}
                   className="rounded-2xl border border-[#24314d] bg-white/5 p-5"
                 >
-                  <strong className="block text-2xl text-white">{titulo}</strong>
+                  <strong className="block text-2xl font-semibold text-white">
+                    {titulo}
+                  </strong>
                   <p className="mt-2 text-slate-400">{texto}</p>
                 </div>
               ))}
@@ -166,16 +168,130 @@ export default function ManualConfirmacaoWhatsAppPage() {
             passos={reabertura}
           />
 
-          <div className="mt-8 rounded-3xl border border-[#38d5c6]/30 bg-[#38d5c6]/10 p-6 text-[#c9fff8]">
-            As imagens possuem dados fictícios no manual, para a confirmação e reabertura de pedidos, utilizem os dados reais recebidos através do WhatsApp.
+          <OfficialWhatsAppSection />
+
+          <div className="mt-8 rounded-[28px] border border-[#38d5c6]/25 bg-[#0b2b33]/70 p-6 text-[#66e7f2] md:p-8">
+            <div className="flex items-center gap-5">
+              <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-[#38d5c6]/25 bg-[#38d5c6]/10 text-3xl">
+                ⓘ
+              </div>
+              <p className="text-xl leading-8">
+                As imagens possuem dados fictícios no manual. Para a confirmação
+                e reabertura de pedidos, utilize os dados reais recebidos através
+                do WhatsApp.
+              </p>
+            </div>
           </div>
 
-          <footer className="py-10 text-center text-sm text-slate-400">
+          <footer className="mt-16 border-t border-white/10 py-10 text-center text-lg text-slate-500">
             SYSNEY Informática • SISBlink - Plataforma B2B para moda.
           </footer>
         </div>
       </section>
     </main>
+  );
+}
+
+function OfficialWhatsAppSection() {
+  const blockedItems = [
+    { icon: "🏦", text: "Dados bancários" },
+    { icon: "🔒", text: "Senhas ou credenciais" },
+    { icon: "💳", text: "Códigos de cartão" },
+  ];
+
+  return (
+    <section className="mt-8 rounded-[28px] border border-[#25446f] bg-gradient-to-br from-[#111c31] via-[#10192b] to-[#0b1425] p-6 shadow-2xl shadow-black/30 md:p-8">
+      <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="rounded-[22px] bg-white p-5 text-slate-950 shadow-2xl shadow-black/25">
+          <div className="flex items-center gap-6">
+            <Image
+              src="/imagens/manual/whatsapp-oficial.png"
+              alt="WhatsApp Oficial SISBlink"
+              width={190}
+              height={190}
+              className="h-36 w-36 rounded-2xl border border-slate-200 object-contain p-2"
+            />
+
+            <div className="hidden h-32 w-px bg-slate-200 sm:block" />
+
+            <div>
+              <h2 className="text-3xl font-semibold tracking-tight text-slate-950">
+                SYSNEY Informática
+              </h2>
+
+              <div className="mt-4 flex items-center gap-3 text-2xl font-medium text-slate-900">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-green-500 text-base text-white">
+                  ✓
+                </span>
+                +55 11 93926-3542
+              </div>
+
+              <p className="mt-3 text-lg text-slate-500">
+                Serviço profissional
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <span className="inline-flex rounded-full border border-[#5ff0c8]/35 bg-[#1bd89c]/10 px-5 py-2 text-sm font-semibold uppercase tracking-wide text-[#69f5c8]">
+            WhatsApp Oficial SISBlink
+          </span>
+
+          <h2 className="mt-6 max-w-xl text-4xl font-semibold leading-tight tracking-tight md:text-5xl">
+            Adicione este número aos seus contatos
+          </h2>
+
+          <p className="mt-6 max-w-xl text-xl leading-9 text-slate-300">
+            Este é o número oficial utilizado pelo SISBlink para confirmação e
+            reabertura de pedidos.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-8 rounded-[24px] border border-red-500/30 bg-[#2a1424]/80 p-6 md:p-8">
+        <div className="grid gap-8 lg:grid-cols-[150px_1fr] lg:items-center">
+          <div className="flex h-32 w-32 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-6xl text-red-300">
+            🛡️
+          </div>
+
+          <div>
+            <h3 className="text-2xl font-semibold text-red-300">
+              Aviso Importante de Segurança
+            </h3>
+
+            <p className="mt-4 text-xl leading-8 text-slate-200">
+              O SISBlink <strong className="font-semibold text-red-300">NUNCA</strong>{" "}
+              solicitará:
+            </p>
+
+            <div className="mt-8 grid gap-6 md:grid-cols-4 md:items-start">
+              {blockedItems.map((item) => (
+                <div key={item.text} className="text-center">
+                  <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-red-400/30 bg-red-500/10 text-4xl">
+                    {item.icon}
+                  </div>
+                  <p className="mt-5 text-xl leading-7 text-slate-200">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+
+              <div className="text-center">
+                <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/30 bg-emerald-500/10 text-4xl text-emerald-300">
+                  ✓
+                </div>
+                <p className="mt-5 text-xl leading-7 text-emerald-300">
+                  Solicitaremos{" "}
+                  <strong className="font-semibold">apenas</strong> as informações
+                  descritas neste manual.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -197,7 +313,7 @@ function ManualSection({
   return (
     <section className="mt-8 rounded-[24px] border border-[#24314d] bg-[#0d1424]/90 p-6 md:p-8">
       <div className="mb-8">
-        <h2 className="text-3xl font-black tracking-tight">{titulo}</h2>
+        <h2 className="text-3xl font-semibold tracking-tight">{titulo}</h2>
         <p className="mt-2 text-slate-400">{subtitulo}</p>
       </div>
 
@@ -210,11 +326,11 @@ function ManualSection({
             }`}
           >
             <div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#38d5c6] to-[#5b8cff] font-black text-[#06101f]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#38d5c6] to-[#5b8cff] font-semibold text-[#06101f]">
                 {passo.numero}
               </div>
 
-              <h3 className="mt-5 text-2xl font-black">{passo.titulo}</h3>
+              <h3 className="mt-5 text-2xl font-semibold">{passo.titulo}</h3>
 
               <p className="mt-3 leading-8 text-slate-300">{passo.texto}</p>
 
@@ -239,7 +355,7 @@ function ManualSection({
 
 function Command({ children }: { children: React.ReactNode }) {
   return (
-    <span className="mt-5 inline-block rounded-xl border border-[#38d5c6]/50 bg-[#06101f] px-5 py-3 font-black tracking-wide text-[#38d5c6]">
+    <span className="mt-5 inline-block rounded-xl border border-[#38d5c6]/50 bg-[#06101f] px-5 py-3 font-semibold tracking-wide text-[#38d5c6]">
       {children}
     </span>
   );
