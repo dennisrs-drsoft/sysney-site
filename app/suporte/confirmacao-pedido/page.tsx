@@ -25,98 +25,166 @@ export default function TutorialConfirmacaoPedidoPage() {
           </p>
         </header>
 
-        <TutorialSection title="1. Recebimento do pedido">
-          <p>Você receberá uma mensagem oficial do SISBlink em seu WhatsApp contendo:</p>
+        <TutorialSection title="5. Como solicitar a reabertura do pedido pelo WhatsApp">
+          <p>
+            Para solicitar a reabertura de um pedido pelo WhatsApp,
+            envie a mensagem no seguinte formato:
+          </p>
 
-          <ul className="mt-4 list-disc space-y-2 pl-6">
-            <li>Resumo do pedido;</li>
-            <li>Número do pedido;</li>
-            <li>Data de emissão;</li>
-            <li>Quantidade total;</li>
-            <li>Valor total;</li>
-            <li>PDF completo do pedido em anexo.</li>
-          </ul>
-
-          <InfoBox>
-            Antes de confirmar, leia o PDF completo e confira produtos,
-            quantidades, valores, prazos de entrega e demais informações comerciais.
-          </InfoBox>
-        </TutorialSection>
-
-        <TutorialSection title="2. Como confirmar o pedido">
-          <p>Se todas as informações estiverem corretas, responda a mensagem recebida com:</p>
-
-          <Command>APROVADO 123456</Command>
+          <Command>
+            REABRIR PEDIDO 123456 DA MARCA SYSNEY
+          </Command>
 
           <p>
-            Substitua <strong>123456</strong> pelo número do seu pedido.
+            Substitua <strong>123456</strong> pelo número do pedido e
+            <strong> SYSNEY </strong>
+            pela marca em que o pedido foi realizado no SISBlink.
+          </p>
+
+          <InfoBox>
+            <strong>Exemplo:</strong>
+            <br />
+            Se o pedido for <strong>123456</strong> e a marca for
+            <strong>MARCA_EXEMPLO</strong>, envie:
+            <br />
+            <br />
+            <Command>
+              REABRIR PEDIDO 123456 DA MARCA MARCA_EXEMPLO
+            </Command>
+          </InfoBox>
+
+          <p>
+            Se o pedido for localizado, você receberá uma mensagem semelhante a esta:
+          </p>
+
+          <InfoBox>
+
+            Localizamos o pedido informado.
+
+            <br /><br />
+
+            Pedido: 123456
+            <br />
+            Marca: SYSNEY
+            <br />
+            Cliente: LOJA 01 CLIENTE
+            <br />
+            CNPJ cadastrado: 01.001.***/**-00
+            <br />
+            Qtde: 398
+            <br />
+            Valor: R$ 69.495,18
+            <br />
+            Status atual: CONFIRMADO
+
+            <br /><br />
+
+            Para continuar com segurança,
+            responda com o CNPJ completo do cliente.
+
+            <br />
+
+            Exemplo:
+
+            CNPJ 00.000.000/0000-00
+
+          </InfoBox>
+
+          <p>
+            Depois disso, responda informando o CNPJ completo do cliente:
+          </p>
+
+          <Command>
+            CNPJ 00.001.000/0001-00
+          </Command>
+
+          <p>
+            O CNPJ acima é apenas um exemplo.
+            Informe o CNPJ correto do cliente vinculado ao pedido.
+          </p>
+
+          <p>
+            Se o CNPJ for validado, você receberá uma nova mensagem de segurança:
           </p>
 
           <InfoBox variant="success">
-            <strong>Exemplo:</strong>
-            <br />
-            Se o pedido for <strong>165909</strong>, responda:
-            <br />
-            <Command>APROVADO 165909</Command>
+
+            CNPJ validado com sucesso.
+
+            <br /><br />
+
+            Para confirmar a reabertura do pedido,
+            responda exatamente:
+
+            <br /><br />
+
+            <strong>
+              REABRIR 12345 1007
+            </strong>
+
+            <br /><br />
+
+            Código válido por 30 minutos.
+
           </InfoBox>
 
-          <p>Após a confirmação:</p>
+          <p>
+            O número <strong>1007</strong> é um token de segurança
+            gerado automaticamente.
 
-          <ul className="mt-4 list-disc space-y-2 pl-6">
-            <li>O pedido será confirmado automaticamente;</li>
-            <li>O sistema registrará a data e hora da aprovação;</li>
-            <li>Será gerado um comprovante eletrônico da confirmação.</li>
-          </ul>
-        </TutorialSection>
+            Você deve responder exatamente como foi enviado.
+          </p>
 
-        <TutorialSection title="3. Caso exista alguma divergência">
+          <Command>
+            REABRIR 12345 1007
+          </Command>
+
+          <p>
+            Se todas as informações estiverem corretas,
+            você receberá a confirmação:
+          </p>
+
+          <InfoBox variant="success">
+
+            Solicitação validada.
+
+            O pedido 123456 será reaberto em instantes.
+
+          </InfoBox>
+
+          <p>
+            Em seguida, após a reabertura,
+            será enviada a mensagem final:
+          </p>
+
+          <InfoBox variant="success">
+
+            Pedido 123456 reaberto com sucesso.
+
+            <br />
+
+            Status atual: ABERTO.
+
+            <br /><br />
+
+            Comprovante da reabertura:
+
+            <br />
+
+            https://levis.sisfast.com/dl/comprovante.pdf.ashx?t=.....
+
+          </InfoBox>
+
           <InfoBox variant="warning">
-            Se houver divergência em produtos, quantidades, valores, condições
-            comerciais ou prazos, <strong>não responda APROVADO</strong>.
+
+            Por segurança, o código de confirmação
+            é válido por tempo limitado.
+
+            Caso expire, será necessário iniciar uma
+            nova solicitação de reabertura.
+
           </InfoBox>
 
-          <p>
-            Entre em contato com seu gerente comercial para realizar os ajustes
-            necessários antes da confirmação.
-          </p>
-        </TutorialSection>
-
-        <TutorialSection title="4. Como abrir novamente o pedido">
-          <p>
-            Caso seja necessário alterar um pedido já confirmado, entre em
-            contato com seu gerente comercial e solicite a reabertura.
-          </p>
-
-          <p className="mt-4">Após a reabertura:</p>
-
-          <ol className="mt-4 list-decimal space-y-2 pl-6">
-            <li>O pedido ficará disponível novamente para edição;</li>
-            <li>As alterações poderão ser realizadas;</li>
-            <li>Um novo PDF será gerado;</li>
-            <li>Uma nova solicitação de confirmação poderá ser enviada ao WhatsApp.</li>
-          </ol>
-        </TutorialSection>
-
-        <TutorialSection title="5. Segurança">
-          <InfoBox variant="security">
-            As mensagens são enviadas por um canal oficial do SISBlink. A
-            confirmação realizada através da resposta{" "}
-            <strong>APROVADO + Número do Pedido</strong> é registrada pelo sistema.
-          </InfoBox>
-
-          <p>O sistema registra:</p>
-
-          <ul className="mt-4 list-disc space-y-2 pl-6">
-            <li>Número do telefone utilizado;</li>
-            <li>Data e hora da confirmação;</li>
-            <li>Conteúdo da resposta;</li>
-            <li>Comprovante eletrônico da operação.</li>
-          </ul>
-
-          <p className="mt-4">
-            Esses registros garantem maior segurança e rastreabilidade para
-            todas as partes envolvidas.
-          </p>
         </TutorialSection>
 
         <footer className="mt-10 border-t border-slate-200 pt-6 text-center text-sm text-slate-500">
