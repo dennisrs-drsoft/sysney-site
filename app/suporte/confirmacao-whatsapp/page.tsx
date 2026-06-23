@@ -30,7 +30,7 @@ const confirmacao = [
     numero: "4",
     titulo: "Responder aprovação",
     texto: "Se estiver correto, responda exatamente no formato abaixo.",
-    comando: "APROVADO 123456",
+    comando: "APROVADO 328875",
     imagem: "/imagens/manual/04-resposta-aprovado.png",
   },
   {
@@ -52,7 +52,7 @@ const reabertura = [
     numero: "1",
     titulo: "Solicitar reabertura",
     texto: "Envie a solicitação pelo WhatsApp informando pedido e marca.",
-    comando: "REABRIR PEDIDO 123456 DA MARCA SYSNEY",
+    comando: "REABRIR PEDIDO 328875 DA MARCA LEVIS",
     imagem: "/imagens/manual/07-reabrir-pedido.png",
   },
   {
@@ -72,7 +72,7 @@ const reabertura = [
     numero: "4",
     titulo: "Confirmar com token",
     texto: "Após validar o CNPJ, responda exatamente com o código de segurança recebido.",
-    comando: "REABRIR 123456 1007",
+    comando: "REABRIR 328875 1007",
     imagem: "/imagens/manual/10-token-reabertura.png",
   },
   {
