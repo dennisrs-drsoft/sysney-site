@@ -167,8 +167,7 @@ export default function ManualConfirmacaoWhatsAppPage() {
           />
 
           <div className="mt-8 rounded-3xl border border-[#38d5c6]/30 bg-[#38d5c6]/10 p-6 text-[#c9fff8]">
-            Use sempre imagens com dados fictícios no manual público, evitando
-            marcas, pedidos, clientes, CNPJs ou URLs reais.
+            As imagens possuem dados fictícios no manual, para a confirmação e reabertura de pedidos, utilizem os dados reais recebidos através do WhatsApp.
           </div>
 
           <footer className="py-10 text-center text-sm text-slate-400">
