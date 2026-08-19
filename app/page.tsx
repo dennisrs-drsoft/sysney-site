@@ -1,5 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Sistema de Força de Vendas B2B para Moda",
+  description: "O SISBlink é um sistema de força de vendas B2B com catálogo digital, pedidos e integrações ERP para indústrias, representantes, franquias e multimarcas.",
+  alternates: { canonical: "/" },
+};
 
 const metrics = [
   { value: "20+", label: "anos em sistemas comerciais", icon: "👥" },
@@ -67,9 +74,10 @@ export default function Home() {
             </div>
 
             <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-200 lg:flex">
-              <a href="#solucoes" className="hover:text-sky-300">Soluções</a>
-              <a href="#funcionalidades" className="hover:text-sky-300">Funcionalidades</a>
-              <a href="#integracoes" className="hover:text-sky-300">Integrações</a>
+              <Link href="/sistema-forca-de-vendas" className="hover:text-sky-300">Força de vendas</Link>
+              <Link href="/plataforma-vendas-b2b" className="hover:text-sky-300">Vendas B2B</Link>
+              <Link href="/vendas-para-franquias-e-multimarcas" className="hover:text-sky-300">Franquias</Link>
+              <Link href="/integracoes-erp" className="hover:text-sky-300">Integrações</Link>
               <a href="#sobre" className="hover:text-sky-300">Sobre</a>
             </nav>
 
@@ -88,8 +96,8 @@ export default function Home() {
               </div>
 
               <h1 className="max-w-4xl text-5xl font-black leading-[0.98] tracking-tight md:text-7xl">
-                Transforme sua venda B2B em um showroom digital{" "}
-                <span className="text-blue-400">completo.</span>
+                Sistema de força de vendas B2B para moda{" "}
+                <span className="text-blue-400">que conecta toda a operação.</span>
               </h1>
 
               <div className="mt-6 h-1 w-20 rounded-full bg-emerald-400" />
@@ -200,6 +208,21 @@ export default function Home() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white px-6 py-20 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Soluções por desafio</p>
+          <h2 className="mt-4 max-w-4xl text-4xl font-black tracking-tight md:text-5xl">Tecnologia comercial para vender coleções a franquias, multimarcas e outros clientes B2B.</h2>
+          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+            {[
+              ["Sistema de força de vendas", "Organize representantes, clientes, catálogo e pedidos em uma jornada conectada.", "/sistema-forca-de-vendas"],
+              ["Plataforma de vendas B2B", "Transforme a coleção em um showroom digital preparado para o atacado.", "/plataforma-vendas-b2b"],
+              ["Franquias e multimarcas", "Atenda diferentes lojas e grupos preservando o contexto de cada pedido.", "/vendas-para-franquias-e-multimarcas"],
+              ["Integrações ERP", "Conecte produtos, clientes, preços, estoque e pedidos ao ecossistema da empresa.", "/integracoes-erp"],
+            ].map(([title, text, href]) => <Link key={href} href={href} className="group rounded-3xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl"><h3 className="text-xl font-black text-blue-800">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p><span className="mt-5 inline-block font-black text-blue-600 group-hover:text-blue-500">Saiba mais →</span></Link>)}
           </div>
         </div>
       </section>
@@ -410,6 +433,7 @@ export default function Home() {
                 planilhas, APIs, webservices e rotinas personalizadas para manter
                 produtos, clientes, estoque, preços e pedidos sincronizados.
               </p>
+              <Link href="/integracoes-erp" className="mt-7 inline-flex font-black text-blue-700 hover:text-blue-500">Conheça as possibilidades de integração →</Link>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">

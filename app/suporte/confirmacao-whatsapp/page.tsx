@@ -1,10 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
+import type { Metadata } from "next";
 
-export const metadata = {
-  title: "Manual de Confirmação pelo WhatsApp | SISBlink",
+export const metadata: Metadata = {
+  title: "Manual de Confirmação pelo WhatsApp",
   description:
     "Manual visual para confirmação e reabertura de pedidos pelo WhatsApp no SISBlink.",
+  robots: { index: false, follow: false },
 };
 
 const confirmacao = [

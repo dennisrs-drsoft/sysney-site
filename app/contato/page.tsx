@@ -1,7 +1,14 @@
 import Link from "next/link";
 import Script from "next/script";
+import type { Metadata } from "next";
 import { AntiBotFields } from "./anti-bot-fields";
 import { enviarContato } from "./actions";
+
+export const metadata: Metadata = {
+  title: "Solicite uma Demonstração",
+  description: "Converse com a SYSNEY e veja como o SISBlink pode apoiar sua força de vendas, catálogo, pedidos B2B e integrações ERP.",
+  alternates: { canonical: "/contato" },
+};
 
 type Props = {
   searchParams?: Promise<{
