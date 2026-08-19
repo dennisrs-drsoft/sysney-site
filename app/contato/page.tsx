@@ -1,10 +1,13 @@
 import Link from "next/link";
+import Script from "next/script";
+import { AntiBotFields } from "./anti-bot-fields";
 import { enviarContato } from "./actions";
 
 type Props = {
   searchParams?: Promise<{
     enviado?: string;
     origem?: string;
+    erro?: string;
   }>;
 };
 
@@ -12,6 +15,8 @@ export default async function ContatoPage({ searchParams }: Props) {
   const params = await searchParams;
   const enviado = params?.enviado === "1";
   const origem = params?.origem || "site-contato";
+  const erro = params?.erro;
+  const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   return (
     <main className="min-h-screen bg-[#07111f] text-white">
@@ -60,12 +65,37 @@ export default async function ContatoPage({ searchParams }: Props) {
             className="rounded-[2rem] bg-white p-6 text-slate-950 shadow-2xl lg:p-10"
           >
             <input type="hidden" name="origem" value={origem} />
+            <AntiBotFields />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -left-[10000px] h-px w-px overflow-hidden opacity-0"
+            >
+              <label htmlFor="confirmacao_empresa">Não preencha este campo</label>
+              <input
+                id="confirmacao_empresa"
+                name="confirmacao_empresa"
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+              />
+            </div>
 
             {enviado && (
               <div className="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-emerald-800">
                 <p className="font-black">Contato enviado com sucesso.</p>
                 <p className="mt-1 text-sm">
                   Recebemos sua mensagem e retornaremos em breve.
+                </p>
+              </div>
+            )}
+
+            {erro && (
+              <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 text-amber-900">
+                <p className="font-black">Não foi possível enviar o contato.</p>
+                <p className="mt-1 text-sm">
+                  {erro === "verificacao"
+                    ? "Atualize a página, conclua a verificação de segurança e tente novamente."
+                    : "Revise os campos informados e tente novamente."}
                 </p>
               </div>
             )}
@@ -79,6 +109,7 @@ export default async function ContatoPage({ searchParams }: Props) {
               <input
                 name="nome"
                 required
+                maxLength={120}
                 placeholder="Seu nome *"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
@@ -86,12 +117,14 @@ export default async function ContatoPage({ searchParams }: Props) {
               <input
                 name="empresa"
                 required
+                maxLength={160}
                 placeholder="Empresa *"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
               <input
                 name="cargo"
+                maxLength={120}
                 placeholder="Cargo"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
@@ -100,6 +133,7 @@ export default async function ContatoPage({ searchParams }: Props) {
                 name="email"
                 required
                 type="email"
+                maxLength={254}
                 placeholder="E-mail *"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
@@ -107,24 +141,28 @@ export default async function ContatoPage({ searchParams }: Props) {
               <input
                 name="whatsapp"
                 required
+                maxLength={40}
                 placeholder="WhatsApp *"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
               <input
                 name="site"
+                maxLength={300}
                 placeholder="Site da empresa"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
               <input
                 name="cidade"
+                maxLength={120}
                 placeholder="Cidade"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
               <input
                 name="estado"
+                maxLength={60}
                 placeholder="Estado"
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
@@ -166,14 +204,36 @@ export default async function ContatoPage({ searchParams }: Props) {
               <textarea
                 name="mensagem"
                 required
+                maxLength={4000}
                 placeholder="Conte rapidamente o que você procura *"
                 rows={6}
                 className="md:col-span-2 rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
+              {turnstileSiteKey ? (
+                <div className="md:col-span-2">
+                  <Script
+                    src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+                    strategy="afterInteractive"
+                  />
+                  <div
+                    className="cf-turnstile"
+                    data-sitekey={turnstileSiteKey}
+                    data-action="contato"
+                    data-theme="light"
+                    data-language="pt-BR"
+                  />
+                </div>
+              ) : (
+                <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                  Verificação de segurança temporariamente indisponível.
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="md:col-span-2 rounded-full bg-blue-600 px-8 py-4 font-black text-white transition hover:bg-blue-500"
+                disabled={!turnstileSiteKey}
+                className="md:col-span-2 rounded-full bg-blue-600 px-8 py-4 font-black text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-400"
               >
                 Enviar contato
               </button>

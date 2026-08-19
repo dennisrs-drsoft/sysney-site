@@ -104,7 +104,13 @@ try {
   }
   $settingsResponse = $settingsJson | ConvertFrom-Json
   $settingNames = @($settingsResponse.properties.PSObject.Properties.Name)
-  $requiredSettings = @("SENDGRID_API_KEY", "SENDGRID_FROM_EMAIL", "SENDGRID_TO_EMAIL")
+  $requiredSettings = @(
+    "SENDGRID_API_KEY",
+    "SENDGRID_FROM_EMAIL",
+    "SENDGRID_TO_EMAIL",
+    "NEXT_PUBLIC_TURNSTILE_SITE_KEY",
+    "TURNSTILE_SECRET_KEY"
+  )
   $missingSettings = @($requiredSettings | Where-Object { $_ -notin $settingNames })
   if ($missingSettings.Count -gt 0) {
     $missingMessage = "Variáveis ausentes no Azure: $($missingSettings -join ', '). Nenhum valor secreto foi exibido."

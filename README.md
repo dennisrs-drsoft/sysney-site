@@ -71,8 +71,12 @@ Configure estas variáveis em **Azure Portal → Static Web App `sysney` → Con
 - `SENDGRID_API_KEY`
 - `SENDGRID_FROM_EMAIL`
 - `SENDGRID_TO_EMAIL`
+- `NEXT_PUBLIC_TURNSTILE_SITE_KEY`
+- `TURNSTILE_SECRET_KEY`
 
 O remetente indicado por `SENDGRID_FROM_EMAIL` precisa estar autorizado no SendGrid. Nunca coloque esses valores no código, no README ou no repositório.
+
+As chaves do Turnstile são criadas no painel da Cloudflare. Configure o widget para aceitar `www.sysney.com` e o hostname padrão do Azure. A chave pública fica em `NEXT_PUBLIC_TURNSTILE_SITE_KEY`; a chave secreta fica somente em `TURNSTILE_SECRET_KEY`.
 
 Para desenvolvimento local, os mesmos nomes podem ser definidos em `.env.local`, que é ignorado pelo Git.
 
