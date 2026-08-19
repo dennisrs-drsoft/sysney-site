@@ -41,6 +41,31 @@ const integrations = [
   "ERPs em geral",
 ];
 
+const trustedBrands = ["Levi’s", "Lacoste", "Vörr", "Twenty Four Seven", "Skyler", "Aeropostale", "Náutica", "Red Feather", "TXC"];
+
+const businessNumbers = [
+  { value: "+35", label: "clientes", detail: "operações apoiadas", icon: "♥" },
+  { value: "+26", label: "marcas", detail: "no ecossistema", icon: "◆" },
+  { value: "+53 mil", label: "pedidos", detail: "processados", icon: "▤" },
+  { value: "R$ 854 mi", label: "em vendas", detail: "movimentadas", icon: "↗" },
+];
+
+const painPoints = [
+  { title: "Estoque descentralizado", text: "Informações espalhadas dificultam a venda, frustram o cliente e geram retrabalho na separação e conferência dos pedidos.", result: "Estoque e disponibilidade no contexto da venda" },
+  { title: "Catálogos presos ao e-mail", text: "Anexos pesados, mensagens que voltam ou caem no spam tornam a apresentação da coleção lenta e pouco confiável.", result: "Catálogo visual acessível pelo navegador" },
+  { title: "Planilhas e perda de informação", text: "Arquivos difíceis de compartilhar e alterações não salvas colocam dados comerciais importantes em risco.", result: "Dados centralizados e fluxo rastreável" },
+  { title: "Demora para iniciar pedidos", text: "Copiar modelos, preencher clientes e redigitar produtos consome o tempo que deveria ser usado para atender e vender.", result: "Cliente, produto e regras no mesmo processo" },
+];
+
+const testimonials = [
+  { quote: "Esse sistema é uma nave.", name: "Pedro", company: "Slim Representações" },
+  { quote: "O melhor sistema que já trabalhei. Ele me proporciona trabalhar sem mostruário.", name: "Wanderlan", company: "VHV Gestão de Marcas" },
+  { quote: "O melhor sistema de digitação de pedidos. Até os clientes elogiam o sistema.", name: "Gisele", company: "Pozza Representações" },
+  { quote: "O sistema está tão rápido que não dá tempo do cliente pensar em desistir. Isso ajuda muito a vender.", name: "Clarissa", company: "Original Representações" },
+  { quote: "É, sem dúvida, a melhor ferramenta de inovação que tivemos nos últimos tempos.", name: "André Buffon", company: "Due Representações" },
+  { quote: "Você tinha que colocar esse sistema em todas as marcas do Brasil. O negócio roda fino demais.", name: "Pedro Neto", company: "Slim Representações" },
+];
+
 export default function Home() {
   return (
     <main className="min-h-screen bg-white text-slate-950">
@@ -212,6 +237,20 @@ export default function Home() {
         </div>
       </section>
 
+      <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-16 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-center text-sm font-black uppercase tracking-[0.3em] text-blue-700">Experiência construída em operações reais</p>
+          <h2 className="mx-auto mt-4 max-w-3xl text-center text-3xl font-black tracking-tight md:text-4xl">Marcas reconhecidas presentes em operações atendidas pelo SISBlink.</h2>
+          <div className="mt-9 flex flex-wrap justify-center gap-3">
+            {trustedBrands.map((brand) => <span key={brand} className="rounded-full border border-slate-200 bg-white px-5 py-3 text-lg font-black tracking-tight text-slate-700 shadow-sm">{brand}</span>)}
+          </div>
+          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {businessNumbers.map((item) => <article key={item.label} className="relative overflow-hidden rounded-3xl border border-blue-100 bg-white p-7 shadow-sm"><span className="absolute right-5 top-4 text-3xl text-blue-100">{item.icon}</span><p className="text-4xl font-black tracking-tight text-blue-700 md:text-5xl">{item.value}</p><p className="mt-2 text-lg font-black text-slate-900">{item.label}</p><p className="text-sm text-slate-500">{item.detail}</p></article>)}
+          </div>
+          <p className="mt-5 text-center text-xs text-slate-500">Números consolidados do histórico de operações atendidas pela plataforma.</p>
+        </div>
+      </section>
+
       <section className="bg-white px-6 py-20 lg:px-8">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Soluções por desafio</p>
@@ -248,6 +287,15 @@ export default function Home() {
                 <p className="mt-3 leading-7 text-slate-700">{item.text}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="overflow-hidden bg-[#07111f] px-6 py-24 text-white lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="max-w-4xl"><p className="text-sm font-black uppercase tracking-[0.35em] text-sky-300">Problemas que custam vendas</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Quando a operação depende de e-mails, planilhas e informações dispersas, o time perde velocidade.</h2><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">O SISBlink foi evoluído a partir da rotina comercial para eliminar atritos que aparecem antes, durante e depois do atendimento.</p></div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2">
+            {painPoints.map((pain, index) => <article key={pain.title} className="rounded-3xl border border-white/10 bg-white/[0.05] p-7 backdrop-blur"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-400/10 font-black text-red-300">0{index + 1}</span><div><h3 className="text-xl font-black">{pain.title}</h3><p className="mt-3 leading-7 text-slate-300">{pain.text}</p><p className="mt-5 border-t border-white/10 pt-4 font-bold text-emerald-300">✓ {pain.result}</p></div></div></article>)}
           </div>
         </div>
       </section>
@@ -447,6 +495,22 @@ export default function Home() {
               ))}
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="bg-[#eef5fb] px-6 py-24 lg:px-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">
+          <div><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Segurança por arquitetura</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Informações comerciais protegidas em todas as etapas.</h2><p className="mt-6 text-lg leading-8 text-slate-700">Segurança não é apenas um selo visual. O SISBlink valida identidade, empresa, marca, coleção e permissões no servidor antes de liberar dados ou executar ações.</p><Link href="/contato" className="mt-7 inline-flex font-black text-blue-700 hover:text-blue-500">Converse sobre os requisitos da sua operação →</Link></div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {[["Acesso controlado", "Perfis, permissões e escopo comercial por usuário."], ["Regras no servidor", "Preços, estoque e validações sensíveis não dependem do navegador."], ["Infraestrutura Azure", "Aplicação publicada com HTTPS e serviços gerenciados na nuvem Microsoft."], ["Contato protegido", "Formulário com Cloudflare Turnstile, validação e proteção contra automações."], ["Segredos protegidos", "Chaves e credenciais permanecem no ambiente seguro do servidor."], ["Rastreabilidade", "Operações críticas possuem validações e registros para apoio à gestão."]].map(([title, text]) => <article key={title} className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-xl font-black text-emerald-700">✓</div><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 leading-7 text-slate-600">{text}</p></article>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-white px-6 py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl"><div className="mx-auto max-w-3xl text-center"><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Quem usa, recomenda</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">A experiência de quem vende todos os dias com o SISBlink.</h2></div>
+          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">{testimonials.map((item) => <figure key={`${item.name}-${item.company}`} className="flex min-h-64 flex-col rounded-3xl border border-slate-200 bg-slate-50 p-7 shadow-sm"><div className="text-4xl font-black leading-none text-blue-300">“</div><blockquote className="mt-4 flex-1 text-lg font-bold leading-8 text-slate-800">{item.quote}</blockquote><figcaption className="mt-6 border-t border-slate-200 pt-5"><p className="font-black text-blue-800">{item.name}</p><p className="text-sm text-slate-500">{item.company}</p></figcaption></figure>)}</div>
+          <p className="mt-6 text-center text-sm text-slate-500">Depoimentos espontâneos de usuários, reproduzidos com pequenos ajustes de pontuação e clareza.</p>
         </div>
       </section>
 
