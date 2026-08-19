@@ -111,7 +111,7 @@ export default function Home() {
               href="/contato"
               className="rounded-full bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
             >
-              Solicitar demonstração
+              Demonstração gratuita
             </Link>
           </header>
 
@@ -139,7 +139,7 @@ export default function Home() {
                   href="/contato"
                   className="rounded-full bg-blue-500 px-8 py-4 text-center font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
                 >
-                  Quero uma demonstração ↗
+                  Solicitar demonstração gratuita ↗
                 </Link>
 
                 <a
@@ -149,6 +149,10 @@ export default function Home() {
                   Conhecer o SISBlink
                 </a>
               </div>
+
+              <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-300">
+                <span className="text-emerald-300">✓</span> Gratuita, personalizada e sem compromisso.
+              </p>
 
               <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
                 {metrics.map((item) => (

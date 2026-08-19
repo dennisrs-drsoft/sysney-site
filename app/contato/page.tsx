@@ -37,7 +37,7 @@ export default async function ContatoPage({ searchParams }: Props) {
             </Link>
 
             <p className="mt-14 text-sm font-black uppercase tracking-[0.35em] text-sky-300">
-              Demonstração
+              Demonstração gratuita
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
@@ -45,7 +45,7 @@ export default async function ContatoPage({ searchParams }: Props) {
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              Preencha o formulário para avaliarmos como o SISBlink pode apoiar
+              Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
               sua marca, representantes, franquias, multimarcas e integrações
               comerciais.
             </p>
