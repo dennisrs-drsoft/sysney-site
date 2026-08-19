@@ -154,6 +154,21 @@ export default function Home() {
                 <span className="text-emerald-300">✓</span> Gratuita, personalizada e sem compromisso.
               </p>
 
+              <a
+                href="#seguranca"
+                aria-label="Conheça os recursos de segurança do SISBlink"
+                className="mt-5 inline-flex items-center gap-3 rounded-xl border border-emerald-300/35 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100 shadow-[0_0_0_1px_#34d3990a,0_12px_35px_#052e2b33] backdrop-blur transition hover:border-emerald-300/60 hover:bg-emerald-300/15"
+              >
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-300">
+                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 3 5.5 5.6v5.1c0 4.4 2.7 8.2 6.5 10.3 3.8-2.1 6.5-5.9 6.5-10.3V5.6L12 3Z" />
+                    <path d="m9.2 12 1.8 1.8 3.9-4" />
+                  </svg>
+                </span>
+                <span><span className="block">Ambiente seguro</span><span className="block text-[11px] font-medium text-emerald-100/65">Proteção aplicada em toda a operação</span></span>
+                <span aria-hidden="true" className="ml-1 text-emerald-300">→</span>
+              </a>
+
               <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
                 {metrics.map((item) => (
                   <div
@@ -449,7 +464,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#eef5fb] px-6 py-24 lg:px-8">
+      <section id="seguranca" className="scroll-mt-8 bg-[#eef5fb] px-6 py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">
           <div><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Segurança por arquitetura</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Informações comerciais protegidas em todas as etapas.</h2><p className="mt-6 text-lg leading-8 text-slate-700">Segurança não é apenas um selo visual. O SISBlink valida identidade, empresa, marca, coleção e permissões no servidor antes de liberar dados ou executar ações.</p><Link href="/contato" className="mt-7 inline-flex font-black text-blue-700 hover:text-blue-500">Converse sobre os requisitos da sua operação →</Link></div>
           <div className="grid gap-4 sm:grid-cols-2">
