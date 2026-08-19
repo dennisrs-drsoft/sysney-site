@@ -55,6 +55,7 @@ const painPoints = [
   { title: "Catálogos presos ao e-mail", text: "Anexos pesados, mensagens que voltam ou caem no spam tornam a apresentação da coleção lenta e pouco confiável.", result: "Catálogo visual acessível pelo navegador" },
   { title: "Planilhas e perda de informação", text: "Arquivos difíceis de compartilhar e alterações não salvas colocam dados comerciais importantes em risco.", result: "Dados centralizados e fluxo rastreável" },
   { title: "Demora para iniciar pedidos", text: "Copiar modelos, preencher clientes e redigitar produtos consome o tempo que deveria ser usado para atender e vender.", result: "Cliente, produto e regras no mesmo processo" },
+  { title: "Clientes que não confirmam o pedido", text: "E-mails podem ficar sem resposta, cair no spam ou atrasar a assinatura do termo de venda, deixando o pedido pendente e exigindo cobranças manuais.", result: "PDF e resumo pelo WhatsApp, confirmação automática por botão, controle da resposta, auditoria e documento com assinatura digital" },
 ];
 
 const testimonials = [
