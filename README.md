@@ -1,36 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Site institucional da SYSNEY
 
-## Getting Started
+Site institucional da SYSNEY Informática e do SISBlink, desenvolvido com Next.js, TypeScript e Tailwind CSS. A aplicação usa renderização híbrida do Next.js e uma Server Action integrada ao SendGrid para receber contatos.
 
-First, run the development server:
+## Desenvolvimento local
 
-```bash
+Pré-requisitos:
+
+- Node.js compatível com a versão indicada pelo Next.js;
+- npm;
+- Git.
+
+Instale as dependências e inicie o servidor:
+
+```powershell
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Acesse `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Publicação no Azure
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+O projeto está associado ao Azure Static Web App `sysney`, no grupo de recursos `sysney`. O deploy de produção é realizado pelo workflow do GitHub Actions ligado à branch `main`.
 
-## Learn More
+O Azure CLI não envia diretamente o conteúdo de um Static Web App, e o SWA CLI não oferece suporte oficial ao deploy de aplicações Next.js híbridas. Por isso, o script local prepara e valida o projeto e, no modo de publicação, envia a branch `main` para o GitHub, acionando o workflow oficial do Azure. Isso preserva as Server Actions.
 
-To learn more about Next.js, take a look at the following resources:
+### Pré-requisitos
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Node.js, npm e Git disponíveis no `PATH`;
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli) instalado;
+- acesso à assinatura que contém o recurso `sysney`;
+- autenticação Git configurada para o repositório;
+- alterações revisadas e commitadas na branch `main` antes da publicação.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Login no Azure
 
-## Deploy on Vercel
+```powershell
+az login
+az account show
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Se houver mais de uma assinatura, selecione a correta:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```powershell
+az account set --subscription "NOME OU ID DA ASSINATURA"
+```
+
+### Preparar sem publicar
+
+Este comando valida ferramentas, autenticação, recurso e variáveis do Azure, instala dependências, executa lint e gera o build. Ele não faz deploy, commit ou push:
+
+```powershell
+npm run deploy:azure:all -- -PrepareOnly
+```
+
+### Publicar
+
+Depois de revisar e fazer o commit manualmente na branch `main`:
+
+```powershell
+npm run deploy:azure:all
+```
+
+O script interrompe imediatamente em caso de falha, não exibe segredos, acompanha o GitHub Actions e mostra a URL publicada ao final.
+
+### Variáveis necessárias no Azure
+
+Configure estas variáveis em **Azure Portal → Static Web App `sysney` → Configuração**:
+
+- `SENDGRID_API_KEY`
+- `SENDGRID_FROM_EMAIL`
+- `SENDGRID_TO_EMAIL`
+
+O remetente indicado por `SENDGRID_FROM_EMAIL` precisa estar autorizado no SendGrid. Nunca coloque esses valores no código, no README ou no repositório.
+
+Para desenvolvimento local, os mesmos nomes podem ser definidos em `.env.local`, que é ignorado pelo Git.
+
+## Verificações isoladas
+
+```powershell
+npm run lint
+npm run build
+```
+
+Rotas principais:
+
+- `/` — página institucional;
+- `/contato` — formulário integrado ao SendGrid;
+- `/suporte/confirmacao-whatsapp` — manual para representantes.

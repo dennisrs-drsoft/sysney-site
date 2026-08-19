@@ -50,6 +50,7 @@ export default function Home() {
                   alt="SYSNEY Informática"
                   width={260}
                   height={260}
+                  sizes="(min-width: 768px) 160px, 128px"
                   priority
                   className="h-auto w-32 md:w-40"
                 />
@@ -135,10 +136,11 @@ export default function Home() {
               <div className="absolute left-0 top-6 w-[82%] overflow-hidden rounded-xl border border-blue-300/30 bg-slate-900 p-2 shadow-2xl shadow-blue-950/50">
                 <div className="overflow-hidden bg-white">
                   <Image
-                    src="/sisblink/home.png"
+                    src="/sisblink/home.webp"
                     alt="Tela principal do SISBlink"
-                    width={1500}
-                    height={850}
+                    width={1918}
+                    height={1079}
+                    sizes="(min-width: 1024px) 41vw, 82vw"
                     className="h-auto w-full"
                     priority
                   />
@@ -263,10 +265,11 @@ export default function Home() {
           <div className="rounded-xl bg-[#07111f] p-3 shadow-2xl shadow-slate-300">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/catalogo-pedido.png"
+                src="/sisblink/catalogo-pedido.webp"
                 alt="Catálogo SISBlink"
-                width={1600}
-                height={950}
+                width={1916}
+                height={1073}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
             </div>
@@ -288,10 +291,11 @@ export default function Home() {
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-2xl shadow-slate-200">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/catalogo.png"
+                src="/sisblink/catalogo.webp"
                 alt="Catálogo visual SISBlink"
-                width={1600}
-                height={950}
+                width={1214}
+                height={929}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
             </div>
@@ -304,10 +308,11 @@ export default function Home() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/estoque.png"
+                src="/sisblink/estoque.webp"
                 alt="Saldo por tamanho SISBlink"
-                width={1500}
-                height={950}
+                width={1258}
+                height={892}
+                sizes="(min-width: 1024px) 53vw, 100vw"
                 className="h-auto w-full"
               />
             </div>
@@ -347,10 +352,11 @@ export default function Home() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/pedidos.png"
+                src="/sisblink/pedidos.webp"
                 alt="Painel de pedidos SISBlink"
-                width={1600}
-                height={950}
+                width={1363}
+                height={767}
+                sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
             </div>
@@ -363,10 +369,11 @@ export default function Home() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/dashboard.png"
+                src="/sisblink/dashboard.webp"
                 alt="Dashboard comercial SISBlink"
-                width={1500}
-                height={950}
+                width={1263}
+                height={847}
+                sizes="(min-width: 1024px) 55vw, 100vw"
                 className="h-auto w-full"
               />
             </div>

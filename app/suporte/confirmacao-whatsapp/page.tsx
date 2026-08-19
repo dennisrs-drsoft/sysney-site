@@ -103,6 +103,7 @@ export default function ManualConfirmacaoWhatsAppPage() {
                 alt="SYSNEY Informática"
                 width={160}
                 height={160}
+                sizes="(min-width: 768px) 128px, 112px"
                 priority
                 className="h-auto w-28 md:w-32"
               />
@@ -209,6 +210,7 @@ function OfficialWhatsAppSection() {
               alt="WhatsApp Oficial SISBlink"
               width={190}
               height={190}
+              sizes="190px"
               className="h-36 w-36 rounded-2xl border border-slate-200 object-contain p-2"
             />
 
