@@ -166,73 +166,19 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="relative min-h-[520px]">
-              <div className="absolute left-0 top-6 w-[82%] overflow-hidden rounded-xl border border-blue-300/30 bg-slate-900 p-2 shadow-2xl shadow-blue-950/50">
-                <div className="overflow-hidden bg-white">
-                  <Image
-                    src="/sisblink/home.webp"
-                    alt="Tela principal do SISBlink"
-                    width={1918}
-                    height={1079}
-                    sizes="(min-width: 1024px) 41vw, 82vw"
-                    className="h-auto w-full"
-                    priority
-                  />
-                </div>
-              </div>
+            <div className="relative min-h-[570px] overflow-hidden rounded-[2rem] border border-white/15 bg-[#102035] shadow-2xl shadow-black/40">
+              <Image src="/sisblink/catalogo.webp" alt="Ambiente de coleção integrado ao SISBlink" width={1214} height={929} sizes="(min-width: 1024px) 52vw, 100vw" priority className="absolute inset-0 h-full w-full object-cover opacity-25" />
+              <div className="absolute inset-0 bg-[linear-gradient(115deg,#061321_12%,#0d2a3be8_48%,#164e63aa),radial-gradient(circle_at_75%_20%,#38bdf855,transparent_30%)]" />
+              <div className="absolute inset-0 bg-[linear-gradient(#ffffff08_1px,transparent_1px),linear-gradient(90deg,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px]" />
 
-              <div className="absolute right-0 top-28 w-[38%] rounded-2xl bg-white p-5 text-slate-950 shadow-2xl shadow-black/30">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-sm font-black">Pedidos por grupo</p>
-                  <p className="text-xs text-slate-500">tempo real</p>
-                </div>
+              <div className="absolute left-6 top-6 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur md:left-8 md:top-8"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-200">SISBlink Web</p><p className="mt-1 text-xs font-bold text-white">Sales platform</p></div>
+              <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs font-bold text-emerald-100 backdrop-blur"><span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_#6ee7b7]" /> Operação conectada</div>
 
-                {[
-                  ["Grupo Atlas", "82%", "bg-cyan-400"],
-                  ["Grupo Vértice", "64%", "bg-blue-500"],
-                  ["Grupo Milano", "46%", "bg-violet-500"],
-                  ["Grupo Aurora", "72%", "bg-emerald-400"],
-                ].map(([name, width, color]) => (
-                  <div key={name} className="mb-4">
-                    <div className="mb-1 flex justify-between text-xs font-bold">
-                      <span>{name}</span>
-                      <span>{width}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-slate-200">
-                      <div
-                        className={`h-2 rounded-full ${color}`}
-                        style={{ width }}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <div className="absolute left-7 top-32 max-w-[72%] md:left-10 md:top-36"><p className="text-xs font-black uppercase tracking-[0.35em] text-sky-200">Coleção atual</p><p className="mt-3 text-4xl font-black uppercase leading-none tracking-[-0.04em] text-white/95 md:text-6xl">Identidade<br/><span className="text-sky-300">em movimento.</span></p><div className="mt-6 flex gap-2" aria-label="Cartela de cores da coleção"><span className="h-5 w-5 rounded-full border border-white/30 bg-[#e8ded0]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#29465b]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#b65b46]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#8ba59c]"/></div></div>
 
-              <div className="absolute bottom-6 left-2 w-[52%] rounded-2xl border border-blue-400/40 bg-[#07111f]/95 p-5 shadow-2xl shadow-black/30 backdrop-blur">
-                <p className="font-bold text-slate-200">História da coleção</p>
-                <p className="mt-3 text-3xl font-black">R$ 165.562,00</p>
-                <p className="mt-1 text-sm text-slate-400">
-                  Meta: R$ 180.000,00, 92,0% atingido
-                </p>
-                <div className="mt-5 h-2 rounded-full bg-white/10">
-                  <div className="h-2 w-[92%] rounded-full bg-emerald-400" />
-                </div>
-              </div>
+              <div className="absolute right-5 top-44 w-[42%] rotate-2 overflow-hidden rounded-2xl border border-white/20 bg-white p-2 text-slate-950 shadow-2xl md:right-8 md:w-[38%]"><div className="overflow-hidden rounded-xl bg-slate-50"><Image src="/sisblink/produto-2.png" alt="Produto integrado à coleção no SISBlink" width={1141} height={500} sizes="240px" className="h-28 w-full object-cover object-left md:h-36" /></div><div className="flex items-center justify-between px-2 pb-1 pt-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Produto conectado</p><p className="text-xs font-black">Cor · Grade · Preço</p></div><span className="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-black text-emerald-700">Disponível</span></div></div>
 
-              <div className="absolute bottom-8 right-0 w-[38%] rounded-2xl border border-blue-400/40 bg-[#07111f]/95 p-5 shadow-2xl shadow-black/30 backdrop-blur">
-                <p className="font-bold text-slate-200">Clientes x Meta</p>
-                <p className="mt-2 text-3xl font-black">2</p>
-                <div className="mt-5 space-y-3 text-xs">
-                  <div className="flex justify-between">
-                    <span>Cliente Alfa</span>
-                    <span className="text-emerald-400">104,01%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Cliente Beta</span>
-                    <span className="text-red-300">0,00%</span>
-                  </div>
-                </div>
-              </div>
+              <div className="absolute bottom-6 left-5 right-5 rounded-[1.5rem] border border-white/15 bg-[#07111f]/90 p-5 shadow-2xl backdrop-blur-xl md:bottom-8 md:left-8 md:right-auto md:w-[66%] md:p-6"><p className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-200">A experiência da marca, com a precisão da operação.</p><p className="mt-3 text-xl font-black leading-tight text-white md:text-2xl">SISBlink Web + coleção da marca</p><p className="mt-3 max-w-lg text-xs leading-5 text-slate-300 md:text-sm">Identidade visual, contexto comercial e controle seguro para conduzir todo o ciclo de vendas.</p><div className="mt-4 flex items-center gap-3 text-[10px] font-bold text-slate-300"><span className="rounded-full border border-white/15 px-3 py-1.5">Catálogo</span><span className="rounded-full border border-white/15 px-3 py-1.5">Pedido</span><span className="rounded-full border border-white/15 px-3 py-1.5">Estoque</span></div></div>
             </div>
           </div>
         </div>
