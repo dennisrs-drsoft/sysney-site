@@ -1,4 +1,5 @@
 import "./globals.css";
+import { ScrollToTop } from "./components/scroll-to-top";
 
 export const metadata = {
   title: {
@@ -23,7 +24,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ScrollToTop />
+      </body>
     </html>
   );
 }
