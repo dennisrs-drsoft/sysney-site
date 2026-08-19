@@ -69,7 +69,7 @@ const testimonials = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white text-slate-950">
+    <main className="min-h-screen bg-white pb-20 text-slate-950 md:pb-0">
       <section className="relative min-h-screen overflow-hidden bg-[#07111f] text-white">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#2563eb66,transparent_32%),radial-gradient(circle_at_bottom_right,#0ea5e966,transparent_28%),linear-gradient(180deg,#05101f,#07111f)]" />
         <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle,#1d4ed855_1px,transparent_1px)] bg-[length:18px_18px] opacity-30" />
@@ -115,7 +115,7 @@ export default function Home() {
             </Link>
           </header>
 
-          <div className="grid items-center gap-12 py-14 lg:min-h-[calc(100vh-112px)] lg:grid-cols-[0.82fr_1.18fr] lg:py-16 xl:gap-16">
+          <div className="grid items-center gap-10 py-10 sm:py-14 lg:min-h-[calc(100vh-112px)] lg:grid-cols-[0.82fr_1.18fr] lg:py-16 xl:gap-16">
             <div>
               <div className="mb-6 inline-flex rounded-full border border-sky-400/40 bg-sky-400/10 px-4 py-2 text-sm font-bold uppercase tracking-wide text-sky-200">
                 Plataforma completa para moda e atacado B2B
@@ -169,15 +169,15 @@ export default function Home() {
                 <span aria-hidden="true" className="ml-1 text-emerald-300">→</span>
               </a>
 
-              <div className="mt-10 grid max-w-2xl gap-4 sm:grid-cols-3">
+              <div className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:mt-10 sm:gap-4">
                 {metrics.map((item) => (
                   <div
                     key={item.value}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-5 shadow-xl shadow-black/10"
+                    className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-xl shadow-black/10 sm:p-5"
                   >
-                    <p className="text-2xl">{item.icon}</p>
-                    <p className="mt-2 text-3xl font-black">{item.value}</p>
-                    <p className="mt-1 text-sm leading-5 text-slate-300">
+                    <p className="hidden text-2xl sm:block">{item.icon}</p>
+                    <p className="text-2xl font-black sm:mt-2 sm:text-3xl">{item.value}</p>
+                    <p className="mt-1 text-[11px] leading-4 text-slate-300 sm:text-sm sm:leading-5">
                       {item.label}
                     </p>
                   </div>
@@ -185,7 +185,7 @@ export default function Home() {
               </div>
             </div>
 
-            <div className="relative min-h-[680px] overflow-hidden rounded-[2rem] border border-white/15 bg-[#102035] shadow-2xl shadow-black/40 lg:min-h-[720px] xl:min-h-[760px]">
+            <div className="relative min-h-[510px] overflow-hidden rounded-[2rem] border border-white/15 bg-[#102035] shadow-2xl shadow-black/40 sm:min-h-[680px] lg:min-h-[720px] xl:min-h-[760px]">
               <Image src="/sisblink/catalogo.webp" alt="Ambiente de coleção integrado ao SISBlink" width={1214} height={929} sizes="(min-width: 1024px) 52vw, 100vw" priority className="absolute inset-0 h-full w-full object-cover opacity-25" />
               <div className="absolute inset-0 bg-[linear-gradient(115deg,#061321_12%,#0d2a3be8_48%,#164e63aa),radial-gradient(circle_at_75%_20%,#38bdf855,transparent_30%)]" />
               <div className="absolute inset-0 bg-[linear-gradient(#ffffff08_1px,transparent_1px),linear-gradient(90deg,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px]" />
@@ -193,9 +193,9 @@ export default function Home() {
               <div className="absolute left-6 top-6 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur md:left-8 md:top-8"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-200">SISBlink Web</p><p className="mt-1 text-xs font-bold text-white">Sales platform</p></div>
               <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs font-bold text-emerald-100 backdrop-blur"><span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_#6ee7b7]" /> Operação conectada</div>
 
-              <div className="absolute left-7 top-32 max-w-[88%] md:left-10 md:top-36"><p className="text-xs font-black uppercase tracking-[0.35em] text-sky-200">Coleção atual</p><p className="mt-3 text-4xl font-black uppercase leading-none tracking-[-0.04em] text-white/95 md:text-6xl xl:text-7xl">Identidade<br/><span className="text-sky-300">em movimento.</span></p><div className="mt-6 flex gap-2" aria-label="Cartela de cores da coleção"><span className="h-5 w-5 rounded-full border border-white/30 bg-[#e8ded0]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#29465b]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#b65b46]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#8ba59c]"/></div></div>
+              <div className="absolute left-7 top-28 max-w-[88%] sm:top-32 md:left-10 md:top-36"><p className="text-xs font-black uppercase tracking-[0.35em] text-sky-200">Coleção atual</p><p className="mt-3 text-3xl font-black uppercase leading-none tracking-[-0.04em] text-white/95 sm:text-4xl md:text-6xl xl:text-7xl">Identidade<br/><span className="text-sky-300">em movimento.</span></p><div className="mt-5 flex gap-2 sm:mt-6" aria-label="Cartela de cores da coleção"><span className="h-5 w-5 rounded-full border border-white/30 bg-[#e8ded0]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#29465b]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#b65b46]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#8ba59c]"/></div></div>
 
-              <div className="absolute right-5 top-[330px] w-[42%] rotate-2 overflow-hidden rounded-2xl border border-white/20 bg-white p-2 text-slate-950 shadow-2xl md:right-8 md:top-[350px] md:w-[36%] xl:top-[380px] xl:w-[34%]"><div className="overflow-hidden rounded-xl bg-slate-50"><Image src="/sisblink/produto-2.png" alt="Produto integrado à coleção no SISBlink" width={1141} height={500} sizes="280px" className="h-28 w-full object-cover object-left md:h-36 xl:h-40" /></div><div className="flex items-center justify-between px-2 pb-1 pt-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Produto conectado</p><p className="text-xs font-black">Cor · Grade · Preço</p></div><span className="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-black text-emerald-700">Disponível</span></div></div>
+              <div className="absolute right-5 top-[330px] hidden w-[42%] rotate-2 overflow-hidden rounded-2xl border border-white/20 bg-white p-2 text-slate-950 shadow-2xl sm:block md:right-8 md:top-[350px] md:w-[36%] xl:top-[380px] xl:w-[34%]"><div className="overflow-hidden rounded-xl bg-slate-50"><Image src="/sisblink/produto-2.png" alt="Produto integrado à coleção no SISBlink" width={1141} height={500} sizes="280px" className="h-28 w-full object-cover object-left md:h-36 xl:h-40" /></div><div className="flex items-center justify-between px-2 pb-1 pt-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Produto conectado</p><p className="text-xs font-black">Cor · Grade · Preço</p></div><span className="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-black text-emerald-700">Disponível</span></div></div>
 
               <div className="absolute bottom-6 left-5 right-5 rounded-[1.5rem] border border-white/15 bg-[#07111f]/90 p-5 shadow-2xl backdrop-blur-xl md:bottom-8 md:left-8 md:right-auto md:w-[62%] md:p-6 xl:w-[58%]"><p className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-200">A experiência da marca, com a precisão da operação.</p><p className="mt-3 text-xl font-black leading-tight text-white md:text-2xl">SISBlink Web + coleção da marca</p><p className="mt-3 max-w-lg text-xs leading-5 text-slate-300 md:text-sm">Identidade visual, contexto comercial e controle seguro para conduzir todo o ciclo de vendas.</p><div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-300"><span className="rounded-full border border-white/15 px-3 py-1.5">Catálogo</span><span className="rounded-full border border-white/15 px-3 py-1.5">Pedido</span><span className="rounded-full border border-white/15 px-3 py-1.5">Estoque</span></div></div>
             </div>
@@ -203,46 +203,46 @@ export default function Home() {
         </div>
       </section>
 
-      <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-16 lg:px-8">
+      <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-12 sm:py-16 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-center text-sm font-black uppercase tracking-[0.3em] text-blue-700">Experiência construída em operações reais</p>
           <h2 className="mx-auto mt-4 max-w-3xl text-center text-3xl font-black tracking-tight md:text-4xl">Marcas reconhecidas presentes em operações atendidas pelo SISBlink.</h2>
-          <div className="mt-9 flex flex-wrap justify-center gap-3">
-            {trustedBrands.map((brand) => <span key={brand} className="rounded-full border border-slate-200 bg-white px-5 py-3 text-lg font-black tracking-tight text-slate-700 shadow-sm">{brand}</span>)}
+          <div className="-mx-6 mt-7 flex snap-x snap-mandatory gap-3 overflow-x-auto px-6 pb-3 sm:mx-0 sm:mt-9 sm:flex-wrap sm:justify-center sm:overflow-visible sm:px-0 sm:pb-0">
+            {trustedBrands.map((brand) => <span key={brand} className="shrink-0 snap-start rounded-full border border-slate-200 bg-white px-5 py-3 text-base font-black tracking-tight text-slate-700 shadow-sm sm:text-lg">{brand}</span>)}
           </div>
-          <div className="mt-12 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {businessNumbers.map((item) => <article key={item.label} className="relative overflow-hidden rounded-3xl border border-blue-100 bg-white p-7 shadow-sm"><span className="absolute right-5 top-4 text-3xl text-blue-100">{item.icon}</span><p className="text-4xl font-black tracking-tight text-blue-700 md:text-5xl">{item.value}</p><p className="mt-2 text-lg font-black text-slate-900">{item.label}</p><p className="text-sm text-slate-500">{item.detail}</p></article>)}
+          <div className="mt-8 grid grid-cols-2 gap-3 sm:mt-12 sm:gap-4 lg:grid-cols-4">
+            {businessNumbers.map((item) => <article key={item.label} className="relative overflow-hidden rounded-2xl border border-blue-100 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-7"><span className="absolute right-4 top-3 text-2xl text-blue-100 sm:right-5 sm:top-4 sm:text-3xl">{item.icon}</span><p className="text-3xl font-black tracking-tight text-blue-700 sm:text-4xl md:text-5xl">{item.value}</p><p className="mt-1 font-black text-slate-900 sm:mt-2 sm:text-lg">{item.label}</p><p className="text-xs text-slate-500 sm:text-sm">{item.detail}</p></article>)}
           </div>
           <p className="mt-5 text-center text-xs text-slate-500">Números consolidados do histórico de operações atendidas pela plataforma.</p>
         </div>
       </section>
 
-      <section className="bg-white px-6 py-20 lg:px-8">
+      <section className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Soluções por desafio</p>
           <h2 className="mt-4 max-w-4xl text-4xl font-black tracking-tight md:text-5xl">Tecnologia comercial para vender coleções a franquias, multimarcas e outros clientes B2B.</h2>
-          <div className="mt-10 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="-mx-6 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-10 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-4">
             {[
               ["Sistema de força de vendas", "Organize representantes, clientes, catálogo e pedidos em uma jornada conectada.", "/sistema-forca-de-vendas"],
               ["Plataforma de vendas B2B", "Transforme a coleção em um showroom digital preparado para o atacado.", "/plataforma-vendas-b2b"],
               ["Franquias e multimarcas", "Atenda diferentes lojas e grupos preservando o contexto de cada pedido.", "/vendas-para-franquias-e-multimarcas"],
               ["Integrações ERP", "Conecte produtos, clientes, preços, estoque e pedidos ao ecossistema da empresa.", "/integracoes-erp"],
-            ].map(([title, text, href]) => <Link key={href} href={href} className="group rounded-3xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl"><h3 className="text-xl font-black text-blue-800">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p><span className="mt-5 inline-block font-black text-blue-600 group-hover:text-blue-500">Saiba mais →</span></Link>)}
+            ].map(([title, text, href]) => <Link key={href} href={href} className="group min-w-[82vw] snap-center rounded-3xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl md:min-w-0"><h3 className="text-xl font-black text-blue-800">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p><span className="mt-5 inline-block font-black text-blue-600 group-hover:text-blue-500">Saiba mais →</span></Link>)}
           </div>
         </div>
       </section>
 
-      <section id="funcionalidades" className="bg-white px-6 py-20 lg:px-8">
+      <section id="funcionalidades" className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <h2 className="text-center text-3xl font-black tracking-tight md:text-4xl">
             Do catálogo ao pedido finalizado, com controle total.
           </h2>
 
-          <div className="mt-10 grid gap-6 lg:grid-cols-3">
+          <div className="-mx-6 mt-8 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 lg:mx-0 lg:mt-10 lg:grid lg:grid-cols-3 lg:overflow-visible lg:px-0 lg:pb-0">
             {pillars.map((item, index) => (
               <div
                 key={item.title}
-                className="rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl"
+                className="min-w-[82vw] snap-center rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl lg:min-w-0"
               >
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-2xl font-black text-white shadow-lg shadow-blue-500/30">
                   {index === 0 ? "▣" : index === 1 ? "▤" : "↗"}
@@ -257,16 +257,16 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="overflow-hidden bg-[#07111f] px-6 py-24 text-white lg:px-8">
+      <section className="overflow-hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <div className="max-w-4xl"><p className="text-sm font-black uppercase tracking-[0.35em] text-sky-300">Problemas que custam vendas</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Quando a operação depende de e-mails, planilhas e informações dispersas, o time perde velocidade.</h2><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">O SISBlink foi evoluído a partir da rotina comercial para eliminar atritos que aparecem antes, durante e depois do atendimento.</p></div>
-          <div className="mt-12 grid gap-5 md:grid-cols-2">
-            {painPoints.map((pain, index) => <article key={pain.title} className="rounded-3xl border border-white/10 bg-white/[0.05] p-7 backdrop-blur"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-400/10 font-black text-red-300">0{index + 1}</span><div><h3 className="text-xl font-black">{pain.title}</h3><p className="mt-3 leading-7 text-slate-300">{pain.text}</p><p className="mt-5 border-t border-white/10 pt-4 font-bold text-emerald-300">✓ {pain.result}</p></div></div></article>)}
+          <div className="-mx-6 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-12 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0">
+            {painPoints.map((pain, index) => <article key={pain.title} className="min-w-[85vw] snap-center rounded-3xl border border-white/10 bg-white/[0.05] p-6 backdrop-blur md:min-w-0 md:p-7"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-400/10 font-black text-red-300">0{index + 1}</span><div><h3 className="text-xl font-black">{pain.title}</h3><p className="mt-3 leading-7 text-slate-300">{pain.text}</p><p className="mt-5 border-t border-white/10 pt-4 font-bold text-emerald-300">✓ {pain.result}</p></div></div></article>)}
           </div>
         </div>
       </section>
 
-      <section id="solucoes" className="bg-[#eef5fb] px-6 py-24 lg:px-8">
+      <section id="solucoes" className="bg-[#eef5fb] px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="mb-4 text-sm font-black uppercase tracking-[0.35em] text-blue-700">
@@ -314,7 +314,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-24 lg:px-8">
+      <section className="hidden bg-white px-6 py-16 sm:py-24 md:block lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <div className="mb-10 max-w-3xl">
             <p className="mb-4 text-sm font-black uppercase tracking-[0.35em] text-blue-700">
@@ -340,7 +340,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#07111f] px-6 py-24 text-white lg:px-8">
+      <section className="hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 md:block lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="overflow-hidden bg-white">
@@ -371,7 +371,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#eef5fb] px-6 py-24 lg:px-8">
+      <section className="bg-[#eef5fb] px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div>
             <p className="mb-4 text-sm font-black uppercase tracking-[0.35em] text-blue-700">
@@ -401,7 +401,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-[#07111f] px-6 py-24 text-white lg:px-8">
+      <section className="bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="overflow-hidden bg-white">
@@ -432,7 +432,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="integracoes" className="bg-white px-6 py-24 lg:px-8">
+      <section id="integracoes" className="bg-white px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr]">
             <div>
@@ -450,11 +450,11 @@ export default function Home() {
               <Link href="/integracoes-erp" className="mt-7 inline-flex font-black text-blue-700 hover:text-blue-500">Conheça as possibilidades de integração →</Link>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
               {integrations.map((item) => (
                 <div
                   key={item}
-                  className="rounded-3xl border border-slate-200 bg-slate-50 p-6 text-center font-black shadow-sm"
+                  className="rounded-2xl border border-slate-200 bg-slate-50 p-3 text-center text-xs font-black shadow-sm sm:rounded-3xl sm:p-6 sm:text-base"
                 >
                   {item}
                 </div>
@@ -464,23 +464,23 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="seguranca" className="scroll-mt-8 bg-[#eef5fb] px-6 py-24 lg:px-8">
+      <section id="seguranca" className="scroll-mt-8 bg-[#eef5fb] px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">
           <div><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Segurança por arquitetura</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Informações comerciais protegidas em todas as etapas.</h2><p className="mt-6 text-lg leading-8 text-slate-700">Segurança não é apenas um selo visual. O SISBlink valida identidade, empresa, marca, coleção e permissões no servidor antes de liberar dados ou executar ações.</p><Link href="/contato" className="mt-7 inline-flex font-black text-blue-700 hover:text-blue-500">Converse sobre os requisitos da sua operação →</Link></div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="-mx-6 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 [&>article]:min-w-[78vw] [&>article]:snap-center sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 sm:[&>article]:min-w-0">
             {[["Acesso controlado", "Perfis, permissões e escopo comercial por usuário."], ["Regras no servidor", "Preços, estoque e validações sensíveis não dependem do navegador."], ["Infraestrutura Azure", "Aplicação publicada com HTTPS e serviços gerenciados na nuvem Microsoft."], ["Contato protegido", "Formulário com Cloudflare Turnstile, validação e proteção contra automações."], ["Segredos protegidos", "Chaves e credenciais permanecem no ambiente seguro do servidor."], ["Rastreabilidade", "Operações críticas possuem validações e registros para apoio à gestão."]].map(([title, text]) => <article key={title} className="rounded-3xl border border-blue-100 bg-white p-6 shadow-sm"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-100 text-xl font-black text-emerald-700">✓</div><h3 className="mt-5 text-lg font-black">{title}</h3><p className="mt-2 leading-7 text-slate-600">{text}</p></article>)}
           </div>
         </div>
       </section>
 
-      <section className="bg-white px-6 py-24 lg:px-8">
+      <section className="bg-white px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto max-w-[1600px]"><div className="mx-auto max-w-3xl text-center"><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Quem usa, recomenda</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">A experiência de quem vende todos os dias com o SISBlink.</h2></div>
-          <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-3">{testimonials.map((item) => <figure key={`${item.name}-${item.company}`} className="flex min-h-64 flex-col rounded-3xl border border-slate-200 bg-slate-50 p-7 shadow-sm"><div className="text-4xl font-black leading-none text-blue-300">“</div><blockquote className="mt-4 flex-1 text-lg font-bold leading-8 text-slate-800">{item.quote}</blockquote><figcaption className="mt-6 border-t border-slate-200 pt-5"><p className="font-black text-blue-800">{item.name}</p><p className="text-sm text-slate-500">{item.company}</p></figcaption></figure>)}</div>
+          <div className="-mx-6 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-12 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3">{testimonials.map((item) => <figure key={`${item.name}-${item.company}`} className="flex min-h-60 min-w-[82vw] snap-center flex-col rounded-3xl border border-slate-200 bg-slate-50 p-7 shadow-sm md:min-h-64 md:min-w-0"><div className="text-4xl font-black leading-none text-blue-300">“</div><blockquote className="mt-4 flex-1 text-lg font-bold leading-8 text-slate-800">{item.quote}</blockquote><figcaption className="mt-6 border-t border-slate-200 pt-5"><p className="font-black text-blue-800">{item.name}</p><p className="text-sm text-slate-500">{item.company}</p></figcaption></figure>)}</div>
           <p className="mt-6 text-center text-sm text-slate-500">Depoimentos espontâneos de usuários, reproduzidos com pequenos ajustes de pontuação e clareza.</p>
         </div>
       </section>
 
-      <section id="contato" className="bg-blue-500 px-6 py-24 text-white lg:px-8">
+      <section id="contato" className="bg-blue-500 px-6 py-16 text-white sm:py-24 lg:px-8">
         <div className="mx-auto max-w-5xl text-center">
           <p className="mb-4 text-sm font-black uppercase tracking-[0.35em]">
             Próximo passo
@@ -509,6 +509,11 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <div className="fixed inset-x-3 bottom-3 z-40 flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-[#07111f]/95 p-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl md:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-2 text-xs font-bold text-emerald-100"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-300">✓</span><span className="truncate">Ambiente seguro</span></div>
+        <Link href="/contato" className="shrink-0 rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30">Demonstração grátis</Link>
+      </div>
 
       <footer id="sobre" className="bg-[#07111f] px-6 py-10 text-slate-400 lg:px-8">
         <div className="mx-auto flex max-w-[1600px] flex-col gap-4 md:flex-row md:items-center md:justify-between">
