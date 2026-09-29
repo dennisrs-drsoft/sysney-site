@@ -217,6 +217,103 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="relative overflow-hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,#2563eb33,transparent_28%),radial-gradient(circle_at_85%_75%,#10b98126,transparent_30%)]" />
+        <div className="relative mx-auto max-w-[1600px]">
+          <div className="mx-auto max-w-4xl text-center">
+            <p className="text-sm font-black uppercase tracking-[0.35em] text-sky-300">
+              Produto bom precisa de força comercial
+            </p>
+            <h2 className="mt-4 text-4xl font-black tracking-tight sm:text-5xl md:text-6xl">
+              As melhores coleções não vendem sozinhas.
+            </h2>
+            <p className="mx-auto mt-6 max-w-3xl text-lg leading-8 text-slate-300">
+              Roupas desejadas, mostruários impecáveis e estoque disponível são
+              o ponto de partida. Sem uma operação que transforme tudo isso em
+              ritmo, informação e ação comercial, oportunidades esfriam e
+              vendas ficam pelo caminho.
+            </p>
+          </div>
+
+          <div className="mt-10 grid items-stretch gap-5 lg:mt-14 lg:grid-cols-[1fr_auto_1fr]">
+            <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              {[
+                ["01", "Coleção forte", "Produtos com desejo e potencial de mercado."],
+                ["02", "Mostruário de alto nível", "Uma apresentação que valoriza cada detalhe."],
+                ["03", "Estoque disponível", "Capacidade real para atender a demanda."],
+              ].map(([number, title, text]) => (
+                <article
+                  key={title}
+                  className="rounded-3xl border border-white/10 bg-white/[0.06] p-5 backdrop-blur sm:p-6"
+                >
+                  <div className="flex items-start gap-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 text-sm font-black text-sky-300">
+                      {number}
+                    </span>
+                    <div>
+                      <h3 className="text-lg font-black">{title}</h3>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">{text}</p>
+                    </div>
+                  </div>
+                </article>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-center" aria-hidden="true">
+              <span className="flex h-14 w-14 rotate-90 items-center justify-center rounded-full border border-sky-300/30 bg-sky-300/10 text-2xl font-black text-sky-300 lg:rotate-0">
+                →
+              </span>
+            </div>
+
+            <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/25 bg-gradient-to-br from-blue-600/25 via-sky-500/10 to-emerald-400/15 p-7 shadow-2xl shadow-blue-950/40 sm:p-9">
+              <div className="absolute right-0 top-0 h-40 w-40 translate-x-12 -translate-y-12 rounded-full bg-sky-400/20 blur-3xl" />
+              <div className="relative">
+                <span className="inline-flex rounded-full border border-emerald-300/30 bg-emerald-300/10 px-4 py-2 text-xs font-black uppercase tracking-[0.24em] text-emerald-200">
+                  Com SISBlink
+                </span>
+                <h3 className="mt-6 text-3xl font-black tracking-tight sm:text-4xl">
+                  Potencial comercial em movimento.
+                </h3>
+                <p className="mt-5 leading-7 text-slate-300">
+                  O SISBlink conecta produto, disponibilidade, cliente e estratégia
+                  em uma jornada de venda mais rápida, visual e orientada por dados.
+                </p>
+
+                <div className="mt-7 grid gap-4 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-[#07111f]/55 p-5">
+                    <p className="font-black text-sky-300">Para o representante</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Mais agilidade para apresentar, argumentar, montar pedidos e
+                      acompanhar cada cliente, sem planilhas ou retrabalho.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-[#07111f]/55 p-5">
+                    <p className="font-black text-emerald-300">Para a marca</p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Mais padrão na execução, visibilidade da campanha e ação para
+                      transformar estoque disponível em pedidos.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-9 flex flex-col items-center justify-between gap-6 rounded-3xl border border-white/10 bg-white/[0.05] p-6 text-center sm:p-8 lg:flex-row lg:text-left">
+            <p className="max-w-3xl text-xl font-black leading-8 sm:text-2xl">
+              O SISBlink não substitui o talento do representante nem a força da marca.
+              <span className="text-sky-300"> Ele potencializa os dois.</span>
+            </p>
+            <Link
+              href="/contato"
+              className="shrink-0 rounded-full bg-blue-500 px-7 py-4 font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
+            >
+              Ver o SISBlink em ação ↗
+            </Link>
+          </div>
+        </div>
+      </section>
+
       <section className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Soluções por desafio</p>
