@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/admin-api/node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -23,6 +24,12 @@
 # misc
 .DS_Store
 *.pem
+*.pfx
+*.p12
+*.key
+*.crt
+*.cer
+/admin-api/local.settings.json
 
 # debug
 npm-debug.log*

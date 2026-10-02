@@ -92,3 +92,63 @@ Rotas principais:
 - `/` — página institucional;
 - `/contato` — formulário integrado ao SendGrid;
 - `/suporte/confirmacao-whatsapp` — manual para representantes.
+
+## Área administrativa financeira
+
+A base visual da área privada fica em `/admin`. A rota e seus endpoints são
+restritos à função `administrador` pelo Azure Static Web Apps e não devem ser
+divulgados na navegação pública.
+
+O painel foi preparado para duas empresas emissoras independentes:
+
+- DRSOFT — Lucro Presumido;
+- SYSNEY — Simples Nacional.
+
+Nenhum certificado ou segredo pode ser salvo no repositório. Arquivos de
+certificado e chave (`.pfx`, `.p12`, `.pem`, `.key`, `.crt` e `.cer`) estão
+ignorados pelo Git. Para desenvolvimento local, o endpoint de diagnóstico pode
+ser liberado temporariamente com `ADMIN_DEV_BYPASS=true`; essa opção nunca deve
+ser configurada em produção.
+
+As integrações ainda dependem de infraestrutura segura e das seguintes
+configurações de servidor:
+
+- `ADMIN_DATABASE_URL`;
+- `INTER_DRSOFT_CLIENT_ID`;
+- `INTER_DRSOFT_CLIENT_SECRET`;
+- `INTER_DRSOFT_CERTIFICATE_BASE64`;
+- `INTER_DRSOFT_CERTIFICATE_PASSWORD`;
+- `INTER_SYSNEY_CLIENT_ID`;
+- `INTER_SYSNEY_CLIENT_SECRET`;
+- `INTER_SYSNEY_CERTIFICATE_BASE64`;
+- `INTER_SYSNEY_CERTIFICATE_PASSWORD`;
+- `NFSE_DRSOFT_CNPJ`;
+- `NFSE_DRSOFT_CCM`;
+- `NFSE_DRSOFT_CERTIFICATE_BASE64`;
+- `NFSE_DRSOFT_CERTIFICATE_PASSWORD`;
+- `NFSE_SYSNEY_CNPJ`;
+- `NFSE_SYSNEY_CCM`;
+- `NFSE_SYSNEY_CERTIFICATE_BASE64`;
+- `NFSE_SYSNEY_CERTIFICATE_PASSWORD`.
+
+Em produção, os certificados e segredos devem ser armazenados no Azure Key
+Vault e acessados por identidade gerenciada. A tela de emissão permanece sem
+ações transacionais até que banco de dados, autenticação, integrações e regras
+fiscais sejam homologados.
+
+### Backend de homologação
+
+O backend isolado fica em `admin-api` e utiliza Azure Functions no plano de
+consumo. O endpoint público `/api/financeiro/health` informa somente a disponibilidade
+do serviço e nunca retorna nomes de contas, chaves, certificados ou dados de
+clientes.
+
+Recursos provisionados em `Brazil South`:
+
+- Function App `sysney-admin-api-2602`;
+- Storage Account `sysneyadm2602`;
+- Key Vault `sysney-admin-kv-2602`.
+
+A Function utiliza identidade gerenciada com acesso restrito às tabelas, aos
+contêineres privados e à leitura futura de certificados e segredos. O ambiente
+permanece em modo de homologação, com operações transacionais desativadas.
