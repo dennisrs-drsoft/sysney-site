@@ -1,10 +1,46 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 type EmpresaId = "drsoft" | "sysney";
 type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos";
+
+type Cliente = {
+  id: string;
+  empresaId: EmpresaId;
+  nome: string;
+  documento: string;
+  email: string;
+  telefone: string;
+  criadoEm: string;
+};
+
+type Rascunho = {
+  id: string;
+  empresaId: EmpresaId;
+  clienteId: string | null;
+  clienteNome: string;
+  clienteDocumento: string;
+  clienteEmail: string;
+  descricao: string;
+  codigoServico: string;
+  competencia: string;
+  valor: number;
+  vencimento: string;
+  aliquota: string;
+  retencao: "sem-retencao" | "com-retencao";
+  gerarCobranca: boolean;
+  criadoEm: string;
+};
+
+type FormularioEmissao = Omit<
+  Rascunho,
+  "id" | "empresaId" | "clienteId" | "valor" | "criadoEm"
+> & {
+  clienteId: string;
+  valor: string;
+};
 
 const empresas = {
   drsoft: {
@@ -31,19 +67,89 @@ const secoes: { id: SecaoId; label: string }[] = [
   { id: "documentos", label: "Documentos" },
 ];
 
-const camposBase =
+const CHAVE_CLIENTES = "sisblink-admin-clientes-v1";
+const CHAVE_RASCUNHOS = "sisblink-admin-rascunhos-v1";
+const campo =
   "mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
+const moeda = new Intl.NumberFormat("pt-BR", {
+  style: "currency",
+  currency: "BRL",
+});
 
-function StatusIntegracao({
+function idLocal() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function lerLocal<T>(chave: string): T[] {
+  try {
+    const valor = window.localStorage.getItem(chave);
+    const lista = valor ? (JSON.parse(valor) as unknown) : [];
+    return Array.isArray(lista) ? (lista as T[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function numeroMonetario(valor: string) {
+  const normalizado = valor
+    .replace(/\s/g, "")
+    .replace(/R\$/gi, "")
+    .replace(/\./g, "")
+    .replace(",", ".");
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : 0;
+}
+
+function dataBr(valor: string) {
+  if (!valor) return "Não informado";
+  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(
+    new Date(`${valor}T00:00:00Z`)
+  );
+}
+
+function formularioVazio(): FormularioEmissao {
+  return {
+    clienteId: "",
+    clienteNome: "",
+    clienteDocumento: "",
+    clienteEmail: "",
+    descricao: "",
+    codigoServico: "",
+    competencia: "",
+    valor: "",
+    vencimento: "",
+    aliquota: "",
+    retencao: "sem-retencao",
+    gerarCobranca: true,
+  };
+}
+
+function Integracao({
   titulo,
   texto,
+  pronta = false,
 }: {
   titulo: string;
   texto: string;
+  pronta?: boolean;
 }) {
   return (
-    <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-      <span className="mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full bg-amber-400 shadow-[0_0_0_4px_#fef3c7]" />
+    <div
+      className={`flex items-start gap-3 rounded-2xl border p-4 ${
+        pronta
+          ? "border-emerald-200 bg-emerald-50"
+          : "border-amber-200 bg-amber-50"
+      }`}
+    >
+      <span
+        className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${
+          pronta
+            ? "bg-emerald-500 shadow-[0_0_0_4px_#d1fae5]"
+            : "bg-amber-400 shadow-[0_0_0_4px_#fef3c7]"
+        }`}
+      />
       <div>
         <p className="text-sm font-black text-slate-900">{titulo}</p>
         <p className="mt-1 text-xs leading-5 text-slate-600">{texto}</p>
@@ -52,29 +158,41 @@ function StatusIntegracao({
   );
 }
 
-function VisaoGeral({ empresaId }: { empresaId: EmpresaId }) {
+function VisaoGeral({
+  empresaId,
+  clientes,
+  rascunhos,
+  navegar,
+}: {
+  empresaId: EmpresaId;
+  clientes: Cliente[];
+  rascunhos: Rascunho[];
+  navegar: (secao: SecaoId) => void;
+}) {
   const empresa = empresas[empresaId];
+  const valor = rascunhos.reduce((total, item) => total + item.valor, 0);
+  const indicadores = [
+    ["Rascunhos", String(rascunhos.length), "Preparados localmente"],
+    ["Valor planejado", moeda.format(valor), "Ainda não cobrado"],
+    ["Clientes", String(clientes.length), "Nesta empresa"],
+    ["NFS-e emitidas", "0", "Operação real bloqueada"],
+  ];
 
   return (
     <div className="space-y-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          ["NFS-e emitidas", "0", "Neste mês"],
-          ["A receber", "R$ 0,00", "Cobranças abertas"],
-          ["Recebido", "R$ 0,00", "Neste mês"],
-          ["Vencidas", "0", "Exigem acompanhamento"],
-        ].map(([label, value, detail]) => (
+        {indicadores.map(([rotulo, total, detalhe]) => (
           <article
-            key={label}
+            key={rotulo}
             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
           >
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-              {label}
+              {rotulo}
             </p>
             <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
-              {value}
+              {total}
             </p>
-            <p className="mt-1 text-sm text-slate-500">{detail}</p>
+            <p className="mt-1 text-sm text-slate-500">{detalhe}</p>
           </article>
         ))}
       </div>
@@ -92,29 +210,53 @@ function VisaoGeral({ empresaId }: { empresaId: EmpresaId }) {
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">{empresa.regime}</p>
               </div>
-              <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600">
-                Ambiente em preparação
+              <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                Simulação local
               </span>
             </div>
           </div>
 
           <div className="p-6">
             <h3 className="text-lg font-black text-slate-950">
-              Próximos passos da configuração
+              Prepare o primeiro fluxo de emissão
             </h3>
-            <div className="mt-5 space-y-3">
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+              Cadastre um cliente e monte um rascunho completo. Nenhum dado será
+              enviado à Prefeitura de São Paulo ou ao Banco Inter neste teste.
+            </p>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => navegar("clientes")}
+                className="rounded-full border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 hover:border-blue-300 hover:text-blue-700"
+              >
+                Cadastrar cliente
+              </button>
+              <button
+                type="button"
+                onClick={() => navegar("nova-emissao")}
+                className="rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+              >
+                Criar rascunho
+              </button>
+            </div>
+
+            <h3 className="mt-8 text-lg font-black text-slate-950">
+              Próximos passos para produção
+            </h3>
+            <div className="mt-4 space-y-3">
               {[
-                "Autorizar somente o usuário administrador",
-                "Conectar o certificado fiscal pelo cofre seguro",
-                "Validar a integração de cobrança no ambiente de testes",
+                "Concluir o acesso do usuário administrador no Azure",
+                "Conectar os certificados fiscais pelo cofre seguro",
+                "Validar as credenciais do Inter em homologação",
                 "Homologar serviço, alíquota e retenções com a contabilidade",
-              ].map((item, index) => (
+              ].map((item, indice) => (
                 <div
                   key={item}
                   className="flex items-center gap-4 rounded-2xl bg-slate-50 px-4 py-3"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xs font-black text-blue-700">
-                    {index + 1}
+                    {indice + 1}
                   </span>
                   <p className="text-sm font-semibold text-slate-700">{item}</p>
                 </div>
@@ -131,17 +273,22 @@ function VisaoGeral({ empresaId }: { empresaId: EmpresaId }) {
             Estado dos serviços
           </h2>
           <div className="mt-5 space-y-3">
-            <StatusIntegracao
+            <Integracao
               titulo="NFS-e paulistana"
               texto="Aguardando certificado e parâmetros fiscais no ambiente seguro."
             />
-            <StatusIntegracao
+            <Integracao
               titulo="Inter Empresas"
-              texto="Integração criada; credenciais ainda não vinculadas ao servidor."
+              texto={
+                empresaId === "sysney"
+                  ? "Integração ativa no Inter; aguardando certificado cliente e credenciais no cofre."
+                  : "Integração da DRSOFT ainda está em validação no Banco Inter."
+              }
             />
-            <StatusIntegracao
-              titulo="Armazenamento"
-              texto="Banco de dados e arquivos fiscais ainda não provisionados."
+            <Integracao
+              titulo="Infraestrutura Azure"
+              texto="Cofre, armazenamento e serviço administrativo provisionados."
+              pronta
             />
           </div>
         </section>
@@ -150,13 +297,203 @@ function VisaoGeral({ empresaId }: { empresaId: EmpresaId }) {
   );
 }
 
-function NovaEmissao({ empresaId }: { empresaId: EmpresaId }) {
+function CadastroClientes({
+  empresaId,
+  clientes,
+  salvar,
+}: {
+  empresaId: EmpresaId;
+  clientes: Cliente[];
+  salvar: (cliente: Cliente) => void;
+}) {
+  const [nome, setNome] = useState("");
+  const [documento, setDocumento] = useState("");
+  const [email, setEmail] = useState("");
+  const [telefone, setTelefone] = useState("");
+
+  function enviar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    salvar({
+      id: idLocal(),
+      empresaId,
+      nome: nome.trim(),
+      documento: documento.trim(),
+      email: email.trim(),
+      telefone: telefone.trim(),
+      criadoEm: new Date().toISOString(),
+    });
+    setNome("");
+    setDocumento("");
+    setEmail("");
+    setTelefone("");
+  }
+
+  return (
+    <div className="grid gap-6 xl:grid-cols-[420px_1fr]">
+      <form
+        onSubmit={enviar}
+        className="h-fit rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+      >
+        <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
+          Cadastro local
+        </p>
+        <h2 className="mt-2 text-2xl font-black text-slate-950">Novo cliente</h2>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          Os dados ficarão somente neste navegador durante os testes.
+        </p>
+        <div className="mt-6 space-y-5">
+          <label className="block text-sm font-bold text-slate-700">
+            Nome ou razão social
+            <input
+              className={campo}
+              value={nome}
+              onChange={(event) => setNome(event.target.value)}
+              required
+            />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            CPF ou CNPJ
+            <input
+              className={campo}
+              value={documento}
+              onChange={(event) => setDocumento(event.target.value)}
+              inputMode="numeric"
+              required
+            />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            E-mail financeiro
+            <input
+              className={campo}
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              type="email"
+              required
+            />
+          </label>
+          <label className="block text-sm font-bold text-slate-700">
+            Telefone
+            <input
+              className={campo}
+              value={telefone}
+              onChange={(event) => setTelefone(event.target.value)}
+              type="tel"
+              placeholder="(11) 00000-0000"
+            />
+          </label>
+        </div>
+        <button
+          type="submit"
+          className="mt-6 w-full rounded-full bg-blue-600 px-6 py-3 text-sm font-black text-white hover:bg-blue-700"
+        >
+          Salvar cliente
+        </button>
+      </form>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
+              Carteira da empresa
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-slate-950">
+              Clientes cadastrados
+            </h2>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">
+            {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"}
+          </span>
+        </div>
+
+        {clientes.length === 0 ? (
+          <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
+            <p className="font-black text-slate-800">Nenhum cliente cadastrado</p>
+            <p className="mt-2 text-sm text-slate-500">
+              Use o formulário ao lado para iniciar o teste.
+            </p>
+          </div>
+        ) : (
+          <div className="mt-6 grid gap-3">
+            {clientes.map((cliente) => (
+              <article
+                key={cliente.id}
+                className="rounded-2xl border border-slate-200 p-4 hover:border-blue-200 hover:bg-blue-50/30"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-black text-slate-950">{cliente.nome}</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {cliente.documento}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                    Disponível
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
+                  <p>{cliente.email}</p>
+                  <p>{cliente.telefone || "Telefone não informado"}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function NovaEmissao({
+  empresaId,
+  clientes,
+  salvar,
+  cadastrarCliente,
+}: {
+  empresaId: EmpresaId;
+  clientes: Cliente[];
+  salvar: (rascunho: Rascunho) => void;
+  cadastrarCliente: () => void;
+}) {
   const empresa = empresas[empresaId];
+  const [dados, setDados] = useState<FormularioEmissao>(formularioVazio);
+
+  function atualizar(
+    nome: keyof FormularioEmissao,
+    valor: string | boolean
+  ) {
+    setDados((atual) => ({ ...atual, [nome]: valor }));
+  }
+
+  function escolherCliente(clienteId: string) {
+    const cliente = clientes.find((item) => item.id === clienteId);
+    setDados((atual) => ({
+      ...atual,
+      clienteId,
+      clienteNome: cliente?.nome ?? "",
+      clienteDocumento: cliente?.documento ?? "",
+      clienteEmail: cliente?.email ?? "",
+    }));
+  }
+
+  function enviar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const valor = numeroMonetario(dados.valor);
+    if (valor <= 0) return;
+    salvar({
+      ...dados,
+      id: idLocal(),
+      empresaId,
+      clienteId: dados.clienteId || null,
+      valor,
+      criadoEm: new Date().toISOString(),
+    });
+    setDados(formularioVazio());
+  }
 
   return (
     <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
       <form
-        onSubmit={(event) => event.preventDefault()}
+        onSubmit={enviar}
         className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -171,87 +508,182 @@ function NovaEmissao({ empresaId }: { empresaId: EmpresaId }) {
               Emitente: {empresa.razaoSocial} · {empresa.regime}
             </p>
           </div>
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold text-slate-600">
-            Rascunho
+          <span className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+            Rascunho local
           </span>
         </div>
 
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
           <label className="text-sm font-bold text-slate-700 sm:col-span-2">
-            Cliente
+            Cliente cadastrado
+            <select
+              className={campo}
+              value={dados.clienteId}
+              onChange={(event) => escolherCliente(event.target.value)}
+            >
+              <option value="">Preencher manualmente</option>
+              {clientes.map((cliente) => (
+                <option key={cliente.id} value={cliente.id}>
+                  {cliente.nome} · {cliente.documento}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm font-bold text-slate-700 sm:col-span-2">
+            Nome ou razão social
             <input
-              className={camposBase}
-              placeholder="Nome ou razão social"
-              autoComplete="organization"
+              className={campo}
+              value={dados.clienteNome}
+              onChange={(event) => atualizar("clienteNome", event.target.value)}
+              required
             />
           </label>
           <label className="text-sm font-bold text-slate-700">
             CPF ou CNPJ
-            <input className={camposBase} placeholder="Somente números" inputMode="numeric" />
+            <input
+              className={campo}
+              value={dados.clienteDocumento}
+              onChange={(event) =>
+                atualizar("clienteDocumento", event.target.value)
+              }
+              inputMode="numeric"
+              required
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             E-mail para envio
             <input
-              className={camposBase}
-              placeholder="financeiro@cliente.com.br"
+              className={campo}
+              value={dados.clienteEmail}
+              onChange={(event) => atualizar("clienteEmail", event.target.value)}
               type="email"
-              autoComplete="email"
+              required
             />
           </label>
           <label className="text-sm font-bold text-slate-700 sm:col-span-2">
             Discriminação do serviço
             <textarea
-              className={`${camposBase} min-h-28 resize-y`}
-              placeholder="Descreva claramente o serviço prestado e o período de referência."
+              className={`${campo} min-h-28 resize-y`}
+              value={dados.descricao}
+              onChange={(event) => atualizar("descricao", event.target.value)}
+              placeholder="Descreva o serviço e o período de referência."
+              required
             />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Código do serviço
-            <input className={camposBase} placeholder="Definido com a contabilidade" />
+            <input
+              className={campo}
+              value={dados.codigoServico}
+              onChange={(event) =>
+                atualizar("codigoServico", event.target.value)
+              }
+              placeholder="Definido com a contabilidade"
+              required
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Competência
-            <input className={camposBase} type="date" />
+            <input
+              className={campo}
+              value={dados.competencia}
+              onChange={(event) => atualizar("competencia", event.target.value)}
+              type="date"
+              required
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Valor do serviço
-            <input className={camposBase} placeholder="R$ 0,00" inputMode="decimal" />
+            <input
+              className={campo}
+              value={dados.valor}
+              onChange={(event) => atualizar("valor", event.target.value)}
+              placeholder="R$ 0,00"
+              inputMode="decimal"
+              required
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Vencimento da cobrança
-            <input className={camposBase} type="date" />
+            <input
+              className={campo}
+              value={dados.vencimento}
+              onChange={(event) => atualizar("vencimento", event.target.value)}
+              type="date"
+              required={dados.gerarCobranca}
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Alíquota de ISS
-            <input className={camposBase} placeholder="0,00%" inputMode="decimal" />
+            <input
+              className={campo}
+              value={dados.aliquota}
+              onChange={(event) => atualizar("aliquota", event.target.value)}
+              placeholder="0,00%"
+              inputMode="decimal"
+              required
+            />
           </label>
           <label className="text-sm font-bold text-slate-700">
             Retenção
-            <select className={camposBase} defaultValue="sem-retencao">
+            <select
+              className={campo}
+              value={dados.retencao}
+              onChange={(event) =>
+                atualizar(
+                  "retencao",
+                  event.target.value as FormularioEmissao["retencao"]
+                )
+              }
+            >
               <option value="sem-retencao">Sem retenção</option>
               <option value="com-retencao">Com retenção</option>
             </select>
           </label>
+          <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-700 sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={dados.gerarCobranca}
+              onChange={(event) =>
+                atualizar("gerarCobranca", event.target.checked)
+              }
+              className="mt-0.5 h-4 w-4 accent-blue-600"
+            />
+            <span>
+              Preparar cobrança junto com a nota
+              <span className="mt-1 block text-xs font-normal leading-5 text-slate-500">
+                A opção será registrada no rascunho; nenhum boleto ou Pix será criado.
+              </span>
+            </span>
+          </label>
         </div>
 
         <div className="mt-8 flex flex-col gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end">
+          {clientes.length === 0 && (
+            <button
+              type="button"
+              onClick={cadastrarCliente}
+              className="rounded-full border border-slate-200 px-6 py-3 text-sm font-black text-slate-700 hover:border-blue-300 hover:text-blue-700"
+            >
+              Cadastrar cliente
+            </button>
+          )}
           <button
-            type="button"
-            disabled
-            className="cursor-not-allowed rounded-full border border-slate-200 px-6 py-3 text-sm font-black text-slate-400"
+            type="submit"
+            className="rounded-full bg-blue-600 px-6 py-3 text-sm font-black text-white hover:bg-blue-700"
           >
             Salvar rascunho
           </button>
           <button
-            type="submit"
+            type="button"
             disabled
-            className="cursor-not-allowed rounded-full bg-blue-300 px-6 py-3 text-sm font-black text-white"
+            className="cursor-not-allowed rounded-full bg-slate-200 px-6 py-3 text-sm font-black text-slate-400"
           >
             Emitir NFS-e e cobrança
           </button>
         </div>
         <p className="mt-3 text-right text-xs text-slate-400">
-          Os botões serão liberados somente após homologação e armazenamento seguro.
+          A emissão real será liberada somente após homologação fiscal e bancária.
         </p>
       </form>
 
@@ -270,7 +702,7 @@ function NovaEmissao({ empresaId }: { empresaId: EmpresaId }) {
           <p className="font-black text-blue-900">Validação contábil</p>
           <p className="mt-2 text-sm leading-6 text-blue-900/70">
             Código do serviço, ISS, retenções e texto fiscal serão configurados
-            individualmente para cada empresa antes da primeira emissão real.
+            por empresa antes da primeira emissão real.
           </p>
         </div>
       </aside>
@@ -278,29 +710,88 @@ function NovaEmissao({ empresaId }: { empresaId: EmpresaId }) {
   );
 }
 
-function EstadoVazio({
-  titulo,
-  texto,
-  acao,
+function ListaRascunhos({
+  rascunhos,
+  criar,
 }: {
-  titulo: string;
-  texto: string;
-  acao: string;
+  rascunhos: Rascunho[];
+  criar: () => void;
 }) {
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white px-6 py-16 text-center shadow-sm">
-      <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-2xl font-black text-blue-700">
-        +
-      </span>
-      <h2 className="mt-5 text-2xl font-black text-slate-950">{titulo}</h2>
-      <p className="mx-auto mt-3 max-w-xl leading-7 text-slate-500">{texto}</p>
-      <button
-        type="button"
-        disabled
-        className="mt-6 cursor-not-allowed rounded-full bg-slate-200 px-6 py-3 text-sm font-black text-slate-500"
-      >
-        {acao}
-      </button>
+    <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
+            Documentos
+          </p>
+          <h2 className="mt-2 text-2xl font-black text-slate-950">
+            Rascunhos preparados
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            Nenhum item possui validade fiscal ou bancária nesta etapa.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={criar}
+          className="rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
+        >
+          Nova emissão
+        </button>
+      </div>
+
+      {rascunhos.length === 0 ? (
+        <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-14 text-center">
+          <p className="font-black text-slate-800">Nenhum rascunho preparado</p>
+          <p className="mt-2 text-sm text-slate-500">
+            Crie uma emissão de teste para validar o fluxo e os campos.
+          </p>
+        </div>
+      ) : (
+        <div className="mt-7 overflow-x-auto">
+          <table className="w-full min-w-[760px] text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-200 text-xs font-black uppercase tracking-[0.12em] text-slate-500">
+                <th className="px-3 py-3">Cliente</th>
+                <th className="px-3 py-3">Competência</th>
+                <th className="px-3 py-3">Valor</th>
+                <th className="px-3 py-3">Cobrança</th>
+                <th className="px-3 py-3">Situação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rascunhos.map((rascunho) => (
+                <tr key={rascunho.id} className="border-b border-slate-100 last:border-0">
+                  <td className="px-3 py-4">
+                    <p className="font-black text-slate-900">
+                      {rascunho.clienteNome}
+                    </p>
+                    <p className="mt-1 max-w-sm truncate text-xs text-slate-500">
+                      {rascunho.descricao}
+                    </p>
+                  </td>
+                  <td className="px-3 py-4 text-slate-600">
+                    {dataBr(rascunho.competencia)}
+                  </td>
+                  <td className="px-3 py-4 font-black text-slate-900">
+                    {moeda.format(rascunho.valor)}
+                  </td>
+                  <td className="px-3 py-4 text-slate-600">
+                    {rascunho.gerarCobranca
+                      ? `Preparar · ${dataBr(rascunho.vencimento)}`
+                      : "Não solicitada"}
+                  </td>
+                  <td className="px-3 py-4">
+                    <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
+                      Rascunho local
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -308,30 +799,97 @@ function EstadoVazio({
 export function AdminDashboard() {
   const [empresaId, setEmpresaId] = useState<EmpresaId>("drsoft");
   const [secao, setSecao] = useState<SecaoId>("visao-geral");
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
+  const [carregado, setCarregado] = useState(false);
+  const [aviso, setAviso] = useState("");
   const empresa = empresas[empresaId];
 
-  const conteudo = useMemo(() => {
-    if (secao === "nova-emissao") return <NovaEmissao empresaId={empresaId} />;
-    if (secao === "clientes") {
-      return (
-        <EstadoVazio
-          titulo="Nenhum cliente cadastrado"
-          texto="Os dados de clientes serão armazenados de forma segura e poderão ser reutilizados em novas notas e cobranças."
-          acao="Cadastrar primeiro cliente"
-        />
-      );
+  useEffect(() => {
+    const quadro = window.requestAnimationFrame(() => {
+      setClientes(lerLocal<Cliente>(CHAVE_CLIENTES));
+      setRascunhos(lerLocal<Rascunho>(CHAVE_RASCUNHOS));
+      setCarregado(true);
+    });
+
+    return () => window.cancelAnimationFrame(quadro);
+  }, []);
+
+  useEffect(() => {
+    if (carregado) {
+      window.localStorage.setItem(CHAVE_CLIENTES, JSON.stringify(clientes));
     }
-    if (secao === "documentos") {
-      return (
-        <EstadoVazio
-          titulo="Nenhum documento emitido"
-          texto="NFS-e, XML, boletos, comprovantes e eventos de pagamento aparecerão aqui, separados por empresa."
-          acao="Criar primeira emissão"
-        />
-      );
+  }, [carregado, clientes]);
+
+  useEffect(() => {
+    if (carregado) {
+      window.localStorage.setItem(CHAVE_RASCUNHOS, JSON.stringify(rascunhos));
     }
-    return <VisaoGeral empresaId={empresaId} />;
-  }, [empresaId, secao]);
+  }, [carregado, rascunhos]);
+
+  useEffect(() => {
+    if (!aviso) return;
+    const temporizador = window.setTimeout(() => setAviso(""), 4500);
+    return () => window.clearTimeout(temporizador);
+  }, [aviso]);
+
+  const clientesEmpresa = useMemo(
+    () => clientes.filter((item) => item.empresaId === empresaId),
+    [clientes, empresaId]
+  );
+  const rascunhosEmpresa = useMemo(
+    () => rascunhos.filter((item) => item.empresaId === empresaId),
+    [rascunhos, empresaId]
+  );
+
+  function salvarCliente(cliente: Cliente) {
+    setClientes((atuais) => [cliente, ...atuais]);
+    setAviso(`Cliente ${cliente.nome} salvo localmente.`);
+  }
+
+  function salvarRascunho(rascunho: Rascunho) {
+    setRascunhos((atuais) => [rascunho, ...atuais]);
+    setAviso("Rascunho salvo. Nenhuma nota ou cobrança foi emitida.");
+    setSecao("documentos");
+  }
+
+  let conteudo;
+  if (secao === "nova-emissao") {
+    conteudo = (
+      <NovaEmissao
+        key={empresaId}
+        empresaId={empresaId}
+        clientes={clientesEmpresa}
+        salvar={salvarRascunho}
+        cadastrarCliente={() => setSecao("clientes")}
+      />
+    );
+  } else if (secao === "clientes") {
+    conteudo = (
+      <CadastroClientes
+        key={empresaId}
+        empresaId={empresaId}
+        clientes={clientesEmpresa}
+        salvar={salvarCliente}
+      />
+    );
+  } else if (secao === "documentos") {
+    conteudo = (
+      <ListaRascunhos
+        rascunhos={rascunhosEmpresa}
+        criar={() => setSecao("nova-emissao")}
+      />
+    );
+  } else {
+    conteudo = (
+      <VisaoGeral
+        empresaId={empresaId}
+        clientes={clientesEmpresa}
+        rascunhos={rascunhosEmpresa}
+        navegar={setSecao}
+      />
+    );
+  }
 
   return (
     <main className="min-h-screen bg-slate-100 text-slate-950">
@@ -378,7 +936,7 @@ export function AdminDashboard() {
               </div>
               <a
                 href="/.auth/logout?post_logout_redirect_uri=/"
-                className="hidden rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-slate-300 transition hover:bg-white/5 hover:text-white sm:block"
+                className="hidden rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white sm:block"
               >
                 Sair
               </a>
@@ -387,16 +945,39 @@ export function AdminDashboard() {
 
           <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
             <div>
-              <p className={`text-sm font-black ${empresa.destaque}`}>{empresa.nome}</p>
+              <p className={`text-sm font-black ${empresa.destaque}`}>
+                {empresa.nome}
+              </p>
               <p className="text-xs text-slate-400">{empresa.regime}</p>
             </div>
-            <div className="flex h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_#fcd34d]" />
+            <div className="flex items-center gap-2 text-xs font-bold text-amber-200">
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_#fcd34d]" />
+              Simulação local
+            </div>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <nav className="mb-6 flex gap-2 overflow-x-auto pb-2" aria-label="Administração">
+        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <strong>Ambiente seguro de teste:</strong> clientes e rascunhos ficam
+          apenas neste navegador. Nenhuma informação é enviada à Prefeitura, ao
+          Banco Inter ou ao servidor.
+        </div>
+
+        {aviso && (
+          <div
+            role="status"
+            className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
+          >
+            {aviso}
+          </div>
+        )}
+
+        <nav
+          className="mb-6 flex gap-2 overflow-x-auto pb-2"
+          aria-label="Administração"
+        >
           {secoes.map((item) => (
             <button
               key={item.id}

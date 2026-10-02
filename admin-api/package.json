@@ -6,9 +6,17 @@
   "main": "src/functions/*.js",
   "scripts": {
     "start": "func start",
-    "check": "node --check src/functions/health.js"
+    "check": "node --check src/functions/health.js && node --check src/functions/inter-status.js && node --check src/functions/inter-clientes.js && node --check src/services/inter.js && node --check src/services/clientes-inter.js && node --check scripts/configurar-inter-web.mjs && node --check scripts/testar-inter.mjs && node --check scripts/sincronizar-clientes-inter.mjs",
+    "configure:inter:web": "node scripts/configurar-inter-web.mjs",
+    "test:inter:auth": "node scripts/testar-inter.mjs",
+    "sync:inter:clientes": "node scripts/sincronizar-clientes-inter.mjs"
   },
   "dependencies": {
-    "@azure/functions": "^4.16.5"
+    "@azure/data-tables": "^13.3.2",
+    "@azure/functions": "^4.16.5",
+    "@azure/identity": "^4.13.3",
+    "@azure/keyvault-secrets": "^4.11.2",
+    "adm-zip": "^0.6.1",
+    "undici": "^8.11.2"
   }
 }

@@ -152,3 +152,44 @@ Recursos provisionados em `Brazil South`:
 A Function utiliza identidade gerenciada com acesso restrito às tabelas, aos
 contêineres privados e à leitura futura de certificados e segredos. O ambiente
 permanece em modo de homologação, com operações transacionais desativadas.
+
+### Integração Inter Empresas
+
+A integração bancária utiliza OAuth 2.0 com certificado mTLS. Para cada empresa,
+o Key Vault armazena separadamente `Client ID`, `Client Secret`, certificado
+cliente e chave privada. Esses valores nunca devem ser copiados para arquivos
+`.env`, logs, commits ou configurações públicas do Static Web App.
+
+Para a SYSNEY, o configurador seguro valida se o ZIP contém certificado cliente
+e chave privada antes de enviar os arquivos diretamente ao Key Vault. A opção
+recomendada abre um formulário restrito a `127.0.0.1`, de uso único:
+
+```powershell
+npm run configure:inter:web --prefix admin-api -- `
+  "C:\caminho\certificado-inter.zip"
+```
+
+O formulário solicita o `Client ID` e o `Client Secret`, não mantém os arquivos
+extraídos e não habilita consultas automaticamente. A autenticação e a
+sincronização local podem ser validadas sem exibir token ou dados pessoais:
+
+```powershell
+npm run test:inter:auth --prefix admin-api
+npm run sync:inter:clientes --prefix admin-api
+```
+
+A sincronização usa os últimos 90 dias por padrão. Datas opcionais no formato
+`AAAA-MM-DD` podem ser passadas após `--`. O arquivo
+`Certificado_Webhook.zip`, contendo somente uma autoridade certificadora, não
+substitui o certificado cliente e a chave privada da integração.
+
+Endpoints administrativos protegidos por chave da Function:
+
+- `GET /api/financeiro/inter/{empresa}/status` — informa apenas prontidão;
+- `POST /api/financeiro/inter/{empresa}/clientes/sincronizar` — consulta
+  cobranças e deduplica seus pagadores na tabela `AdminClientes`.
+
+A sincronização é somente de leitura no Inter e permanece bloqueada até
+`INTER_READ_OPERATIONS_ENABLED=true`. Não há endpoint de agenda de clientes no
+Inter; a carteira é formada a partir dos pagadores presentes nas cobranças que
+a integração tem permissão para consultar.
