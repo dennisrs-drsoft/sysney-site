@@ -22,6 +22,10 @@ $metodos=@{
   consultar=@('PedidoConsultaNFe','ConsultaNFeRequest','consultaNFe','PedidoConsultaNFe_v02.xsd')
 }
 $m=$metodos[$entrada.acao]
+$versao=$xml.SelectSingleNode("/*/Cabecalho").GetAttribute("Versao")
+if($versao -notin @("1","2")){throw "Versão fiscal inválida."}
+$m[3]=$m[3].Replace("_v02",("_v0"+$versao))
+$tamanho=if($versao -eq "1"){86}else{90}
 if($xml.DocumentElement.LocalName -ne $m[0] -or $xml.DocumentElement.NamespaceURI -ne 'http://www.prefeitura.sp.gov.br/nfe'){throw 'XML incompatível com a operação.'}
 if($xml.SelectNodes("//*[local-name()='Signature']").Count -ne 0){throw 'Entrada deve ser XML não assinado.'}
 if($ValidarSomente){
@@ -34,7 +38,7 @@ if($ValidarSomente){
   $cert=$certs[0];$rsa=[Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
   try{
     if($entrada.acao -ne 'consultar'){
-      if($xml.SelectNodes('/*/RPS').Count -ne 1 -or $entrada.cadeia -notmatch '^[\x20-\x7e]{90}$'){throw 'Assinatura do RPS inválida.'}
+      if($xml.SelectNodes('/*/RPS').Count -ne 1 -or $entrada.cadeia -notmatch ("^[\x20-\x7e]{"+$tamanho+'}$')){throw 'Assinatura do RPS inválida.'}
       $assinatura=$rsa.SignData([Text.Encoding]::ASCII.GetBytes($entrada.cadeia),[Security.Cryptography.HashAlgorithmName]::SHA1,[Security.Cryptography.RSASignaturePadding]::Pkcs1)
       if(-not $rsa.VerifyData([Text.Encoding]::ASCII.GetBytes($entrada.cadeia),$assinatura,[Security.Cryptography.HashAlgorithmName]::SHA1,[Security.Cryptography.RSASignaturePadding]::Pkcs1)){throw 'Assinatura do RPS não validada.'}
       $xml.SelectSingleNode('/*/RPS/Assinatura').InnerText=[Convert]::ToBase64String($assinatura)
@@ -58,10 +62,10 @@ $xml.Validate([Xml.Schema.ValidationEventHandler]{param($sender,$eventArgs)$erro
 if($erros.Count -gt 0){throw ('XML fora do schema oficial: '+($erros -join ' | '))}
 if($ValidarSomente){[pscustomobject]@{schemaValido=$true;transmitido=$false}|ConvertTo-Json -Compress;exit 0}
 $msg=[Security.SecurityElement]::Escape($xml.OuterXml)
-$soap="<s:Envelope xmlns:s='http://www.w3.org/2003/05/soap-envelope'><s:Body><$($m[1]) xmlns='http://www.prefeitura.sp.gov.br/nfe'><VersaoSchema>2</VersaoSchema><MensagemXML>$msg</MensagemXML></$($m[1])></s:Body></s:Envelope>"
+$soap="<s:Envelope xmlns:s='http://www.w3.org/2003/05/soap-envelope'><s:Body><$($m[1]) xmlns='http://www.prefeitura.sp.gov.br/nfe'><VersaoSchema>$versao</VersaoSchema><MensagemXML>$msg</MensagemXML></$($m[1])></s:Body></s:Envelope>"
 $response=Invoke-WebRequest 'https://nfews.prefeitura.sp.gov.br/lotenfe.asmx' -Method Post -Certificate $cert -ContentType "application/soap+xml; charset=utf-8; action=`"http://www.prefeitura.sp.gov.br/nfe/ws/$($m[2])`"" -Body ([Text.Encoding]::UTF8.GetBytes($soap)) -TimeoutSec 45 -UseBasicParsing
 $envXml=LerXml $response.Content;$node=$envXml.SelectSingleNode("//*[local-name()='RetornoXML']");if(-not $node){throw 'Resposta fiscal sem RetornoXML; consulte antes de repetir.'}
 $ret=LerXml $node.InnerText
 $chave=$ret.SelectSingleNode("//*[local-name()='ChaveNFe']")
 $nota=$ret.SelectSingleNode("//*[local-name()='NFe']")
-[pscustomobject]@{sucesso=($ret.SelectSingleNode("//*[local-name()='Sucesso']").InnerText -eq 'true');erros=@($ret.SelectNodes("//*[local-name()='Erro']")|ForEach-Object InnerText);alertas=@($ret.SelectNodes("//*[local-name()='Alerta']")|ForEach-Object InnerText);xml=$ret.OuterXml;numero=if($chave){[string]$chave.NumeroNFe}else{$null};inscricao=if($chave){[string]$chave.InscricaoPrestador}else{$null};verificacao=if($chave){[string]$chave.CodigoVerificacao}else{$null};tomador=if($nota){[string]$nota.CPFCNPJTomador.CNPJ}else{$null};valorFinal=if($nota){[string]$nota.ValorFinalCobrado}else{$null};descricao=if($nota){[string]$nota.Discriminacao}else{$null};teste=($entrada.acao -eq 'testar')}|ConvertTo-Json -Depth 5 -Compress
+[pscustomobject]@{sucesso=($ret.SelectSingleNode("//*[local-name()='Sucesso']").InnerText -eq 'true');erros=@($ret.SelectNodes("//*[local-name()='Erro']")|ForEach-Object InnerText);alertas=@($ret.SelectNodes("//*[local-name()='Alerta']")|ForEach-Object InnerText);xml=$ret.OuterXml;numero=if($chave){[string]$chave.NumeroNFe}else{$null};inscricao=if($chave){[string]$chave.InscricaoPrestador}else{$null};verificacao=if($chave){[string]$chave.CodigoVerificacao}else{$null};tomador=if($nota){[string]$nota.CPFCNPJTomador.CNPJ}else{$null};valorFinal=if($nota.ValorFinalCobrado){[string]$nota.ValorFinalCobrado}elseif($nota){[string]$nota.ValorServicos}else{$null};descricao=if($nota){[string]$nota.Discriminacao}else{$null};teste=($entrada.acao -eq 'testar')}|ConvertTo-Json -Depth 5 -Compress

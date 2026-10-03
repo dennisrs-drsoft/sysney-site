@@ -2,7 +2,9 @@
 
 Fonte: https://notadomilhao.sf.prefeitura.sp.gov.br/desenvolvedor/
 
-Pacote «NFS-e — Reforma tributária 2026», atualização indicada em 06/07/2026.
+Pacotes oficiais leiaute 1 (`schemas-v01-2`) e leiaute 2
+(`schemas-reformatributaria-v02-6`), obtidos em 03/10/2026.
+Leiaute 2 atualizado para incluir os tipos de retenção da versão de setembro.
 Arquivos reproduzidos sem alterações para validar pedidos de emissão e consulta.
 Manual de referência: NFe_Web_Service-v3.3.9, publicado em outubro de 2026.
 

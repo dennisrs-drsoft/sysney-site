@@ -45,11 +45,27 @@
 		<xs:restriction base="xs:base64Binary">
 		</xs:restriction>
 	</xs:simpleType>
+  <xs:simpleType name="tpString">
+    <xs:annotation>
+      <xs:documentation>Tipo de string genérico.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="([!-ÿ]{1}[ -ÿ]{0,}[!-ÿ]{1}|[!-ÿ]{1}){0,}"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:simpleType name="tpStringQuebraLinha">
+    <xs:annotation>
+      <xs:documentation>Tipo de string genérico com quebra de linha.</xs:documentation>
+    </xs:annotation>
+    <xs:restriction base="xs:string">
+      <xs:pattern value="[\s!-ÿ]{1}[\s -ÿ]{0,}[\s!-ÿ]{1}|[\s!-ÿ]{1}"/>
+    </xs:restriction>
+  </xs:simpleType>
 	<xs:simpleType name="tpBairro">
 		<xs:annotation>
 			<xs:documentation>Tipo bairro.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="0" />
 			<xs:maxLength value="30" />
 			<xs:whiteSpace value="collapse" />
@@ -168,7 +184,7 @@
 		<xs:annotation>
 			<xs:documentation>Tipo complemento do endereço.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="0" />
 			<xs:maxLength value="30" />
 			<xs:whiteSpace value="collapse" />
@@ -213,7 +229,7 @@
 		<xs:annotation>
 			<xs:documentation>Tipo descrição do evento.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="0" />
 			<xs:maxLength value="300" />
 			<xs:whiteSpace value="collapse" />
@@ -223,7 +239,7 @@
 		<xs:annotation>
 			<xs:documentation>Tipo Discriminação Serviços.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpStringQuebraLinha">
 			<xs:minLength value="1" />
 			<xs:maxLength value="2000" />
 			<xs:whiteSpace value="collapse" />
@@ -279,7 +295,7 @@
 		<xs:annotation>
 			<xs:documentation>Endereço.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="0" />
 			<xs:maxLength value="50" />
 			<xs:whiteSpace value="collapse" />
@@ -357,7 +373,7 @@
 		<xs:annotation>
 			<xs:documentation>Tipo número do endereço.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="0" />
 			<xs:maxLength value="10" />
 			<xs:whiteSpace value="collapse" />
@@ -459,7 +475,7 @@
 		<xs:annotation>
 			<xs:documentation>Tipo série de documento.</xs:documentation>
 		</xs:annotation>
-		<xs:restriction base="xs:string">
+		<xs:restriction base="tipos:tpString">
 			<xs:minLength value="1" />
 			<xs:maxLength value="5" />
 			<xs:whiteSpace value="collapse" />

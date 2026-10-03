@@ -31,14 +31,21 @@ async function contexto(emp:"sysney"|"drsoft",id:unknown){
 }
 function falha(e:unknown){const code=(e as {statusCode?:number}).statusCode;return reply({erro:code===409||code===412?"A versão mudou ou a operação já está em andamento. Atualize e consulte antes de repetir.":code?"Não foi possível acessar o registro fiscal.":e instanceof Error?e.message:"Falha fiscal."},code===409||code===412?409:code?503:400);}
 async function salvar(t:TrabalhoSP,part:string,etag:string){await table().updateEntity({partitionKey:part,rowKey:t.id,json:JSON.stringify(t)},"Replace",{etag});}
+type HistoricoRegime={regime:"simples"|"presumido";vigencia:string;em:string;por:string};
+async function regimeEmpresa(emp:string){
+  const row=await opcional<{json:string}>("nfse-regimes",emp,"AdminConfiguracoes");
+  const historico:HistoricoRegime[]=row?JSON.parse(row.json).historico:[];
+  const vigente=historico.filter(x=>x.vigencia<=hojeBrasil()).sort((a,b)=>b.vigencia.localeCompare(a.vigencia))[0];
+  return {row,historico,vigente};
+}
 export async function GET(req:NextRequest){
   const remote=await encaminharAdmin(req);if(remote)return remote;
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
   try{
     const emp=empresa(req),id=req.nextUrl.searchParams.get("id");
-    let trabalho:TrabalhoSP|null=null,perfil=null;
-    if(id){const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);}
-    return reply({local:executorMunicipalDisponivel(),producao:executorMunicipalDisponivel()&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
+    let trabalho:TrabalhoSP|null=null,perfil=null,retencoes=null;
+    if(id){const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);const t=await opcional<{json:string}>(`nfse-retencoes-${emp}`,c.documento,"AdminConfiguracoes");if(t)retencoes=JSON.parse(t.json);}
+    return reply({local:executorMunicipalDisponivel(),producao:executorMunicipalDisponivel()&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,retencoes,historicoRegime:(await regimeEmpresa(emp)).historico,regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
   }catch(e){return falha(e);}
 }
 export async function POST(req:NextRequest){
@@ -48,8 +55,19 @@ export async function POST(req:NextRequest){
   try{
     const emp=empresa(req),raw=await req.text();if(raw.length>10000)throw Error("Solicitação muito grande.");
     const body=JSON.parse(raw);
-    if(!["preparar","testar","emitir","consultar"].includes(body.acao))throw Error("Operação fiscal inválida.");
+    if(!["configurarRegime","preparar","testar","emitir","consultar"].includes(body.acao))throw Error("Operação fiscal inválida.");
     const ctx=await contexto(emp,body.id),{email,cobranca,documento,idNota}=ctx;
+    if(body.acao==="configurarRegime"){
+      if(body.confirmado!==true||!["simples","presumido"].includes(body.regime)||typeof body.vigencia!=="string"||!/^20\d{2}-\d{2}-\d{2}$/.test(body.vigencia)||!Number.isFinite(Date.parse(body.vigencia))||new Date(body.vigencia).toISOString().slice(0,10)!==body.vigencia)throw Error("Confirme o regime e a data de início da vigência.");
+      const cfg=await regimeEmpresa(emp);
+      if(cfg.historico.some(x=>x.vigencia===body.vigencia))throw Error("Já existe regime nessa data. Use nova vigência para preservar o histórico.");
+      const principal=req.headers.get("x-ms-client-principal");
+      const por=principal?String(JSON.parse(Buffer.from(principal,"base64").toString("utf8")).userDetails||"Administrador").slice(0,254):"Administrador local";
+      const historico=[...cfg.historico,{regime:body.regime,vigencia:body.vigencia,por,em:new Date().toISOString()}];
+      const ent={partitionKey:"nfse-regimes",rowKey:emp,json:JSON.stringify({historico})};
+      if(cfg.row)await table("AdminConfiguracoes").updateEntity(ent,"Replace",{etag:cfg.row.etag});else await table("AdminConfiguracoes").createEntity(ent);
+      return reply({regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Regime salvo com vigência. Notas anteriores não foram alteradas. Prepare e teste novamente as próximas notas."});
+    }
     const part=`nfse-sp-${emp}`,row=await opcional<{json:string}>(part,idNota);
     let trabalho:TrabalhoSP|null=row?JSON.parse(row.json):null;
     const em=new Date().toISOString();
@@ -58,10 +76,11 @@ export async function POST(req:NextRequest){
       if(body.atualizadoEm!==email.atualizadoEm)throw Error("Salve e atualize a cobrança antes de preparar a nota.");
       const testeAbandonado=trabalho?.status==="testando"&&!trabalho.aprovacao&&Date.now()-Date.parse(trabalho.atualizadoEm)>120000;
       if(trabalho && ((! ["preparada","testada","rejeitada"].includes(trabalho.status)&&!testeAbandonado)||trabalho.aprovacao||trabalho.emailId!==email.id))throw Error("Já existe tentativa fiscal. Consulte antes de emitir novamente.");
-      const fiscal=normalizarFiscalSP(body.fiscal);
+      const fiscal=normalizarFiscalSP(body.fiscal,email.centavos);
+      if(fiscal.regime!==(await regimeEmpresa(emp)).vigente?.regime)throw Error("Salve o regime vigente da empresa antes de preparar a nota.");
       if(Number(fiscal.numeroInicial)>=999999999999)throw Error("Número inicial fora da faixa reservável.");
       if(fiscal.dataEmissao!==hojeBrasil())throw Error("Para esta integração, a data de emissão deve ser a data de hoje. A competência do serviço permanece separada.");
-      if(emp==="sysney"&&fiscal.dataEmissao>="2026-11-01")throw Error("SYSNEY: emissão a partir de novembro deve seguir o Emissor Nacional. Integração nacional ainda não liberada.");
+      if(fiscal.regime==="simples"&&fiscal.dataEmissao>="2026-11-01")throw Error("Simples Nacional: emissão a partir de novembro deve seguir o Emissor Nacional. Integração nacional ainda não liberada.");
       // Identidade obtida exclusivamente da configuração protegida, nunca do navegador.
       const emitente=await opcional<{cnpj:string;inscricao:string}>("nfse-emitentes",emp,"AdminConfiguracoes");
       const cnpj=process.env[`NFSE_${emp.toUpperCase()}_CNPJ`]||emitente?.cnpj,inscricao=process.env[`NFSE_${emp.toUpperCase()}_CCM`]||emitente?.inscricao;
@@ -89,6 +108,8 @@ export async function POST(req:NextRequest){
     if(!executorMunicipalDisponivel())throw Error("Use o painel local deste computador para assinar com o certificado Windows. No ambiente on-line, registre a nota manualmente.");
     if(body.acao!=="consultar"){
       const d=trabalho.dados;
+      if(d.fiscal.regime!==(await regimeEmpresa(emp)).vigente?.regime)throw Error("Regime vigente mudou. Prepare e teste novamente.");
+      if(hashNotaSP(d)!==trabalho.hash)throw Error("O modelo fiscal foi atualizado. Prepare e teste novamente; aprovações anteriores não são reutilizadas.");
       if(body.hash!==trabalho.hash||body.atualizadoEm!==email.atualizadoEm||d.clienteDocumento!==documento||d.centavos!==email.centavos||d.competencia!==email.competencia||d.descricao!==email.descricao||d.po!==(email.po||"")||d.clienteNome!==email.cliente||d.fiscal.dataEmissao!==hojeBrasil())throw Error("Os dados mudaram ou a data expirou. Prepare e teste novamente.");
       if(!["rascunho","revisado"].includes(email.status)||email.fluxo?.nota||cobranca.nota||email.anexos.some(a=>a.tipo==="nota"))throw Error("Nota ou operação já existente. Consulte, sem emitir outra.");
     }
