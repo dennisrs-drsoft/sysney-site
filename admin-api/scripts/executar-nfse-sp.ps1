@@ -1,5 +1,6 @@
 param([switch]$ValidarSomente)
 $ErrorActionPreference='Stop'
+[Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 [Console]::InputEncoding=[Text.UTF8Encoding]::new($false)
 # Entrada pelo stdin, nunca pela linha de comando. A chave permanece no Windows.
@@ -72,7 +73,12 @@ if($erros.Count -gt 0){throw ('XML fora do schema oficial: '+($erros -join ' | '
 if($ValidarSomente){[pscustomobject]@{schemaValido=$true;transmitido=$false}|ConvertTo-Json -Compress;exit 0}
 $msg=[Security.SecurityElement]::Escape($xml.OuterXml)
 $soap="<s:Envelope xmlns:s='http://www.w3.org/2003/05/soap-envelope'><s:Body><$($m[1]) xmlns='http://www.prefeitura.sp.gov.br/nfe'><VersaoSchema>$versao</VersaoSchema><MensagemXML>$msg</MensagemXML></$($m[1])></s:Body></s:Envelope>"
-$response=Invoke-WebRequest 'https://nfews.prefeitura.sp.gov.br/lotenfe.asmx' -Method Post -Certificate $cert -ContentType "application/soap+xml; charset=utf-8; action=`"http://www.prefeitura.sp.gov.br/nfe/ws/$($m[2])`"" -Body ([Text.Encoding]::UTF8.GetBytes($soap)) -TimeoutSec 45 -UseBasicParsing
+try{
+  $response=Invoke-WebRequest 'https://nfews.prefeitura.sp.gov.br/lotenfe.asmx' -Method Post -Certificate $cert -ContentType "application/soap+xml; charset=utf-8; action=`"http://www.prefeitura.sp.gov.br/nfe/ws/$($m[2])`"" -Body ([Text.Encoding]::UTF8.GetBytes($soap)) -TimeoutSec 45 -UseBasicParsing
+}catch{
+  $status=if($_.Exception.Response){[int]$_.Exception.Response.StatusCode}else{0}
+  throw ('Comunicação fiscal sem confirmação. HTTP '+$status+'. Não repetir emissão sem consulta.')
+}
 $envXml=LerXml $response.Content;$node=$envXml.SelectSingleNode("//*[local-name()='RetornoXML']");if(-not $node){throw 'Resposta fiscal sem RetornoXML; consulte antes de repetir.'}
 $ret=LerXml $node.InnerText
 $chave=$ret.SelectSingleNode("//*[local-name()='ChaveNFe']")
