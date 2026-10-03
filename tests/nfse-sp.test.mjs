@@ -12,6 +12,13 @@ const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFisc
 // Dados exclusivamente sintéticos: nenhum certificado ou serviço externo é usado.
 const fiscal={regime:"presumido",serie:"SB001",numeroInicial:"1",dataEmissao:"2026-10-03",codigoServico:"02684",aliquota:"2.9",issRetido:false,nbs:"111111111",indicadorOperacao:"100101",classificacaoTributaria:"000001",consumidorFinal:false,municipioPrestacao:"3550308",deducoes:0,pis:0,cofins:0,inss:0,ir:0,csll:0,ipi:0,endereco:{tipo:"R",logradouro:"Rua Teste",numero:"1",bairro:"Centro",municipio:"3550308",uf:"SP",cep:"01000000"}};
 const dados={empresa:"drsoft",cnpj:"12345678000199",inscricao:"12345678",clienteDocumento:"98765432000199",clienteNome:"Cliente fictício",competencia:"2026-09",centavos:123456,descricao:"Teste & validação",po:"123",numero:"1",fiscal};
+test("assinador verifica RPS com a chave pública do certificado",()=>{
+ const script=readFileSync(new URL("../admin-api/scripts/executar-nfse-sp.ps1",import.meta.url),"utf8");
+ assert.match(script,/GetRSAPublicKey\(\$cert\)/);
+ assert.match(script,/\$publica\.VerifyData/);
+ assert.doesNotMatch(script,/\$rsa\.VerifyData/);
+ assert.match(script,/finally\{\$publica\.Dispose\(\)\}/);
+});
 test("RPS v2 assina inscrição com 12 dígitos e valor final; hash cobre fiscal/PO",()=>{
  const cadeia=cadeiaAssinaturaSP(dados);assert.equal(cadeia.length,90);assert.equal(cadeia.slice(0,12),"000012345678");assert.equal(cadeia.slice(12,17),"SB001");assert.equal(cadeia.slice(-14),dados.clienteDocumento);
  assert.notEqual(hashNotaSP(dados),hashNotaSP({...dados,po:"456"}));assert.notEqual(hashNotaSP(dados),hashNotaSP({...dados,fiscal:{...fiscal,nbs:"222222222"}}));

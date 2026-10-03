@@ -40,7 +40,12 @@ if($ValidarSomente){
     if($entrada.acao -ne 'consultar'){
       if($xml.SelectNodes('/*/RPS').Count -ne 1 -or $entrada.cadeia -notmatch ("^[\x20-\x7e]{"+$tamanho+'}$')){throw 'Assinatura do RPS inválida.'}
       $assinatura=$rsa.SignData([Text.Encoding]::ASCII.GetBytes($entrada.cadeia),[Security.Cryptography.HashAlgorithmName]::SHA1,[Security.Cryptography.RSASignaturePadding]::Pkcs1)
-      if(-not $rsa.VerifyData([Text.Encoding]::ASCII.GetBytes($entrada.cadeia),$assinatura,[Security.Cryptography.HashAlgorithmName]::SHA1,[Security.Cryptography.RSASignaturePadding]::Pkcs1)){throw 'Assinatura do RPS não validada.'}
+      # Verificar com a chave pública do certificado, não com o provedor privado.
+      # Alguns provedores autorizam SignData, mas não implementam VerifyData corretamente.
+      $publica=[Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPublicKey($cert)
+      try{
+        if(-not $publica.VerifyData([Text.Encoding]::ASCII.GetBytes($entrada.cadeia),$assinatura,[Security.Cryptography.HashAlgorithmName]::SHA1,[Security.Cryptography.RSASignaturePadding]::Pkcs1)){throw 'Assinatura do RPS não validada.'}
+      }finally{$publica.Dispose()}
       $xml.SelectSingleNode('/*/RPS/Assinatura').InnerText=[Convert]::ToBase64String($assinatura)
     }
     $sig=[Security.Cryptography.Xml.SignedXml]::new($xml);$sig.SigningKey=$rsa
