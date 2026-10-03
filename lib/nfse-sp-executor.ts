@@ -1,15 +1,14 @@
 import {spawn} from "node:child_process";
 import {resolve} from "node:path";
-import {executarNaVM} from "./nfse-sp-fila";
+import {executarNaVM,type AutorizacaoFiscalVM} from "./nfse-sp-fila";
 import {cadeiaAssinaturaSP,montarXmlSP,montarConsultaSP,type DadosNotaSP,type ResultadoSP} from "./nfse-sp";
 export function executorMunicipalDisponivel(){return process.env.NFSE_SP_WORKER_HABILITADO==="true"||(process.platform==="win32" && process.env.ADMIN_BACKEND_EXECUTION!=="true" && process.env.NODE_ENV!=="production");}
-export async function executarNotaSP(acao:"testar"|"emitir"|"consultar",dados:DadosNotaSP):Promise<ResultadoSP>{
+export async function executarNotaSP(acao:"testar"|"emitir"|"consultar",dados:DadosNotaSP,autorizacao?:AutorizacaoFiscalVM):Promise<ResultadoSP>{
   if(!executorMunicipalDisponivel())throw Error("Abra o painel neste computador para usar o certificado Windows. O assinador on-line ainda não está instalado.");
   if(acao==="emitir"&&process.env.NFSE_SP_PRODUCAO_HABILITADA!=="true")throw Error("Teste a integração e habilite a produção antes de emitir.");
   const entrada={acao,cnpj:dados.cnpj,xml:acao==="consultar"?montarConsultaSP(dados):montarXmlSP(dados,acao==="testar"),cadeia:cadeiaAssinaturaSP(dados)};
   if(process.env.NFSE_SP_WORKER_HABILITADO==="true"){
-    if(acao==="emitir")throw Error("Serviço da VM opera somente em teste e consulta; emissão real bloqueada.");
-    return executarNaVM({...entrada,acao});
+    return executarNaVM({...entrada,acao,...(acao==="emitir"?{autorizacao}:{})});
   }
   return new Promise((done,fail)=>{
     const child=spawn("powershell.exe",["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File",resolve(process.cwd(),"admin-api/scripts/executar-nfse-sp.ps1")],{windowsHide:true,stdio:["pipe","pipe","pipe"]});

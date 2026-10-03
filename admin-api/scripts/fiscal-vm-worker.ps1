@@ -3,10 +3,11 @@ $ErrorActionPreference='Stop'
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 $config=Get-Content -Raw -LiteralPath (Join-Path $PSScriptRoot 'config.json') | ConvertFrom-Json
-if($config.modo -ne 'teste' -or $config.storage -notmatch '^[a-z0-9]{3,24}$'){throw 'Configuração de teste inválida.'}
-$base="https://$($config.storage).table.core.windows.net/FiscalFila"
+if($config.modo -notin @('teste','producao') -or $config.storage -notmatch '^[a-z0-9]{3,24}$'){throw 'Configuração fiscal inválida.'}
 $script:token=$null;$script:tokenEm=[datetime]::MinValue
-function ChamarTabela([string]$metodo,[string]$sufixo,$corpo=$null,[string]$etag=''){
+function ChamarTabela([string]$metodo,[string]$sufixo,$corpo=$null,[string]$etag='',[string]$tabela='FiscalFila'){
+  if($tabela -notin @('FiscalFila','AdminDocumentos')){throw 'Tabela não permitida.'}
+  $base="https://$($config.storage).table.core.windows.net/$tabela"
   if(-not $script:token -or ([datetime]::UtcNow-$script:tokenEm).TotalMinutes -gt 40){
     $t=Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F' -Headers @{Metadata='true'} -TimeoutSec 10
     $script:token=$t.access_token;$script:tokenEm=[datetime]::UtcNow
@@ -19,10 +20,33 @@ function ChamarTabela([string]$metodo,[string]$sufixo,$corpo=$null,[string]$etag
 }
 function Chave([string]$id){return "(PartitionKey='pedidos',RowKey='$id')"}
 function Salvar($job,[string]$etag){[void](ChamarTabela 'PUT' (Chave $job.RowKey) $job $etag)}
+function HashTexto([string]$texto){
+  $sha=[Security.Cryptography.SHA256]::Create()
+  try{return ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($texto)))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}
+}
+function ValidarEmissao($pedido,$emitente){
+  if($config.modo -ne 'producao' -or $config.producaoEmitentes -notcontains $emitente.empresa){throw 'Produção não habilitada para este emitente.'}
+  $a=$pedido.autorizacao
+  if($a.empresa -ne $emitente.empresa -or $a.trabalhoId -notmatch '^[a-f0-9]{64}$' -or $a.hashAprovado -notmatch '^[a-f0-9]{64}$'){throw 'Vínculo da aprovação inválido.'}
+  $chave="(PartitionKey='nfse-sp-$($a.empresa)',RowKey='$($a.trabalhoId)')"
+  $registro=(ChamarTabela 'GET' $chave $null '' 'AdminDocumentos').Content|ConvertFrom-Json
+  $nota=$registro.json|ConvertFrom-Json
+  if($nota.id -ne $a.trabalhoId -or $nota.dados.empresa -ne $a.empresa -or $nota.dados.cnpj -ne $pedido.cnpj -or $nota.status -ne 'transmitindo' -or $nota.hash -ne $a.hashAprovado -or $nota.aprovacao.hash -ne $nota.hash -or $nota.teste.hash -ne $nota.hash -or $nota.teste.resultado.sucesso -ne $true -or $nota.teste.resultado.teste -ne $true){throw 'Aprovação fiscal não confirmada no registro privado.'}
+  foreach($em in @($nota.teste.em,$nota.aprovacao.em)){
+    $idade=([datetime]::UtcNow-[datetime]::Parse($em).ToUniversalTime()).TotalSeconds
+    if($idade -lt -30 -or $idade -gt 1800){throw 'Teste ou aprovação fiscal expirados.'}
+  }
+  $hoje=[TimeZoneInfo]::ConvertTimeFromUtc([datetime]::UtcNow,[TimeZoneInfo]::FindSystemTimeZoneById('E. South America Standard Time')).ToString('yyyy-MM-dd')
+  if($nota.dados.fiscal.dataEmissao -ne $hoje -or $nota.aprovacao.xmlHash -ne (HashTexto $pedido.xml) -or $nota.aprovacao.cadeiaHash -ne (HashTexto $pedido.cadeia)){throw 'Dados diferentes da nota aprovada.'}
+  # Insert, nunca upsert: uma aprovação tem uma única tentativa de transmissão real.
+  # Timeout ou falha deixam a trava existente; a recuperação é exclusivamente por consulta.
+  try{[void](ChamarTabela 'POST' '' @{PartitionKey='emissoes';RowKey=($a.empresa+'-'+$a.trabalhoId);hash=$nota.hash;em=[datetime]::UtcNow.ToString('o')})}catch{throw 'Tentativa real já registrada ou trava não confirmada. Consultar antes de repetir.'}
+}
 function ExecutarPedido($pedido){
-  if($pedido.acao -notin @('testar','consultar') -or $pedido.cnpj -notmatch '^\d{14}$' -or $pedido.xml.Length -gt 24000){throw 'Operação não permitida.'}
+  if($pedido.acao -notin @('testar','consultar','emitir') -or $pedido.cnpj -notmatch '^\d{14}$' -or $pedido.xml.Length -gt 24000){throw 'Operação não permitida.'}
   $emitente=@($config.emitentes | Where-Object {$_.cnpj -eq $pedido.cnpj})
   if($emitente.Count -ne 1 -or $emitente[0].thumbprint -notmatch '^[A-Fa-f0-9]{40}$'){throw 'Emitente não vinculado.'}
+  if($pedido.acao -eq 'emitir'){ValidarEmissao $pedido $emitente[0]}
   $start=[Diagnostics.ProcessStartInfo]::new()
   $start.FileName=Join-Path $PSHOME 'powershell.exe'
   $assinador=Join-Path $PSScriptRoot 'scripts/executar-nfse-sp.ps1'
@@ -31,8 +55,8 @@ function ExecutarPedido($pedido){
   $start.RedirectStandardInput=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
   $start.StandardOutputEncoding=[Text.UTF8Encoding]::new($false)
   if($start.PSObject.Properties['StandardInputEncoding']){$start.StandardInputEncoding=[Text.UTF8Encoding]::new($false)}
-  $start.EnvironmentVariables['NFSE_SP_SOMENTE_TESTE']='true'
-  $start.EnvironmentVariables['NFSE_SP_PRODUCAO_HABILITADA']='false'
+  $start.EnvironmentVariables['NFSE_SP_SOMENTE_TESTE']=if($pedido.acao -eq 'emitir'){'false'}else{'true'}
+  $start.EnvironmentVariables['NFSE_SP_PRODUCAO_HABILITADA']=if($pedido.acao -eq 'emitir'){'true'}else{'false'}
   $start.EnvironmentVariables['NFSE_SP_CERT_STORE']='LocalMachine'
   $start.EnvironmentVariables['NFSE_SP_CERT_THUMBPRINT']=$emitente[0].thumbprint
   $processo=[Diagnostics.Process]::new();$processo.StartInfo=$start
@@ -53,7 +77,7 @@ $ultimaSaude=[datetime]::MinValue
 while($true){
   try{
     if(([datetime]::UtcNow-$ultimaSaude).TotalSeconds -gt 30){
-      [void](ChamarTabela 'PUT' "(PartitionKey='servico',RowKey='drserver')" @{PartitionKey='servico';RowKey='drserver';modo='teste';em=[datetime]::UtcNow.ToString('o')})
+      [void](ChamarTabela 'PUT' "(PartitionKey='servico',RowKey='drserver')" @{PartitionKey='servico';RowKey='drserver';modo=$config.modo;em=[datetime]::UtcNow.ToString('o')})
       $ultimaSaude=[datetime]::UtcNow
     }
     $query='()?$filter='+[Uri]::EscapeDataString("PartitionKey eq 'pedidos' and estado eq 'pendente'")+'&$top=10'

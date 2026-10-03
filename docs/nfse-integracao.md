@@ -50,6 +50,8 @@ emissão fiscal, nem o inverso.
    o titular deve autorizá-lo pessoalmente. Não registrar a senha no sistema.
 4. Conferir retorno, alertas e consulta em uma homologação supervisionada.
 5. Só então configurar `NFSE_SP_PRODUCAO_HABILITADA=true` no processo local.
+   Para a VM, também configurar `NFSE_SP_VM_PRODUCAO_HABILITADA=true` e
+   modo `producao` com lista privada de emitentes autorizados no worker.
    A variável não é habilitada pelos scripts de publicação.
 6. A transmissão real exige, ainda, teste aceito nos últimos 30 minutos, dados
    inalterados, data de emissão atual e aprovação explícita no painel.
@@ -71,8 +73,8 @@ conciliar é obrigatório antes de qualquer substituição.
   sem intermediário, sem obra, exportação, imunidade ou exigibilidade suspensa.
   Casos diferentes usam emissão manual.
 - O certificado local não é acessível pelo painel on-line. O serviço remoto
-  descrito abaixo permite somente testes e consultas; transmissão real na VM
-  permanece bloqueada independentemente das aprovações do painel.
+  descrito abaixo nasce em modo de teste. Em produção, exige aprovação privada
+  vinculada ao XML exato, teste recente e trava independente na própria VM.
 - O XML de retorno fica no registro fiscal privado. Não há download automático
   de PDF nesta etapa: obter o PDF no portal, anexar e revisar antes de aprovar o
   envio. O módulo não apresenta um PDF próprio como documento oficial.
@@ -113,8 +115,25 @@ thumbprint fixado na configuração privada. IIS e SQL Server não são alterado
 O backend utiliza `NFSE_SP_WORKER_HABILITADO=true` e `ADMIN_STORAGE_ACCOUNT`.
 Sem sinal recente de saúde do serviço, não enfileira pedidos. Pedidos expiram
 em 85 segundos; a espera termina em 90 segundos e não gera repetição automática.
-O worker aceita apenas testar/consultar e força o assinador a modo de teste.
-Emissão real continua recusada mesmo com a variável de produção habilitada.
+O worker instalado inicialmente aceita apenas testar/consultar e força o
+assinador a modo de teste. A migração controlada para produção exige lista de
+emitentes autorizados na configuração privada, duas variáveis no backend e
+acesso de leitura da identidade da VM à tabela AdminDocumentos.
+
+Antes de emitir, o worker lê o registro fiscal durável: status transmitindo,
+emitente, aprovação, hash, teste aceito nos últimos 30 minutos, data brasileira
+atual, hash do XML e hash da cadeia devem coincidir. Ele insere uma trava única
+na partição emissoes da FiscalFila (nunca upsert). Uma falha ou timeout não remove
+esta trava; uma segunda tentativa é recusada e a recuperação ocorre por consulta.
+O envio de e-mail e o agendamento de emissões não são liberados por esta migração.
+
+Em 03/10/2026, o teste municipal da SYSNEY foi aceito pela VM após fixar TLS 1.2
+no processo assinador (o protocolo do processo pai não se propaga ao filho).
+O alerta 1651 sobre IBS/CBS é registrado, não ocultado. A aceitação de teste não
+é uma emissão real nem dispensa a conferência do regime e das datas legais.
+Na mesma data, a primeira emissão real supervisionada pela VM foi aceita e
+confirmada por consulta, com vinculação à cobrança. Dados e documentos financeiros
+ficam exclusivamente no armazenamento privado, não neste repositório.
 
 Uma atualização deve parar somente esta tarefa, preservar configuração privada,
 arquivar a versão anterior e substituir apenas arquivos do serviço; nunca

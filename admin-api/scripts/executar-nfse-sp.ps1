@@ -37,7 +37,7 @@ if($ValidarSomente){
 }else{
   $loja=if($env:NFSE_SP_CERT_STORE -eq 'LocalMachine'){'Cert:\LocalMachine\My'}else{'Cert:\CurrentUser\My'}
   $thumb=$env:NFSE_SP_CERT_THUMBPRINT
-  if($env:NFSE_SP_SOMENTE_TESTE -eq 'true' -and $thumb -notmatch '^[A-Fa-f0-9]{40}$'){throw 'Certificado fiscal da VM não vinculado.'}
+  if(($env:NFSE_SP_SOMENTE_TESTE -eq 'true' -or $env:NFSE_SP_CERT_STORE -eq 'LocalMachine') -and $thumb -notmatch '^[A-Fa-f0-9]{40}$'){throw 'Certificado fiscal da VM não vinculado.'}
   $certs=@(Get-ChildItem $loja | Where-Object {$_.Subject -match [regex]::Escape($entrada.cnpj) -and (!$thumb -or $_.Thumbprint -eq $thumb) -and $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date) -and $_.NotBefore -lt (Get-Date)})
   if($certs.Count -ne 1){throw 'Certificado válido e único da empresa não localizado.'}
   $cert=$certs[0];$rsa=[Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($cert)
