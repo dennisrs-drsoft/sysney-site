@@ -35,7 +35,13 @@ async function mailConfig(empresa: "sysney" | "drsoft") {
     ? process.env.SENDGRID_FROM_EMAIL_SYSNEY || "financeiro@sysney.com"
     : process.env.SENDGRID_FROM_EMAIL_DRSOFT || "financeiro@drsoftinformatica.com";
   if (!key || !emailsValidos(from) || destinatarios(from).length !== 1) throw new Error("Remetente de e-mail não configurado.");
-  return { key, from };
+  let auditoria = "";
+  try {
+    const configs = new TableClient(`https://${conta()}.table.core.windows.net`, "AdminConfiguracoes", cred);
+    auditoria = (await configs.getEntity<{email:string}>("email-auditoria", "padrao")).email.trim();
+  } catch(e) { if ((e as {statusCode?:number}).statusCode !== 404) throw e; }
+  if (auditoria && (!emailsValidos(auditoria) || destinatarios(auditoria).length !== 1)) throw new Error("E-mail de auditoria inválido.");
+  return { key, from, auditoria };
 }
 function validarEnvio(e: EmailCobranca) {
   if (!emailsValidos(e.para) || (e.cc && !emailsValidos(e.cc))) throw new Error("Confira os destinatários.");
@@ -54,7 +60,7 @@ async function pacote(e: EmailCobranca) {
   const buffers = await Promise.all(e.anexos.map(a => container().getBlockBlobClient(a.blob).downloadToBuffer()));
   const logo = await readFile(join(process.cwd(), "public", "logo.png"));
   const hash = (b: Buffer) => createHash("sha256").update(b).digest("hex");
-  return { config, logo, buffers, hash:assinaturaEnvio(e,config.from,hash(logo),buffers.map(hash)) };
+  return { config, logo, buffers, hash:assinaturaEnvio(e,config.from,hash(logo),buffers.map(hash),config.auditoria) };
 }
 async function hashDocumentos(e: EmailCobranca) {
   if (!e.fluxo?.nota || !e.fluxo.boleto || !e.anexos.some(a=>a.tipo === "nota") || !e.anexos.some(a=>a.tipo === "boleto")) throw new Error("A emissão integrada ainda não está disponível. Informe os documentos já emitidos no acompanhamento e anexe os dois PDFs para conferência.");
@@ -104,9 +110,9 @@ export async function GET(req: NextRequest) {
     }
     const emails: EmailCobranca[] = [];
     for await (const r of table().listEntities<{ json: string }>({ queryOptions: { filter: `PartitionKey eq 'emails-${empresa}'` } })) emails.push(JSON.parse(r.json));
-    let remetente = "";
-    try { remetente = (await mailConfig(empresa)).from; } catch { /* A revisão permanece disponível sem configuração de envio. */ }
-    return reply({ emails: emails.sort((a,b) => b.atualizadoEm.localeCompare(a.atualizadoEm)), remetente });
+    let remetente = "", auditoria = "";
+    try { const config = await mailConfig(empresa); remetente = config.from; auditoria = config.auditoria; } catch { /* A revisão permanece disponível sem configuração de envio. */ }
+    return reply({ emails: emails.sort((a,b) => b.atualizadoEm.localeCompare(a.atualizadoEm)), remetente, auditoria });
   } catch (e) { return erro(e); }
 }
 export async function POST(req: NextRequest) {
@@ -228,6 +234,7 @@ export async function POST(req: NextRequest) {
       await conferirFluxo(email);
       const material = await pacote(email);
       if (body.remetente !== material.config.from) throw new Error("O remetente mudou. Atualize a lista e confira antes de aprovar.");
+      if ((body.auditoria || "") !== material.config.auditoria) throw new Error("A cópia de auditoria mudou. Atualize a lista e confira antes de aprovar.");
       email.aprovacaoEnvio = { hash:material.hash, por:responsavel(req), em:email.atualizadoEm, remetente:material.config.from };
       await guardar(email, etag); return reply({ email });
     }
@@ -239,7 +246,9 @@ export async function POST(req: NextRequest) {
     const { config, logo } = material;
     const anexos = email.anexos.map((a,i) => ({ content:material.buffers[i].toString("base64"), filename:a.nome, type:"application/pdf", disposition:"attachment" }));
     const html = htmlEmail(email, "cid:logo-sysney");
-    const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, assunto: email.assunto, html: htmlEmail(email), status: "processando" };
+    const visiveis = new Set([...destinatarios(email.para), ...destinatarios(email.cc)].map(v=>v.toLowerCase()));
+    const bcc = config.auditoria && !visiveis.has(config.auditoria.toLowerCase()) ? config.auditoria : "";
+    const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, cc:email.cc, bcc, remetente:config.from, assunto: email.assunto, html: htmlEmail(email), status: "processando" };
     email.tentativas.push(tentativa); email.status = "enviando"; email.atualizadoEm = tentativa.data;
     await guardar(email, etag);
     // O bloqueio persistente impede reenvio em caso de queda ou resposta ambígua.
@@ -247,7 +256,7 @@ export async function POST(req: NextRequest) {
     try {
       const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
         method: "POST", signal: AbortSignal.timeout(25000), headers: { Authorization: `Bearer ${config.key}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ personalizations: [{ to: destinatarios(email.para).map(email => ({ email })), ...(email.cc ? { cc: destinatarios(email.cc).map(email => ({ email })) } : {}) }],
+        body: JSON.stringify({ personalizations: [{ to: destinatarios(email.para).map(email => ({ email })), ...(email.cc ? { cc: destinatarios(email.cc).map(email => ({ email })) } : {}), ...(bcc ? {bcc:[{email:bcc}]} : {}) }],
           from: { email: config.from, name: `${empresa.toUpperCase()} — Financeiro` }, reply_to: { email: email.responderPara }, subject: email.assunto,
           content: [{ type: "text/html", value: html }], attachments: [...anexos, { content: logo.toString("base64"), filename: "logo-sysney.png", type: "image/png", disposition: "inline", content_id: "logo-sysney" }],
           tracking_settings: { click_tracking: { enable: false }, open_tracking: { enable: false } } }),

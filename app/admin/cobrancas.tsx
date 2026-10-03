@@ -82,7 +82,7 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
         <button className={button} onClick={() => setNovo(!novo)}>{novo ? "Fechar cadastro" : "Cadastrar mensalidade"}</button>
       </div>
     </section>
-    <p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Controle manual com alertas neste painel. Registrar envio não envia e-mail; registrar pagamento não consulta o banco. Confirmações automáticas e anexos ainda não estão conectados.</p>
+    <p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Os envios da fila aceitos pelo SendGrid aparecem automaticamente aqui; isso não confirma entrega ou leitura. Registrar envio manual não envia e-mail; registrar pagamento não consulta o banco.</p>
     {erro && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{erro} <button className="underline" onClick={() => void carregar()}>Tentar carregar novamente</button></p>}
     {aviso && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-800">{aviso}</p>}
     {novo && <form onSubmit={criarPlano} className="rounded-3xl border border-slate-200 bg-white p-6">

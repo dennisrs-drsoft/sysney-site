@@ -4,7 +4,8 @@ import { TableClient, type TableEntityResult } from "@azure/data-tables";
 import { createHash } from "node:crypto";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
+import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
+import type { EmailCobranca } from "@/lib/emails-cobranca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -53,7 +54,8 @@ export async function GET(req: NextRequest) {
       ler<Plano>(tabela("AdminConfiguracoes"), part), ler<Cobranca>(tabela("AdminDocumentos"), part),
     ]);
     const ate = mes > hojeBrasil().slice(0, 7) ? mes : hojeBrasil().slice(0, 7);
-    return resposta({ planos, cobrancas: carteira(planos, salvas, ate), hoje: hojeBrasil() });
+    const emails = await ler<EmailCobranca>(tabela("AdminDocumentos"), `emails-${empresa(req)}`);
+    return resposta({ planos, cobrancas: integrarEnvios(carteira(planos, salvas, ate), emails, empresa(req)), hoje: hojeBrasil() });
   } catch (e) { return falha(e); }
 }
 export async function POST(req: NextRequest) {
@@ -102,6 +104,7 @@ export async function POST(req: NextRequest) {
       if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora do contrato.");
       c = prevista(p, competencia);
     }
+    c = integrarEnvios([c], await ler<EmailCobranca>(table, `emails-${emp}`), emp)[0];
     const operacaoId = texto(body.operacaoId, 36);
     if (!/^[a-f0-9-]{36}$/.test(operacaoId)) throw new Error("Identificador inválido.");
     if (c.eventos.some(e => e.id === operacaoId)) return resposta({ sucesso: true });

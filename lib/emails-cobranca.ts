@@ -1,7 +1,7 @@
 import { moeda, dataBr, type Empresa } from "./cobrancas";
 
 export type AnexoEmail = { tipo: "nota" | "boleto"; nome: string; blob: string; tamanho: number };
-export type TentativaEmail = { id: string; data: string; destino: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string };
+export type TentativaEmail = { id: string; data: string; destino: string; cc?: string; bcc?: string; remetente?: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string };
 export type EmailCobranca = {
   id: string; empresa: Empresa; cliente: string; para: string; cc: string; responderPara?: string;
   assunto: string; saudacao: string; introducao: string; descricao: string;

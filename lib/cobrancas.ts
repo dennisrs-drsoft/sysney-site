@@ -66,3 +66,18 @@ export function moeda(v: number) {
   return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 export function dataBr(v: string) { return v ? v.split("-").reverse().join("/") : "—"; }
+
+// Projeção dos envios confirmados pelo provedor; não dispara nem repete envios.
+export function integrarEnvios(cobrancas: Cobranca[], emails: {empresa:string; competencia:string; centavos:number; vencimento:string; fluxo?:{cobrancaId:string}; tentativas:{id:string;data:string;status:string;messageId?:string}[]}[], empresa: Empresa) {
+  return cobrancas.map(c => {
+    const eventos = [...c.eventos];
+    for (const e of emails) {
+      if (e.empresa !== empresa || e.fluxo?.cobrancaId !== c.id || e.competencia !== c.competencia || e.centavos !== c.centavos || e.vencimento !== c.vencimento) continue;
+      for (const t of e.tentativas) {
+        if (t.status !== "aceito" || !Number.isFinite(Date.parse(t.data)) || eventos.some(v=>v.id === t.id)) continue;
+        eventos.push({id:t.id,tipo:"envio",data:new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(t.data)),registradoEm:t.data,responsavel:"Sistema — SendGrid",detalhe:`E-mail aceito pelo SendGrid. Entrega, leitura e pagamento não confirmados. Protocolo: ${t.messageId || "não informado"}.`});
+      }
+    }
+    return {...c,eventos};
+  });
+}

@@ -5,8 +5,20 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("../lib/cobrancas.ts", import.meta.url), "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
-const { dataMensal, dataValida, carteira, prevista, pago, situacao } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
+const { dataMensal, dataValida, carteira, prevista, pago, situacao, integrarEnvios } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
 const plano = { id: "p1", inicio: "2026-08", fim: "", clienteNome: "Cliente de teste", descricao: "Suporte", email: "teste@example.com", centavos: 123456, diaEnvio: 4, mesEnvio: 1, diaVencimento: 8, mesVencimento: 2 };
+
+test("acompanhamento reconhece aceitação, sem duplicar ou inferir recebimento",()=>{
+ const c=prevista(plano,"2026-08");
+ const email={empresa:"sysney",competencia:c.competencia,centavos:c.centavos,vencimento:c.vencimento,fluxo:{cobrancaId:c.id},tentativas:[{id:"tentativa",status:"aceito",data:"2026-10-03T02:56:29Z",messageId:"protocolo"}]};
+ const [r]=integrarEnvios([c],[email],"sysney");
+ assert.equal(r.eventos[0].data,"2026-10-02");assert.equal(c.eventos.length,0);
+ assert.equal(situacao(r,"2026-10-03"),"Aguardando pagamento");assert.equal(pago(r),0);
+ assert.equal(integrarEnvios([r],[email],"sysney")[0].eventos.length,1);
+ assert.equal(integrarEnvios([c],[email],"drsoft")[0].eventos.length,0);
+ assert.equal(integrarEnvios([c],[{...email,centavos:1}],"sysney")[0].eventos.length,0);
+ assert.equal(integrarEnvios([c],[{...email,tentativas:[{...email.tentativas[0],status:"incerto"}]}],"sysney")[0].eventos.length,0);
+});
 test("competência, envio e vencimento em meses distintos", () => {
   const c = prevista(plano, "2026-08");
   assert.equal(c.envioPrevisto, "2026-09-04");

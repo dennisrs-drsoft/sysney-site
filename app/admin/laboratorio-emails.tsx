@@ -14,6 +14,7 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
   const [lista, setLista] = useState<EmailCobranca[]>([]);
   const [email, setEmail] = useState<EmailCobranca>(() => inicial || novoEmail(empresa));
   const [remetente, setRemetente] = useState("");
+  const [auditoria, setAuditoria] = useState("");
   const [aviso, setAviso] = useState("");
   const [ocupado, setOcupado] = useState(false);
   const [alterado, setAlterado] = useState(false);
@@ -23,8 +24,8 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
   const carregar = useCallback(async () => {
     try {
       const r = await fetch(`/api/admin/emails?empresa=${empresa}`, { cache: "no-store" });
-      const d = await lerRespostaAdmin<{emails: EmailCobranca[]; remetente: string; erro?: string}>(r); if (!r.ok) throw new Error(d.erro);
-      setLista(d.emails); setRemetente(d.remetente);
+      const d = await lerRespostaAdmin<{emails: EmailCobranca[]; remetente: string; auditoria?: string; erro?: string}>(r); if (!r.ok) throw new Error(d.erro);
+      setLista(d.emails); setRemetente(d.remetente); setAuditoria(d.auditoria || "");
     } catch (e) { setAviso(e instanceof Error ? e.message : "Falha na consulta."); }
   }, [empresa]);
   useEffect(() => { const id = requestAnimationFrame(() => void carregar()); return () => cancelAnimationFrame(id); }, [carregar]);
@@ -34,7 +35,7 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
   async function executar(acao: string, tipo?: "nota" | "boleto", numero?: string) {
     setOcupado(true); setAviso("");
     try {
-      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, tipo, numero, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente }) });
+      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, tipo, numero, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente, auditoria }) });
       const d = await lerRespostaAdmin<{email?: EmailCobranca; mensagem?: string; erro?: string}>(res, true);
       if (d.email) { setEmail(d.email); setAlterado(false); }
       if (!res.ok) throw new Error(d.erro);
@@ -73,6 +74,7 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
           {!carregandoClientes && clientes.length === 0 && <p className="text-sm text-slate-600">Nenhum cliente disponível para {empresa.toUpperCase()}. Confira a empresa no menu. Você também pode preencher os dados abaixo manualmente.</p>}
           <button className={botao} disabled={carregandoClientes} onClick={() => void atualizarClientes()}>Atualizar clientes</button>
           {texto("cliente","Cliente")}{texto("para","Para (separe e-mails por ponto e vírgula)")}{texto("cc","Cópia (opcional)")}
+          {auditoria && <p className="text-sm text-slate-600">Cópia oculta automática de auditoria: <strong>{auditoria}</strong>. Se já estiver em Para ou Cópia, não será duplicada.</p>}
           <label className="block text-sm font-semibold">Receber respostas em<input type="email" className={campo} maxLength={254} value={email.responderPara || ""} onChange={e => mudar("responderPara",e.target.value)}/></label>
           </div></details>
           <details open className={styles.group}><summary><span>02</span> Dados da cobrança</summary><div className={styles.fields}>
@@ -97,11 +99,11 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
         {email.aprovacaoEnvio && !alterado && <p className="mt-2 text-xs text-blue-800">Última aprovação: {email.aprovacaoEnvio.por} · {new Date(email.aprovacaoEnvio.em).toLocaleString("pt-BR")} · remetente {email.aprovacaoEnvio.remetente}</p>}
         <button className={`${destaque} mt-5`} disabled={!email.id || alterado || ocupado || bloqueado || !remetente || (!!email.fluxo && !email.fluxo.documentos)} onClick={() => void executar("revisar")}>Aprovar e-mail e PDFs para envio</button>
         <button className={`${botao} mt-3`} disabled={email.status !== "revisado" || alterado || ocupado || !remetente} onClick={() => setEnvioAberto(true)}>Preparar envio real</button>
-        {envioAberto && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm"><p>Enviar agora de <strong>{remetente}</strong> para <strong>{email.para}</strong>{email.cc ? `, com cópia para ${email.cc}` : ""}, com nota, boleto e logo?</p><button className={`${destaque} mt-3`} disabled={ocupado} onClick={() => void executar("enviar")}>Enviar este e-mail agora</button></div>}
+        {envioAberto && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm"><p>Enviar agora de <strong>{remetente}</strong> para <strong>{email.para}</strong>{email.cc ? `, com cópia para ${email.cc}` : ""}, com nota, boleto e logo?</p>{auditoria && <p className="mt-2">Cópia de auditoria: {auditoria} (oculta, salvo se já estiver nos destinatários acima).</p>}<button className={`${destaque} mt-3`} disabled={ocupado} onClick={() => void executar("enviar")}>Enviar este e-mail agora</button></div>}
         </div>
       </section>
       <section className={`${styles.preview} rounded-3xl border border-slate-200 bg-white p-4`}><div className={styles.cardHeading}><div><p>VISUALIZAÇÃO AO VIVO</p><h3 className="font-black">Assim o cliente vai receber</h3></div><button className={botao} onClick={() => setCompacto(!compacto)}>{compacto ? "Ver computador" : "Ver celular"}</button></div><div className={styles.previewCanvas}><iframe title="Prévia do e-mail de cobrança" sandbox="" srcDoc={htmlEmail(email,"/logo.png")} className={`mx-auto h-[780px] max-w-full rounded-xl border border-slate-200 ${compacto ? "w-[375px]" : "w-full"}`}/></div>
-        <h3 className="mt-5 font-black">Envios desta mensagem</h3>{email.tentativas.length === 0 ? <p className="mt-2 text-sm text-slate-500">Nenhum envio realizado.</p> : email.tentativas.map(t => <details key={t.id} className="mt-3 rounded-xl border p-3"><summary className="cursor-pointer text-sm">{new Date(t.data).toLocaleString("pt-BR")} · {t.status} · {t.destino}</summary><p className="my-2 text-xs">{t.assunto} · {t.messageId || "Sem confirmação do provedor"}</p><iframe sandbox="" title={`Mensagem enviada ${t.id}`} className="h-[750px] w-full" srcDoc={t.html}/></details>)}
+        <h3 className="mt-5 font-black">Envios desta mensagem</h3>{email.tentativas.length === 0 ? <p className="mt-2 text-sm text-slate-500">Nenhum envio realizado.</p> : email.tentativas.map(t => <details key={t.id} className="mt-3 rounded-xl border p-3"><summary className="cursor-pointer text-sm">{new Date(t.data).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})} · {t.status} · {t.destino}</summary><p className="my-2 text-xs">{t.assunto} · {t.messageId || "Sem confirmação do provedor"}</p><p className="my-2 text-xs">Remetente: {t.remetente || "não registrado neste histórico antigo"} · Cópia: {t.cc || "não registrada"} · Cópia oculta: {t.bcc || "não registrada"}</p><iframe sandbox="" title={`Mensagem enviada ${t.id}`} className="h-[750px] w-full" srcDoc={t.html}/></details>)}
       </section>
     </div>
   </div>;

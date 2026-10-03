@@ -161,4 +161,33 @@ test("hash muda com PDF, logo, destinatários e remetente",async()=>{
   assert.notEqual(hash,assinaturaEnvio(e,"a@example.com","outro-logo",["pdf"]));
   assert.notEqual(hash,assinaturaEnvio({...e,para:"outro@example.com"},"a@example.com","logo",["pdf"]));
   assert.notEqual(hash,assinaturaEnvio(e,"b@example.com","logo",["pdf"]));
+  assert.notEqual(hash,assinaturaEnvio(e,"a@example.com","logo",["pdf"],"audit@example.com"));
+});
+
+test("auditoria é aplicada no servidor, exige revisão e fica registrada sem expor no HTML",async()=>{
+ const configKey="AdminConfiguracoes:email-auditoria:padrao";
+ records.set(configKey,{email:"audit@example.com",etag:"1"});
+ const original=globalThis.fetch;
+ try {
+  assert.equal((await (await GET(request(null))).json()).auditoria,"audit@example.com");
+  for (const para of ["cliente@example.com","audit@example.com"]) {
+   let e=(await (await POST(request({acao:"salvar",email:{...novoEmail("sysney","Auditoria"),para,responderPara:"financeiro@example.com",competencia:"2026-10",vencimento:"2026-11-08",centavos:10000}}))).json()).email;
+   e.anexos=[{tipo:"nota",nome:"nota.pdf",blob:"nota",tamanho:10},{tipo:"boleto",nome:"boleto.pdf",blob:"boleto",tamanho:10}];
+   records.get(`AdminDocumentos:emails-sysney:${e.id}`).json=JSON.stringify(e);
+   const review={acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"sender@example.com"};
+   assert.equal((await POST(request(review))).status,400);
+   e=(await (await POST(request({...review,auditoria:"audit@example.com"}))).json()).email;
+   records.set(configKey,{email:"changed@example.com",etag:"2"});
+   assert.equal((await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm}))).status,400);
+   records.set(configKey,{email:"audit@example.com",etag:"3"});
+   globalThis.fetch=async(_,options)=>{
+    const p=JSON.parse(options.body);
+    assert.deepEqual(p.personalizations[0].bcc,para === "audit@example.com" ? undefined : [{email:"audit@example.com"}]);
+    assert.ok(!p.content[0].value.includes("audit@example.com"));
+    return new Response(null,{status:202});
+   };
+   e=(await (await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm}))).json()).email;
+   assert.equal(e.status,"aceito");assert.equal(e.tentativas[0].bcc,para === "audit@example.com" ? "" : "audit@example.com");
+  }
+ } finally {globalThis.fetch=original;records.delete(configKey);}
 });
