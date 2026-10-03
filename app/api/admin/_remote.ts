@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { usuarioAdministrador } from "./_auth";
 
-const rotas = new Set(["clientes", "cobrancas", "emails", "aprovacoes", "historico-inter", "status"]);
+const rotas = new Set(["clientes", "cobrancas", "emails", "aprovacoes", "historico-inter", "status", "documentos"]);
 const destino = "https://sysney-admin-api-2602.azurewebsites.net";
 const origens = new Set(["https://www.sysney.com", "https://sysney.com", "https://lively-ocean-0b7f9dd10.7.azurestaticapps.net"]);
 const erro = (mensagem: string, status: number) => NextResponse.json({erro:mensagem},{status,headers:{"Cache-Control":"no-store"}});

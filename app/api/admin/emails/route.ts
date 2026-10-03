@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { novoEmail, emailsValidos, destinatarios, htmlEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
+import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
 import { mesValido, dataValida, hojeBrasil, prevista, type Cobranca, type Plano } from "@/lib/cobrancas";
 
 export const runtime = "nodejs";
@@ -44,6 +44,8 @@ async function mailConfig(empresa: "sysney" | "drsoft") {
   return { key, from, auditoria };
 }
 function validarEnvio(e: EmailCobranca) {
+  validarModeloEmail(e);
+  if (!resolverTextoEmail(e.assunto,e).trim()) throw new Error("Preencha o assunto.");
   if (!emailsValidos(e.para) || (e.cc && !emailsValidos(e.cc))) throw new Error("Confira os destinatários.");
   if (!e.responderPara || !emailsValidos(e.responderPara) || destinatarios(e.responderPara).length !== 1) throw new Error("Informe um e-mail para receber as respostas do cliente.");
   if (!e.cliente || !e.assunto || !e.descricao || !mesValido(e.competencia) || !dataValida(e.vencimento) || !Number.isSafeInteger(e.centavos) || e.centavos <= 0) throw new Error("Confirme cliente, competência, descrição, valor e vencimento antes da revisão.");
@@ -65,7 +67,7 @@ async function pacote(e: EmailCobranca) {
 async function hashDocumentos(e: EmailCobranca) {
   if (!e.fluxo?.nota || !e.fluxo.boleto || !e.anexos.some(a=>a.tipo === "nota") || !e.anexos.some(a=>a.tipo === "boleto")) throw new Error("A emissão integrada ainda não está disponível. Informe os documentos já emitidos no acompanhamento e anexe os dois PDFs para conferência.");
   const anexos = await Promise.all(e.anexos.map(async a=>({tipo:a.tipo,hash:createHash("sha256").update(await container().getBlockBlobClient(a.blob).downloadToBuffer()).digest("hex")})));
-  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos})).digest("hex");
+  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos})).digest("hex");
 }
 async function conferirFluxo(e: EmailCobranca) {
   if (e.fluxo && (!e.fluxo.documentos || e.fluxo.documentos.hash !== await hashDocumentos(e))) throw new Error("Confira e aprove primeiro os documentos existentes desta cobrança. Nenhuma nova emissão será realizada.");
@@ -167,6 +169,13 @@ export async function POST(req: NextRequest) {
       if (anterior && body.email.atualizadoEm !== anterior.email.atualizadoEm) throw new Error("A mensagem mudou. Atualize antes de salvar.");
       const e = { ...body.email, id: anterior?.email.id || randomUUID(), empresa, anexos: anterior?.email.anexos || [], tentativas: anterior?.email.tentativas || [], status: "rascunho", atualizadoEm: new Date().toISOString() } as EmailCobranca;
       e.fluxo = anterior?.email.fluxo;
+      for (const key of ["po","contato"] as const) {
+        e[key] ??= "";
+        if(typeof e[key] !== "string" || e[key].length > 120 || /[\r\n]/.test(e[key])) throw new Error("PO ou contato inválido (máximo 120 caracteres).");
+        e[key]=e[key].trim();
+      }
+      validarModeloEmail(e);
+      if(e.fluxo && (e.po || "") !== (anterior?.email.po || "")) delete e.fluxo.documentos;
       if (e.fluxo && anterior && ["cliente","competencia","centavos","vencimento"].some(k=>body.email[k] !== anterior.email[k as keyof EmailCobranca])) throw new Error("Os dados da cobrança vinculada não podem ser alterados pelo editor de e-mail.");
       delete e.aprovacaoEnvio; // Nunca aceitar aprovação enviada pelo cliente.
       for (const field of ["cliente", "para", "cc", "assunto", "saudacao", "introducao", "descricao", "competencia", "vencimento", "observacoes", "assinatura"] as const) {
@@ -248,7 +257,8 @@ export async function POST(req: NextRequest) {
     const html = htmlEmail(email, "cid:logo-sysney");
     const visiveis = new Set([...destinatarios(email.para), ...destinatarios(email.cc)].map(v=>v.toLowerCase()));
     const bcc = config.auditoria && !visiveis.has(config.auditoria.toLowerCase()) ? config.auditoria : "";
-    const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, cc:email.cc, bcc, remetente:config.from, assunto: email.assunto, html: htmlEmail(email), status: "processando" };
+    const assunto = resolverTextoEmail(email.assunto,email);
+    const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, cc:email.cc, bcc, remetente:config.from, assunto, html: htmlEmail(email), status: "processando" };
     email.tentativas.push(tentativa); email.status = "enviando"; email.atualizadoEm = tentativa.data;
     await guardar(email, etag);
     // O bloqueio persistente impede reenvio em caso de queda ou resposta ambígua.
@@ -257,7 +267,7 @@ export async function POST(req: NextRequest) {
       const response = await fetch("https://api.sendgrid.com/v3/mail/send", {
         method: "POST", signal: AbortSignal.timeout(25000), headers: { Authorization: `Bearer ${config.key}`, "Content-Type": "application/json" },
         body: JSON.stringify({ personalizations: [{ to: destinatarios(email.para).map(email => ({ email })), ...(email.cc ? { cc: destinatarios(email.cc).map(email => ({ email })) } : {}), ...(bcc ? {bcc:[{email:bcc}]} : {}) }],
-          from: { email: config.from, name: `${empresa.toUpperCase()} — Financeiro` }, reply_to: { email: email.responderPara }, subject: email.assunto,
+          from: { email: config.from, name: `${empresa.toUpperCase()} — Financeiro` }, reply_to: { email: email.responderPara }, subject: assunto,
           content: [{ type: "text/html", value: html }], attachments: [...anexos, { content: logo.toString("base64"), filename: "logo-sysney.png", type: "image/png", disposition: "inline", content_id: "logo-sysney" }],
           tracking_settings: { click_tracking: { enable: false }, open_tracking: { enable: false } } }),
       });

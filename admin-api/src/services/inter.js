@@ -31,7 +31,7 @@ function obterCredential() {
 
 function obterSecretClient() {
   if (secretClient) return secretClient;
-  const vaultUrl = process.env.KEY_VAULT_URI;
+  const vaultUrl = process.env.KEY_VAULT_URI || (process.env.NODE_ENV === "development" ? "https://sysney-admin-kv-2602.vault.azure.net/" : "");
   if (!vaultUrl) throw new Error("KEY_VAULT_URI não configurado.");
   secretClient = new SecretClient(vaultUrl, obterCredential());
   return secretClient;
@@ -148,8 +148,9 @@ export async function consultarCobrancaInter(empresa, codigo, pdf = false) {
   } finally { await dispatcher.close(); }
 }
 
-export async function emitirCobrancaInter({ empresa, competencia, payload }) {
-  if (process.env.INTER_WRITE_OPERATIONS_ENABLED !== "true") throw new Error("Emissão bancária não habilitada.");
+export async function emitirCobrancaInter({ empresa, competencia, payload, autorizacaoPainel = false }) {
+  // O painel valida configuração privada, revisão explícita e trava da cobrança antes desta chamada.
+  if (process.env.INTER_WRITE_OPERATIONS_ENABLED !== "true" && autorizacaoPainel !== true) throw new Error("Emissão bancária não habilitada.");
   if (empresa !== "sysney" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new Error("Empresa ou competência inválida.");
   if (!payload?.pagador?.cpfCnpj || !Number.isFinite(payload.valorNominal) || payload.valorNominal <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.dataVencimento)) throw new Error("Cobrança incompleta.");
   const table = new TableClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT || "sysneyadm2602"}.table.core.windows.net`, "AdminDocumentos", obterCredential());
