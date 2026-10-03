@@ -4,6 +4,7 @@ import type {EmailCobranca} from "@/lib/emails-cobranca";
 import type {PreviaBoleto} from "@/lib/boleto-painel";
 import {dataBr,moeda} from "@/lib/cobrancas";
 import {lerRespostaAdmin} from "@/lib/admin-resposta";
+import {NotaFiscalCobranca} from "./nota-fiscal-cobranca";
 const botao="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-800 disabled:opacity-40";
 export function DocumentosCobranca({email,alterado,ocupado,onEmail}:{email:EmailCobranca;alterado:boolean;ocupado:boolean;onEmail:(e:EmailCobranca)=>void}) {
  const [config,setConfig]=useState<{boletoDisponivel:boolean;motivoNfse:string;motivoBoleto:string}|null>(null);
@@ -21,7 +22,7 @@ export function DocumentosCobranca({email,alterado,ocupado,onEmail}:{email:Email
   }catch(e){setAviso(e instanceof Error?e.message:"Resultado não confirmado. Consulte antes de repetir.");setPrevia(null);}finally{setBusy(false);}
  }
  return <section className="my-4 space-y-4 rounded-2xl border border-blue-200 bg-slate-50 p-4"><h4 className="font-bold">Gerar documentos desta cobrança</h4><p className="text-sm text-slate-600">Preparar o boleto não emite. A emissão exige uma confirmação separada e não envia e-mail. Se houver dúvida no resultado, consulte antes de repetir.</p>
- <div className="grid gap-3 sm:grid-cols-2"><div className="rounded-xl border bg-white p-4"><button type="button" className={botao} disabled>Gerar NFS-e — indisponível</button><p className="mt-2 text-xs text-slate-600">{email.fluxo?.nota?`Nota ${email.fluxo.nota} já registrada. `:""}{config?.motivoNfse || "Emissão fiscal integrada ainda não validada."}</p></div>
+ <div className="grid gap-3 sm:grid-cols-2"><NotaFiscalCobranca key={`${email.empresa}-${email.id}`} email={email} alterado={alterado} ocupado={ocupado||busy} onEmail={onEmail}/>
  <div className="rounded-xl border bg-white p-4"><button type="button" className={botao} disabled={!config?.boletoDisponivel||busy||ocupado||alterado||finalizado||email.status==="emitindo_documento"||!!email.fluxo?.boleto||email.anexos.some(a=>a.tipo==="boleto")} onClick={()=>void executar("preparar-boleto")}>Gerar boleto — revisar dados</button><p className="mt-2 text-xs text-slate-600">{config?.motivoBoleto || "Consultando disponibilidade…"}</p>{config && !config.boletoDisponivel && email.empresa==="sysney" && <p className="mt-2 text-xs text-amber-800">Emissão bancária do painel não habilitada neste ambiente.</p>}</div></div>
  <button type="button" className={botao} disabled={busy||ocupado||alterado||finalizado||email.empresa!=="sysney"|| (!!email.fluxo?.boleto && email.anexos.some(a=>a.tipo==="boleto"))} onClick={()=>void executar("consultar-boleto")}>Consultar resultado / obter PDF — sem reemitir</button>
  {alterado&&<p className="text-xs text-amber-800">Salve as alterações antes de preparar ou consultar documentos.</p>}
