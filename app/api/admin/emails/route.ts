@@ -9,8 +9,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { emailsValidos, destinatarios, htmlEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
-import { mesValido, dataValida } from "@/lib/cobrancas";
+import { novoEmail, emailsValidos, destinatarios, htmlEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
+import { mesValido, dataValida, prevista, type Cobranca, type Plano } from "@/lib/cobrancas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +56,18 @@ async function pacote(e: EmailCobranca) {
   const hash = (b: Buffer) => createHash("sha256").update(b).digest("hex");
   return { config, logo, buffers, hash:assinaturaEnvio(e,config.from,hash(logo),buffers.map(hash)) };
 }
+async function hashDocumentos(e: EmailCobranca) {
+  if (!e.fluxo?.nota || !e.fluxo.boleto || !e.anexos.some(a=>a.tipo === "nota") || !e.anexos.some(a=>a.tipo === "boleto")) throw new Error("A emissão integrada ainda não está disponível. Informe os documentos já emitidos no acompanhamento e anexe os dois PDFs para conferência.");
+  const anexos = await Promise.all(e.anexos.map(async a=>({tipo:a.tipo,hash:createHash("sha256").update(await container().getBlockBlobClient(a.blob).downloadToBuffer()).digest("hex")})));
+  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos})).digest("hex");
+}
+async function conferirFluxo(e: EmailCobranca) {
+  if (e.fluxo && (!e.fluxo.documentos || e.fluxo.documentos.hash !== await hashDocumentos(e))) throw new Error("Confira e aprove primeiro os documentos existentes desta cobrança. Nenhuma nova emissão será realizada.");
+  if (e.fluxo) {
+    const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${e.empresa}`,e.fluxo.cobrancaId)).json);
+    if (c.competencia !== e.competencia || c.centavos !== e.centavos || c.vencimento !== e.vencimento || c.nota !== e.fluxo.nota || c.boleto !== e.fluxo.boleto) throw new Error("O acompanhamento mudou. Confira os documentos da cobrança novamente antes de enviar.");
+  }
+}
 function erro(e: unknown) {
   const code = (e as { statusCode?: number }).statusCode;
   if (code === 409 || code === 412) return reply({ erro: "Mensagem alterada em outra operação. Atualize a lista." }, 409);
@@ -100,17 +112,52 @@ export async function POST(req: NextRequest) {
       const blob = `${empresa}/emails/${id}/${randomUUID()}.pdf`;
       await container().getBlockBlobClient(blob).uploadData(data, { blobHTTPHeaders: { blobContentType: "application/pdf" } });
       email.anexos = [...email.anexos.filter(a => a.tipo !== tipo), { tipo, blob, nome: file.name.replace(/[^\p{L}\p{N} ._-]/gu, "_").slice(0,100), tamanho: data.length }];
+      if (email.fluxo) delete email.fluxo.documentos;
       delete email.aprovacaoEnvio;
       email.status = "rascunho"; email.atualizadoEm = new Date().toISOString();
       await guardar(email, etag); return reply({ email });
     }
     const raw = await req.text(); if (raw.length > 15000) throw new Error("Mensagem muito longa.");
     const body = JSON.parse(raw);
+    if (body.acao === "preparar-cobranca") {
+      if (typeof body.cobrancaId !== "string" || !/^[a-f0-9]{64}_20\d{2}-(0[1-9]|1[0-2])$/.test(body.cobrancaId)) throw new Error("Cobrança inválida.");
+      let c: Cobranca;
+      try { c = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${empresa}`,body.cobrancaId)).json); }
+      catch (e) {
+        if ((e as {statusCode?:number}).statusCode !== 404) throw e;
+        const [planoId, competencia] = body.cobrancaId.split("_");
+        const configs = new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred);
+        const p: Plano = JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`,planoId)).json);
+        if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora da recorrência.");
+        c = prevista(p,competencia);
+      }
+      // One durable link per billing cycle; never create another draft on a retry.
+      const linkKey = `fila-${c.id}`;
+      let link: {emailId:string} | undefined;
+      try { link = await table().getEntity<{emailId:string}>(`fila-${empresa}`,linkKey); }
+      catch(e) {if ((e as {statusCode?:number}).statusCode !== 404) throw e;}
+      const hash = createHash("sha256").update(`${empresa}:${c.id}`).digest("hex").slice(0,32);
+      const id = link?.emailId || body.emailId || `${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20)}`;
+      let atual: Awaited<ReturnType<typeof ler>> | undefined;
+      try { atual = await ler(empresa,id); } catch(e) {if ((e as {statusCode?:number}).statusCode !== 404) throw e;}
+      if (body.emailId && !atual) throw new Error("Rascunho não encontrado.");
+      if (atual?.email.fluxo?.cobrancaId === c.id) return reply({email:atual.email});
+      const email = atual?.email || {...novoEmail(empresa,c.clienteNome),id,para:c.email,responderPara:empresa === "sysney" ? "financeiro@sysney.com" : "financeiro@drsoftinformatica.com",competencia:c.competencia,vencimento:c.vencimento,centavos:c.centavos,descricao:c.descricao};
+      if (email.fluxo || !["rascunho","revisado"].includes(email.status) || email.competencia !== c.competencia || email.vencimento !== c.vencimento || email.centavos !== c.centavos) throw new Error("O rascunho não corresponde à cobrança ou já foi processado. Confira cliente, referência, valor e vencimento.");
+      if (!link) await table().createEntity({partitionKey:`fila-${empresa}`,rowKey:linkKey,emailId:id});
+      email.fluxo = {cobrancaId:c.id,nota:c.nota,boleto:c.boleto};
+      delete email.aprovacaoEnvio;
+      email.status = "rascunho"; email.atualizadoEm = new Date().toISOString();
+      await guardar(email,atual?.etag);
+      return reply({email});
+    }
     if (body.acao === "salvar") {
       const anterior = body.email?.id ? await ler(empresa, body.email.id) : undefined;
       if (anterior && !["rascunho", "revisado"].includes(anterior.email.status)) throw new Error("Mensagem já processada. Crie outra mensagem para reenviar.");
       if (anterior && body.email.atualizadoEm !== anterior.email.atualizadoEm) throw new Error("A mensagem mudou. Atualize antes de salvar.");
       const e = { ...body.email, id: anterior?.email.id || randomUUID(), empresa, anexos: anterior?.email.anexos || [], tentativas: anterior?.email.tentativas || [], status: "rascunho", atualizadoEm: new Date().toISOString() } as EmailCobranca;
+      e.fluxo = anterior?.email.fluxo;
+      if (e.fluxo && anterior && ["cliente","competencia","centavos","vencimento"].some(k=>body.email[k] !== anterior.email[k as keyof EmailCobranca])) throw new Error("Os dados da cobrança vinculada não podem ser alterados pelo editor de e-mail.");
       delete e.aprovacaoEnvio; // Nunca aceitar aprovação enviada pelo cliente.
       for (const field of ["cliente", "para", "cc", "assunto", "saudacao", "introducao", "descricao", "competencia", "vencimento", "observacoes", "assinatura"] as const) {
         if (typeof e[field] !== "string" || e[field].length > 2000) throw new Error("Campo inválido ou muito longo.");
@@ -122,12 +169,23 @@ export async function POST(req: NextRequest) {
     }
     const { email, etag } = await ler(empresa, body.id);
     if (body.atualizadoEm !== email.atualizadoEm) throw new Error("Revise a versão atual da mensagem antes de continuar.");
+    if (body.acao === "conferir-documentos") {
+      if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para conferência.");
+      const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${empresa}`,email.fluxo.cobrancaId)).json);
+      if (c.competencia !== email.competencia || c.vencimento !== email.vencimento || c.centavos !== email.centavos) throw new Error("A cobrança mudou. Confira os dados antes de continuar.");
+      email.fluxo.nota = c.nota; email.fluxo.boleto = c.boleto;
+      email.fluxo.documentos = {hash:await hashDocumentos(email),por:responsavel(req),em:new Date().toISOString()};
+      delete email.aprovacaoEnvio;email.status="rascunho";email.atualizadoEm=new Date().toISOString();
+      await guardar(email,etag);
+      return reply({email,mensagem:"Documentos existentes conferidos. Nenhuma nota ou boleto foi emitido. Agora revise o e-mail e aprove o envio."});
+    }
     if (body.acao === "remover-anexo") {
       if (!["rascunho", "revisado"].includes(email.status)) throw new Error("Crie outra mensagem para alterar documentos após o envio.");
       if (body.tipo !== "nota" && body.tipo !== "boleto") throw new Error("Tipo de documento inválido.");
       if (!email.anexos.some(a => a.tipo === body.tipo)) throw new Error("Anexo não encontrado. Atualize a mensagem.");
       // Remove only the draft reference: a duplicated message may still use the same blob.
       email.anexos = email.anexos.filter(a => a.tipo !== body.tipo);
+      if (email.fluxo) delete email.fluxo.documentos;
       delete email.aprovacaoEnvio;
       email.status = "rascunho"; email.atualizadoEm = new Date().toISOString();
       await guardar(email, etag);
@@ -136,12 +194,14 @@ export async function POST(req: NextRequest) {
     if (body.acao === "duplicar") {
       if (email.status === "enviando" || email.status === "incerto") throw new Error("Confira o resultado do envio anterior no provedor antes de preparar um reenvio.");
       const copia: EmailCobranca = { ...email, id: randomUUID(), status: "rascunho", tentativas: [], atualizadoEm: new Date().toISOString() };
+      if (email.fluxo) throw new Error("A cobrança já possui uma mensagem vinculada. Reenvio pela fila ainda não disponível.");
       delete copia.aprovacaoEnvio;
       await guardar(copia); return reply({ email: copia, mensagem: "Cópia criada para revisão. Os mesmos PDFs foram mantidos; nenhum novo boleto foi emitido." });
     }
     if (body.acao === "revisar") {
       if (!["rascunho", "revisado"].includes(email.status)) throw new Error("Mensagem já processada.");
       validarEnvio(email); email.status = "revisado"; email.atualizadoEm = new Date().toISOString();
+      await conferirFluxo(email);
       const material = await pacote(email);
       if (body.remetente !== material.config.from) throw new Error("O remetente mudou. Atualize a lista e confira antes de aprovar.");
       email.aprovacaoEnvio = { hash:material.hash, por:responsavel(req), em:email.atualizadoEm, remetente:material.config.from };
@@ -149,6 +209,7 @@ export async function POST(req: NextRequest) {
     }
     if (body.acao !== "enviar" || email.status !== "revisado") throw new Error("Salve e revise a mensagem e os anexos antes do envio.");
     validarEnvio(email);
+    await conferirFluxo(email);
     const material = await pacote(email);
     if (!email.aprovacaoEnvio || email.aprovacaoEnvio.hash !== material.hash) throw new Error("A aprovação não corresponde ao conteúdo, remetente ou PDFs atuais. Revise e aprove novamente.");
     const { config, logo } = material;

@@ -10,6 +10,7 @@ export type EmailCobranca = {
   status: "rascunho" | "revisado" | "enviando" | "aceito" | "incerto";
   anexos: AnexoEmail[]; tentativas: TentativaEmail[]; atualizadoEm: string;
   aprovacaoEnvio?: { hash: string; por: string; em: string; remetente: string };
+  fluxo?: { cobrancaId: string; nota: string; boleto: string; documentos?: {hash: string; por: string; em: string} };
 };
 export function novoEmail(empresa: Empresa, cliente = ""): EmailCobranca {
   return { id: "", empresa, cliente, para: "", cc: "", assunto: "Cobrança mensal — suporte e locação SISBlink",

@@ -2,6 +2,7 @@
 
 import { AdminShell } from "./admin-shell";
 import { Cobrancas } from "./cobrancas";
+import { FilaCobrancas } from "./fila-cobrancas";
 import { LaboratorioEmails } from "./laboratorio-emails";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
@@ -16,7 +17,7 @@ import {
 } from "react";
 
 type EmpresaId = "drsoft" | "sysney";
-type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "emails" | "historico-inter" | "nfse-nacional" | "aprovacoes";
+type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "nfse-nacional" | "aprovacoes";
 
 type Cliente = {
   id: string;
@@ -80,7 +81,8 @@ const empresas = {
 
 const secoes: { id: SecaoId; label: string }[] = [
   { id: "visao-geral", label: "Visão geral" },
-  { id: "cobrancas", label: "Cobranças mensais" },
+  { id: "cobrancas", label: "Fila de cobranças" },
+  { id: "acompanhamento", label: "Acompanhamento e recorrências" },
   { id: "aprovacoes", label: "Aprovar emissão" },
   { id: "emails", label: "Laboratório de e-mails" },
   { id: "historico-inter", label: "Histórico do Inter" },
@@ -952,6 +954,8 @@ export function AdminDashboard() {
   } else if (secao === "emails") {
     conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "cobrancas") {
+    conteudo = <FilaCobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
+  } else if (secao === "acompanhamento") {
     conteudo = <Cobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
   } else if (secao === "nova-emissao") {
     conteudo = (

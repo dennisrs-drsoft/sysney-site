@@ -102,6 +102,40 @@ test("remoção de anexo revoga aprovação, preserva cópias e bloqueia versão
  assert.equal((await POST(request({...action,atualizadoEm:e.atualizadoEm,tipo:"nota"}))).status,400);
 });
 
+test("fila reutiliza rascunho, revoga aprovação antiga e exige conferência separada sem emitir ou enviar",async()=>{
+ const cobrancaId='a'.repeat(64)+'_2026-09';
+ const c={id:cobrancaId,competencia:"2026-09",vencimento:"2026-11-08",centavos:10000,clienteNome:"Teste fila",email:"cliente@example.com",nota:"50",boleto:"123"};
+ records.set(`AdminDocumentos:cobrancas-sysney:${cobrancaId}`,{json:JSON.stringify(c),etag:'1'});
+ let e=(await (await POST(request({acao:"salvar",email:{...novoEmail("sysney",c.clienteNome),competencia:c.competencia,vencimento:c.vencimento,centavos:c.centavos,para:c.email,responderPara:"financeiro@example.com"}}))).json()).email;
+ const key=`AdminDocumentos:emails-sysney:${e.id}`;
+ records.get(key).json=JSON.stringify({...e,status:"revisado",aprovacaoEnvio:{hash:"anterior"},anexos:[{tipo:"nota",nome:"nota.pdf",blob:"nota",tamanho:10},{tipo:"boleto",nome:"boleto.pdf",blob:"boleto",tamanho:10}]});
+ const preparar={acao:"preparar-cobranca",cobrancaId,emailId:e.id};
+ e=(await (await POST(request(preparar))).json()).email;
+ assert.equal(e.status,"rascunho");assert.equal(e.aprovacaoEnvio,undefined);assert.equal(e.fluxo.documentos,undefined);
+ assert.equal((await (await POST(request(preparar))).json()).email.id,e.id);
+ assert.equal((await POST(request(preparar,"drsoft"))).status,503);
+ assert.equal((await POST(request({acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"sender@example.com"}))).status,400);
+ assert.equal((await POST(request({acao:"salvar",email:{...e,centavos:5}}))).status,400);
+ e=(await (await POST(request({acao:"conferir-documentos",id:e.id,atualizadoEm:e.atualizadoEm}))).json()).email;
+ assert.equal(e.fluxo.documentos.por,"Administrador local");assert.equal(e.status,"rascunho");assert.equal(e.tentativas.length,0);
+ e=(await (await POST(request({acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"sender@example.com"}))).json()).email;
+ assert.equal(e.status,"revisado");assert.equal(e.tentativas.length,0);
+ e=(await (await POST(request({acao:"remover-anexo",id:e.id,atualizadoEm:e.atualizadoEm,tipo:"boleto"}))).json()).email;
+ assert.equal(e.fluxo.documentos,undefined);assert.equal(e.aprovacaoEnvio,undefined);
+});
+
+test("fila prepara previsão sem documentos e não aceita conferência fictícia",async()=>{
+ const planoId='b'.repeat(64),cobrancaId=planoId+'_2026-10';
+ const p={id:planoId,inicio:"2026-10",clienteNome:"Recorrente",email:"cliente@example.com",descricao:"Serviço",centavos:10000,diaEnvio:1,mesEnvio:1,diaVencimento:8,mesVencimento:2};
+ records.set(`AdminConfiguracoes:cobrancas-sysney:${planoId}`,{json:JSON.stringify(p),etag:'1'});
+ const r=await POST(request({acao:"preparar-cobranca",cobrancaId}));assert.equal(r.status,200);
+ const e=(await r.json()).email;assert.equal(e.vencimento,"2026-12-08");assert.equal(e.anexos.length,0);assert.equal(e.fluxo.documentos,undefined);
+ assert.equal((await (await POST(request({acao:"preparar-cobranca",cobrancaId}))).json()).email.id,e.id);
+ assert.notEqual((await POST(request({acao:"conferir-documentos",id:e.id,atualizadoEm:e.atualizadoEm}))).status,200);
+ const saved=(await (await POST(request({acao:"salvar",email:{...e,fluxo:{documentos:{hash:"fake"}},assunto:"Editado"}}))).json()).email;
+ assert.equal(saved.fluxo.cobrancaId,cobrancaId);assert.equal(saved.fluxo.documentos,undefined);
+});
+
 test("hash muda com PDF, logo, destinatários e remetente",async()=>{
   const {assinaturaEnvio}=await import(approvalModel);
   const e=novoEmail("sysney","Teste");const hash=assinaturaEnvio(e,"a@example.com","logo",["pdf"]);

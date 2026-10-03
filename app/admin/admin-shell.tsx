@@ -19,7 +19,7 @@ function Icon({ name }: { name: string }) {
   return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.65" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={icons[name] || icons.documentos}/></svg>;
 }
 const groups = [
-  { label: "Visão do negócio", ids: ["visao-geral", "cobrancas"] },
+  { label: "Visão do negócio", ids: ["visao-geral", "cobrancas", "acompanhamento"] },
   { label: "Operação financeira", ids: ["nova-emissao", "aprovacoes", "emails"] },
   { label: "Cadastros e integrações", ids: ["clientes", "documentos", "historico-inter", "nfse-nacional"] },
 ];
