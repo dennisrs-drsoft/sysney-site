@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import type { AprovacaoEmissao, DadosEmissao } from "@/lib/aprovacoes-emissao";
+import {MensagemAdmin} from "./dialogos-admin";
 type Rascunho = Omit<DadosEmissao,"centavos"> & {id:string;valor:number};
 const button = "rounded-xl border border-slate-300 px-4 py-2 text-sm font-bold disabled:opacity-40";
 export function Aprovacoes({empresa,rascunhos}:{empresa:"sysney"|"drsoft";rascunhos:Rascunho[]}) {
@@ -19,12 +20,12 @@ export function Aprovacoes({empresa,rascunhos}:{empresa:"sysney"|"drsoft";rascun
       const r = await fetch(`/api/admin/aprovacoes?empresa=${empresa}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,id:registro?.id,versao:registro?.versao,atualizadoEm:registro?.atualizadoEm,dados})});
       const d = await r.json();if(!r.ok)throw new Error(d.erro);
       setRevisao(null);setConferido(false);await carregar();
-      setAviso(acao === "aprovar" ? "Aprovação registrada. Nenhum documento foi emitido. Integração fiscal ainda bloqueada; envio de e-mail exige outra aprovação." : "Fila atualizada. Nenhuma emissão ou envio realizado.");
+      setAviso(acao === "aprovar" ? "Aprovação registrada. Nenhum documento foi emitido. A emissão depende da integração habilitada e de confirmação específica na cobrança; o envio de e-mail exige outra aprovação." : "Fila atualizada. Nenhuma emissão ou envio realizado.");
     } catch(e) {setAviso(e instanceof Error?e.message:"Falha na operação.");} finally {setOcupado(false);}
   }
   return <section className="space-y-5">
     <header className="rounded-3xl bg-[#07111f] p-7 text-white"><p className="text-xs font-bold uppercase tracking-widest text-cyan-300">Etapa 1 · {empresa.toUpperCase()}</p><h2 className="mt-2 text-2xl font-black">Aprovação da emissão</h2><p className="mt-3 text-sm leading-6 text-slate-300">Preparar → aprovar emissão → emitir documentos → aprovar e-mail e PDFs → enviar. A emissão permanece indisponível enquanto a integração fiscal não estiver validada.</p></header>
-    {aviso && <p role="status" className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{aviso}</p>}
+    <MensagemAdmin mensagem={aviso} aoFechar={()=>setAviso("")} titulo="Fila de aprovações" subtitulo="Resultado da decisão ou da consulta" observacao="Uma aprovação de preparação não envia e-mail. Confira a cobrança e os documentos antes de autorizar as próximas etapas."/>
     <div className="rounded-3xl border bg-white p-6"><h3 className="font-black">Preparar a partir de um rascunho</h3><p className="mt-2 text-sm text-slate-600">Cadastre e confira os dados em “Nova emissão”. Importar não significa aprovar.</p>
       {rascunhos.length === 0 && <p className="mt-3 text-sm">Nenhum rascunho local disponível. As notas já emitidas não precisam de aprovação retroativa.</p>}
       {rascunhos.map(r => {

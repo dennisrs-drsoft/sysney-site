@@ -8,6 +8,7 @@ import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
 import { NfseNacional } from "./nfse-nacional";
 import { Aprovacoes } from "./aprovacoes";
+import {MensagemAdmin} from "./dialogos-admin";
 import {
   type FormEvent,
   useCallback,
@@ -447,11 +448,7 @@ function CadastroClientes({
           </div>
         </div>
 
-        {erroAtualizacao && (
-          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-            {erroAtualizacao}
-          </p>
-        )}
+        <MensagemAdmin mensagem={erroAtualizacao} aoFechar={()=>{}} titulo="Lista de clientes indisponível" subtitulo="A consulta aos clientes não foi concluída" tom="erro" acao={atualizar} rotuloAcao="Atualizar lista"/>
 
         {clientes.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
@@ -904,12 +901,6 @@ export function AdminDashboard() {
     }
   }, [carregado, rascunhos]);
 
-  useEffect(() => {
-    if (!aviso) return;
-    const temporizador = window.setTimeout(() => setAviso(""), 4500);
-    return () => window.clearTimeout(temporizador);
-  }, [aviso]);
-
   const clientesEmpresa = useMemo(() => {
     const unicos = new Map<string, Cliente>();
     for (const cliente of clientesAzure) {
@@ -998,7 +989,7 @@ export function AdminDashboard() {
   }
 
   return (
-    <AdminShell empresa={empresaId} regime={empresa.regime} secao={secao} secoes={secoes} onEmpresa={setEmpresaId} onSecao={setSecao} aviso={aviso}>
+    <AdminShell empresa={empresaId} regime={empresa.regime} secao={secao} secoes={secoes} onEmpresa={setEmpresaId} onSecao={setSecao} aviso={aviso} onFecharAviso={()=>setAviso("")}>
       {conteudo}
     </AdminShell>
   );

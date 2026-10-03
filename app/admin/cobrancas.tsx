@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { dataBr, hojeBrasil, moeda, pago, situacao, type Cobranca, type Empresa, type Plano } from "@/lib/cobrancas";
+import {MensagemAdmin} from "./dialogos-admin";
 
 type Cliente = { id: string; nome: string; email: string; origem?: string };
 type Dados = { planos: Plano[]; cobrancas: Cobranca[]; hoje: string };
@@ -83,8 +84,8 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
       </div>
     </section>
     <p className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Os envios da fila aceitos pelo SendGrid aparecem automaticamente aqui; isso não confirma entrega ou leitura. Registrar envio manual não envia e-mail; registrar pagamento não consulta o banco.</p>
-    {erro && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-800">{erro} <button className="underline" onClick={() => void carregar()}>Tentar carregar novamente</button></p>}
-    {aviso && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-emerald-800">{aviso}</p>}
+    <MensagemAdmin mensagem={erro} aoFechar={()=>setErro("")} titulo="Não foi possível concluir a operação" subtitulo="Confira o motivo e consulte os registros salvos" tom="erro" acao={()=>void carregar()} rotuloAcao="Atualizar acompanhamento" observacao="Atualizar apenas consulta os registros; não repete um pagamento, envio ou alteração."/>
+    <MensagemAdmin mensagem={aviso} aoFechar={()=>setAviso("")} titulo="Registro salvo" subtitulo="Histórico de acompanhamento atualizado"/>
     {novo && <form onSubmit={criarPlano} className="rounded-3xl border border-slate-200 bg-white p-6">
       <h3 className="text-xl font-black">Configurar recorrência mensal</h3>
       <p className="mt-2 text-sm text-slate-600">Uma mensalidade consolidada por cliente. Cada competência terá seu próprio controle. O valor e os prazos devem ser conferidos no contrato.</p>
@@ -144,7 +145,7 @@ function Detalhe({ c, ocupado, hoje, salvar, fechar }: { c: Cobranca; ocupado: b
           <button className={button}>{ocupado ? "Salvando..." : "Salvar registro manual"}</button>
         </fieldset></form>
       </div>
-      <div><h4 className="font-bold">Demonstrativo para revisão</h4><textarea aria-label="Texto do demonstrativo" className={`${input} font-mono text-xs`} readOnly rows={12} value={texto}/><button className={`${secondary} mt-2`} onClick={() => void copiar()}>Copiar texto</button>{copiado && <p role="status" className="mt-2 text-sm text-blue-700">{copiado}</p>}
+      <div><h4 className="font-bold">Demonstrativo para revisão</h4><textarea aria-label="Texto do demonstrativo" className={`${input} font-mono text-xs`} readOnly rows={12} value={texto}/><button className={`${secondary} mt-2`} onClick={() => void copiar()}>Copiar texto</button><MensagemAdmin mensagem={copiado} aoFechar={()=>setCopiado("")} titulo="Texto do demonstrativo" subtitulo="Cópia para uso fora do painel" observacao="Copiar o texto não envia e-mail nem registra envio na cobrança."/>
         <h4 className="mt-6 font-bold">Histórico</h4>{c.eventos.length === 0 ? <p className="mt-2 text-sm text-slate-500">Nenhum evento registrado. A cobrança está prevista pela recorrência.</p> : <ol className="mt-3 space-y-3">{[...c.eventos].reverse().map(e => <li key={e.id} className="rounded-xl border border-slate-200 p-3 text-sm"><p className="font-bold">{dataBr(e.data)} · {e.tipo}{e.centavos ? ` · ${moeda(e.centavos)}` : ""}</p><p className="mt-1 break-words text-slate-600">{e.detalhe}</p><p className="mt-2 text-xs text-slate-500">Registrado por {e.responsavel} em {new Date(e.registradoEm).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</p></li>)}</ol>}
       </div>
     </div>

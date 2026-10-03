@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useState, type ReactNode } from "react";
 import styles from "./admin-shell.module.css";
+import {MensagemAdmin} from "./dialogos-admin";
 
 const icons: Record<string, string> = {
   "visao-geral": "M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z",
@@ -24,9 +25,9 @@ const groups = [
   { label: "Cadastros e integrações", ids: ["clientes", "documentos", "historico-inter", "nfse-nacional"] },
 ];
 
-export function AdminShell<T extends string>({children, empresa, regime, secao, secoes, onEmpresa, onSecao, aviso}: {
+export function AdminShell<T extends string>({children, empresa, regime, secao, secoes, onEmpresa, onSecao, aviso, onFecharAviso}: {
   children: ReactNode; empresa: "drsoft" | "sysney"; regime: string; secao: T;
-  secoes: {id: T; label: string}[]; onEmpresa: (id:"drsoft"|"sysney")=>void; onSecao:(id:T)=>void; aviso:string;
+  secoes: {id: T; label: string}[]; onEmpresa: (id:"drsoft"|"sysney")=>void; onSecao:(id:T)=>void; aviso:string;onFecharAviso:()=>void;
 }) {
   const [menu, setMenu] = useState(false);
   const titulo = secoes.find(s=>s.id===secao)?.label;
@@ -45,8 +46,8 @@ export function AdminShell<T extends string>({children, empresa, regime, secao, 
       <header className={styles.topbar}><button className={styles.menuToggle} aria-expanded={menu} aria-controls="menu-admin" onClick={()=>setMenu(!menu)}>{menu?"Fechar menu":"Menu"}</button><div className={styles.breadcrumb}>Financeiro <span>/</span> <strong>{titulo}</strong></div><span className={styles.environment}><i/>Revisão obrigatória</span></header>
       <main id="conteudo-admin" tabIndex={-1} className={styles.main}>
         <div className={styles.pageHeading}><div><p>{empresa.toUpperCase()} <span> / </span> ADMINISTRAÇÃO FINANCEIRA</p><h1>{titulo}</h1></div><span className={styles.privateBadge}><Icon name="aprovacoes"/>Revisão antes de agir</span></div>
-        <details className={styles.notice}><summary><span className={styles.info}>i</span><strong>Operações com aprovação</strong><span>Boleto conforme integração · NFS-e municipal em homologação</span></summary><p>Na fila de cobranças, confirmar a emissão bancária gera um boleto real quando a integração estiver habilitada. A NFS-e municipal pode ser preparada e testada no painel local com o certificado Windows; a emissão real fica bloqueada até homologar a integração. O PDF fiscal ainda exige anexação manual. Emitir documentos não envia e-mail: o envio exige revisão e confirmação separadas. O agendamento automático ainda não está ativo.</p></details>
-        {aviso && <p role="status" className={styles.feedback}>{aviso}</p>}
+        <details className={styles.notice}><summary><span className={styles.info}>i</span><strong>Operações com aprovação</strong><span>Nota e boleto conforme integração · PDFs com recuperação</span></summary><p>Na fila de cobranças, a emissão real de nota ou boleto depende da integração habilitada para a empresa, da conferência dos dados e de sua confirmação específica. A NFS-e municipal utiliza o certificado configurado no serviço fiscal. Após confirmar a emissão, o sistema tenta recuperar e anexar os PDFs oficiais; se falhar, use Tentar baixar ou o anexo manual, sem reemitir o documento. Emitir documentos não envia e-mail: o envio exige revisão e confirmação separadas. O agendamento automático ainda não está ativo.</p></details>
+        <MensagemAdmin mensagem={aviso} aoFechar={onFecharAviso} titulo="Registro administrativo" subtitulo="Resultado da operação no painel"/>
         <div className={styles.content}>{children}</div>
         <footer className={styles.pageFooter}>SYSNEY Financeiro <span>Dados separados por empresa · Ações com aprovação</span></footer>
       </main>
