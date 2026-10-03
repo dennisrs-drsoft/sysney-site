@@ -57,7 +57,7 @@ export function NotaFiscalCobranca({email,alterado,ocupado,onEmail}:{email:Email
  <button type="button" className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40" disabled={bloqueado||fiscalAlterado||!producao||job.status!=="testada"||!conferido} onClick={()=>{if(window.confirm("Aprovo a prévia fiscal salva e autorizo transmitir este RPS para emitir uma nota real, sem enviar e-mail. Continuar?"))void executar("emitir");}}>Aprovar e emitir NFS-e real</button>
  {!producao&&<p className="text-xs text-amber-800">Produção bloqueada até homologar a integração. Teste aceito não libera emissão automaticamente.</p>}
  <button type="button" className={button} disabled={busy||ocupado||alterado||!local} onClick={()=>void executar("consultar")}>Consultar RPS / recuperar número — não reemitir</button>
- {job.resultado?.numero&&<p className="text-sm">NFS-e {job.resultado.numero} · PDF ainda deve ser obtido no portal e anexado.</p>}
+ {job.resultado?.numero&&<p className="text-sm">NFS-e {job.resultado.numero} · {email.anexos.some(a=>a.tipo==="nota")?"PDF anexado para conferência.":"PDF pendente: use Tentar baixar PDF da nota, sem emitir novamente."}</p>}
  {job.resultado&&[...job.resultado.erros,...job.resultado.alertas].map((v,i)=><p key={i} className="text-xs text-amber-800">{v}</p>)}
  </div>}
  {aviso&&<p role="status" className="rounded-xl bg-amber-50 p-3 text-sm text-amber-900">{aviso}</p>}

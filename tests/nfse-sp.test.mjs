@@ -53,9 +53,10 @@ test("regime não depende da empresa; Simples sem complementos; impostos recalcu
  assert.equal(calcularRetencoes(100,taxasPlanilha).ir,2);
 });
 const db=uri(`export const records=new Map();export class TableClient{constructor(u,n){this.name=n}key(p,r){return this.name+':'+p+':'+r}async getEntity(p,r){const e=records.get(this.key(p,r));if(!e)throw Object.assign(Error(),{statusCode:404});return structuredClone(e)}async createEntity(e){const k=this.key(e.partitionKey,e.rowKey);if(records.has(k))throw Object.assign(Error(),{statusCode:409});records.set(k,{...e,etag:'1'})}async updateEntity(e,m,o){const k=this.key(e.partitionKey,e.rowKey),old=records.get(k);if(!old||old.etag!==o.etag)throw Object.assign(Error(),{statusCode:412});records.set(k,{...e,etag:String(Number(old.etag)+1)})}}`);
-const exec=uri(`export const state={real:0,testes:0,fail:false};export const executorMunicipalDisponivel=()=>true;export async function executarNotaSP(acao,d){if(acao==='emitir'){state.real++;if(state.fail)throw Error('timeout')}if(acao==='testar')state.testes++;return {sucesso:true,erros:[],alertas:[],xml:'<retorno/>',teste:acao==='testar',...(acao==='consultar'?{numero:'10',inscricao:d.inscricao,verificacao:'TEST1234',tomador:d.clienteDocumento,valorFinal:(d.centavos/100).toFixed(2),descricao:d.descricao+(d.po?'\\nPO '+d.po:'')}:{})}}`);
+const exec=uri(`export const state={real:0,testes:0,fail:false,confirmado:false,consultas:0};export const executorMunicipalDisponivel=()=>true;export async function executarNotaSP(acao,d){if(acao==='emitir'){state.real++;if(state.fail)throw Error('timeout')}if(acao==='consultar')state.consultas++;if(acao==='testar')state.testes++;return {sucesso:true,erros:[],alertas:[],xml:'<retorno/>',teste:acao==='testar',...(acao==='consultar'||(acao==='emitir'&&state.confirmado)?{numero:'10',inscricao:d.inscricao,verificacao:'TEST1234',tomador:d.clienteDocumento,valorFinal:(d.centavos/100).toFixed(2),descricao:d.descricao+(d.po?'\\nPO '+d.po:'')}:{})}}`);
 const cobrancas=uri(`export const hojeBrasil=()=> '2026-10-03';export const prevista=(p,competencia)=>({id:p.id+'_'+competencia,competencia,centavos:p.centavos,vencimento:p.vencimento,eventos:[]})`);
 let source=compile("../app/api/admin/nfse/route.ts");
+source=source.replaceAll('"@/lib/documentos-pdf"',JSON.stringify(uri("export const recuperarPdfNotaSP=async()=>{throw Error('PDF indisponível no teste')};")));
 for(const [name,target] of Object.entries({"next/server":uri("export const NextResponse={json:(d,o)=>Response.json(d,o)}"),"@azure/data-tables":db,"@azure/identity":uri("export class DefaultAzureCredential {}"),"../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test')==='yes'"),"../_remote":uri("export const encaminharAdmin=async()=>null"),"@/lib/cobrancas":cobrancas,"@/lib/nfse-sp":model,"@/lib/nfse-sp-executor":exec}))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source));const {records}=await import(db);const {state}=await import(exec);
 const id="11111111-1111-4111-8111-111111111111",planId="a".repeat(64);
@@ -80,6 +81,16 @@ test("alterar valor/PO invalida teste; segunda reserva não reutiliza número",a
  job=(await (await POST(req(preparar))).json()).trabalho;assert.equal(job.dados.numero,"1");assert.notEqual(job.hash,command.hash);
  const id2="22222222-2222-4222-8222-222222222222";records.set(`AdminDocumentos:emails-drsoft:${id2}`,{json:JSON.stringify({...email,id:id2,competencia:"2026-10",fluxo:{cobrancaId:planId+"_2026-10"}}),etag:"1"});
  job=(await (await POST(req({...preparar,id:id2}))).json()).trabalho;assert.equal(job.dados.numero,"2");assert.equal(state.real,0);
+});
+
+test("emissão aceita consulta automaticamente e preserva nota se o PDF falhar",async()=>{
+ setup();state.confirmado=true;state.consultas=0;
+ const job=(await (await POST(req(preparar))).json()).trabalho;
+ const command={id,hash:job.hash,atualizadoEm:"v1"};
+ await POST(req({...command,acao:"testar"}));process.env.NFSE_SP_PRODUCAO_HABILITADA="true";
+ const r=await POST(req({...command,acao:"emitir",aprovado:true}));assert.equal(r.status,200);
+ const d=await r.json();assert.equal(d.email.fluxo.nota,"10");assert.equal(d.email.status,"rascunho");assert.equal(d.email.anexos.length,0);assert.match(d.mensagem,/Tentar baixar/);assert.equal(state.real,1);assert.equal(state.consultas,1);
+ assert.equal((await POST(req({...command,acao:"emitir",aprovado:true}))).status,400);assert.equal(state.real,1);state.confirmado=false;
 });
 test("regime tem vigência, segregação e histórico; mudança invalida a prévia",async()=>{
  setup();const job=(await(await POST(req(preparar))).json()).trabalho;

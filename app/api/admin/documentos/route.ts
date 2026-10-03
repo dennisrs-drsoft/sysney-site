@@ -9,6 +9,7 @@ import {prevista,hojeBrasil,type Cobranca,type Plano} from "@/lib/cobrancas";
 import type {EmailCobranca} from "@/lib/emails-cobranca";
 import {conferirDadosBoleto,hashDadosBoleto,montarPayloadBoleto,type PagadorBoleto,type PreviaBoleto} from "@/lib/boleto-painel";
 import {consultarCobrancaInter,emitirCobrancaInter,listarCobrancasInter} from "@/admin-api/src/services/inter.js";
+import {recuperarPdfNotaSP,validarPdfOficial} from "@/lib/documentos-pdf";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const cred=new DefaultAzureCredential();
@@ -45,7 +46,7 @@ async function recentes(documento:string,vencimento:string) {
 export async function GET(req:NextRequest) {
   const remote=await encaminharAdmin(req);if(remote)return remote;
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
-  try {const emp=empresa(req);return reply({boletoDisponivel:await habilitada(emp),nfseDisponivel:false,motivoNfse:"Emissão fiscal ainda não validada. Use o portal da Prefeitura e registre a nota emitida abaixo.",motivoBoleto:emp==="drsoft"?"Inter da DRSOFT ainda em validação. Emita no banco e registre o boleto abaixo.":"Emissão exige revisão e aprovação específica. Nenhum e-mail será enviado."});}catch(e){return falha(e);}
+  try {const emp=empresa(req);return reply({boletoDisponivel:await habilitada(emp),motivoNfse:"Consulte a integração fiscal e o registro da nota nesta cobrança. Recuperar PDF não emite outra nota.",motivoBoleto:emp==="drsoft"?"Inter da DRSOFT ainda em validação. Emita no banco e registre o boleto abaixo.":"Emissão exige revisão e aprovação específica. Nenhum e-mail será enviado."});}catch(e){return falha(e);}
 }
 export async function POST(req:NextRequest) {
   const remote=await encaminharAdmin(req);if(remote)return remote;
@@ -54,11 +55,15 @@ export async function POST(req:NextRequest) {
   try {
     const emp=empresa(req),raw=await req.text();if(raw.length>2000)throw new Error("Solicitação muito grande.");
     const b=JSON.parse(raw);
-    if(!["preparar-boleto","emitir-boleto","consultar-boleto"].includes(b.acao))throw new Error("Operação indisponível. NFS-e ainda não habilitada.");
+    if(!["preparar-boleto","emitir-boleto","consultar-boleto","baixar-nota"].includes(b.acao))throw new Error("Operação indisponível.");
+    if(b.acao==="baixar-nota") {
+      if(typeof b.id!=="string"||!/^[a-f0-9-]{36}$/.test(b.id))throw Error("Mensagem inválida.");
+      return reply(await recuperarPdfNotaSP(emp,b.id,b.atualizadoEm));
+    }
     if(emp!=="sysney")throw new Error("Integração bancária da DRSOFT ainda não habilitada. Use o registro manual.");
     const {row,e,c,cr,documento}=await contexto(emp,b.id);
     const part=`boleto-painel-${emp}`,bankKey=createHash("sha256").update(`${documento}:${c.competencia}`).digest("hex");
-    const banco=await opcional<{status:string;codigoSolicitacao?:string;json:string}>(`inter-emissoes-${emp}`,bankKey);
+    let banco=await opcional<{status:string;codigoSolicitacao?:string;json:string}>(`inter-emissoes-${emp}`,bankKey);
     const pr=await opcional<{json:string}>(part,e.id);
     const previa:PreviaBoleto|null=pr?JSON.parse(pr.json):null;
     if(b.acao==="preparar-boleto") {
@@ -99,7 +104,11 @@ export async function POST(req:NextRequest) {
         }
         return reply({email:e,mensagem:"A tentativa não foi concluída nesta tela. Clique em Consultar resultado. Não solicite outro boleto: o resultado pode estar no banco."});
       }
-      return reply({email:e,mensagem:"Emissão solicitada ao Inter. Clique em Consultar resultado / obter PDF para concluir. Nenhum e-mail foi enviado."});
+      banco=await opcional<{status:string;codigoSolicitacao?:string;json:string}>(`inter-emissoes-${emp}`,bankKey);
+      // Após a emissão, apenas GETs de recuperação. Se o PDF falhar, a trava bancária permanece.
+      const atual=await tabela().getEntity<{json:string}>(`emails-${emp}`,e.id),emailAtual:EmailCobranca=JSON.parse(atual.json);
+      if(emailAtual.atualizadoEm!==e.atualizadoEm||emailAtual.status!==e.status)return reply({email:emailAtual,mensagem:"A cobrança mudou durante a emissão. Atualize e consulte o boleto existente, sem reemitir."});
+      row.etag=atual.etag;
     }
     // Recuperação só consulta. Não executa POST bancário, inclusive após timeout.
     if(!["rascunho","revisado","emitindo_documento"].includes(e.status))throw new Error("Mensagem já enviada ou em processamento. Consulte o documento anexado.");
@@ -121,9 +130,9 @@ export async function POST(req:NextRequest) {
     if(c.boleto && c.boleto!==numero)throw new Error("Outro boleto já registrado. Confira antes de substituir.");
     const blob=`${emp}/emails/${e.id}/inter-${previa.id}.pdf`;
     if(e.anexos.some(a=>a.tipo==="boleto"&&a.blob!==blob))throw new Error("Já existe outro PDF anexado. Confira antes de substituir.");
+    if(e.fluxo?.boleto===numero&&e.anexos.some(a=>a.tipo==="boleto"&&a.blob===blob))return reply({email:e,mensagem:"Boleto confirmado no Inter e PDF oficial já anexado. Nenhuma nova emissão ou alteração na aprovação."});
     const pdf=await consultarCobrancaInter(emp,banco.codigoSolicitacao,true) as {pdf:string};
-    const bytes=Buffer.from(pdf.pdf||"","base64");
-    if(bytes.length>5000000 || !bytes.subarray(0,5).equals(Buffer.from("%PDF-")))throw new Error("PDF oficial ainda não disponível. Consulte novamente, sem emitir outro boleto.");
+    const bytes=validarPdfOficial(Buffer.from(pdf.pdf||"","base64"));
     await new BlobServiceClient(`https://${conta()}.blob.core.windows.net`,cred).getContainerClient("admin-anexos").getBlockBlobClient(blob).uploadData(bytes,{blobHTTPHeaders:{blobContentType:"application/pdf"}});
     const em=new Date().toISOString();c.boleto=numero;c.persistida=true;
     if(!c.eventos.some(v=>v.id===previa.id))c.eventos.push({id:previa.id,tipo:"documentos",data:hojeBrasil(),registradoEm:em,responsavel:"Sistema — Inter",detalhe:`Boleto ${numero} confirmado no Inter; PDF oficial anexado. Protocolo ${banco.codigoSolicitacao}. Nenhum e-mail enviado.`});

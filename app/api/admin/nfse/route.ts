@@ -8,6 +8,7 @@ import {hojeBrasil,prevista,type Plano,type Cobranca} from "@/lib/cobrancas";
 import type {EmailCobranca} from "@/lib/emails-cobranca";
 import {hashNotaSP,normalizarFiscalSP,montarXmlSP,cadeiaAssinaturaSP,type DadosNotaSP,type TrabalhoSP} from "@/lib/nfse-sp";
 import {executarNotaSP,executorMunicipalDisponivel} from "@/lib/nfse-sp-executor";
+import {recuperarPdfNotaSP} from "@/lib/documentos-pdf";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const cred=new DefaultAzureCredential();
@@ -68,7 +69,8 @@ export async function POST(req:NextRequest){
       if(cfg.row)await table("AdminConfiguracoes").updateEntity(ent,"Replace",{etag:cfg.row.etag});else await table("AdminConfiguracoes").createEntity(ent);
       return reply({regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Regime salvo com vigência. Notas anteriores não foram alteradas. Prepare e teste novamente as próximas notas."});
     }
-    const part=`nfse-sp-${emp}`,row=await opcional<{json:string}>(part,idNota);
+    const part=`nfse-sp-${emp}`;
+    let row=await opcional<{json:string}>(part,idNota);
     let trabalho:TrabalhoSP|null=row?JSON.parse(row.json):null;
     const em=new Date().toISOString();
     if(body.acao==="preparar"){
@@ -146,7 +148,12 @@ export async function POST(req:NextRequest){
       await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
       try{trabalho.resultado=await executarNotaSP("emitir",trabalho.dados,{empresa:emp,trabalhoId:trabalho.id,hashAprovado:trabalho.hash});trabalho.status=trabalho.resultado.sucesso&&trabalho.resultado.numero?"emitida":"incerta";}catch{trabalho.status="incerta";}
       const r=await table().getEntity<{json:string}>(part,idNota);trabalho.atualizadoEm=new Date().toISOString();await salvar(trabalho,part,r.etag!);
-      return reply({trabalho,email,mensagem:"Tentativa registrada. Consulte o resultado para vincular a nota. Não repita a emissão; nenhum e-mail foi enviado."});
+      if(trabalho.status!=="emitida")return reply({trabalho,email,mensagem:"Tentativa registrada. Consulte o resultado para vincular a nota. Não repita a emissão; nenhum e-mail foi enviado."});
+      // Confirma por consulta antes de vincular e baixar; jamais transmite novamente.
+      row=await table().getEntity<{json:string}>(part,idNota);
+      ctx.row=await table().getEntity<{json:string}>(`emails-${emp}`,email.id);
+      const emailAtual:EmailCobranca=JSON.parse(ctx.row.json);
+      if(emailAtual.atualizadoEm!==email.atualizadoEm||emailAtual.status!==email.status)return reply({trabalho,email:emailAtual,mensagem:"A cobrança mudou durante a emissão. Consulte o RPS para recuperar a nota existente; não emita novamente."});
     }
     if(trabalho.status==="testando")throw Error("Teste ainda em andamento. Aguarde e atualize.");
     if(trabalho.status==="transmitindo"&&Date.now()-Date.parse(trabalho.atualizadoEm)<90000)throw Error("Transmissão ainda em andamento. Aguarde antes de consultar; não repita a emissão.");
@@ -166,6 +173,10 @@ export async function POST(req:NextRequest){
       email.fluxo!.nota=resultado.numero;delete email.fluxo!.documentos;delete email.aprovacaoEnvio;email.status="rascunho";email.atualizadoEm=em;
       await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
     }
-    return reply({trabalho,email,mensagem:"Nota confirmada e vinculada. Obtenha o PDF no portal e anexe antes de aprovar o envio do e-mail."});
+    if(!["aceito","enviando","incerto"].includes(email.status)) {
+      try {return reply({trabalho,...await recuperarPdfNotaSP(emp,email.id)});}
+      catch {return reply({trabalho,email,mensagem:"Nota confirmada e vinculada. O PDF não pôde ser anexado agora. Use Tentar baixar PDF da nota; não emita novamente. Nenhum e-mail enviado."});}
+    }
+    return reply({trabalho,email,mensagem:"Nota confirmada. Mensagem já enviada ou em processamento: anexos preservados."});
   }catch(e){return falha(e);}
 }

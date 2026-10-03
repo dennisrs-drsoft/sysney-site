@@ -19,7 +19,7 @@ const bank=uri(`import {records} from ${JSON.stringify(db)};import {createHash} 
  export const state={posts:0,fail:'',duplicate:false,payload:null,pdf:true};
  const pagador={cpfCnpj:'12345678000199',tipoPessoa:'JURIDICA',nome:'Cliente teste',endereco:'Rua Teste',cidade:'São Paulo',uf:'SP',cep:'01000000'};
  export async function listarCobrancasInter(){return [{cobranca:{pagador,codigoSolicitacao:'anterior',dataEmissao:'2026-09-01',dataVencimento:state.duplicate?'2030-11-03':'2026-09-03',situacao:'A_RECEBER'}}]}
- export async function consultarCobrancaInter(emp,codigo,pdf){if(pdf)return {pdf:state.pdf?Buffer.from('%PDF-teste').toString('base64'):''};return codigo==='anterior'?{cobranca:{pagador,multa:{codigo:'PERCENTUAL',taxa:2},mora:{codigo:'TAXAMENSAL',taxa:1},descontos:[]}}:{cobranca:{...state.payload,situacao:'A_RECEBER'},boleto:{nossoNumero:'123456'}}}
+ export async function consultarCobrancaInter(emp,codigo,pdf){if(pdf)return {pdf:state.pdf?Buffer.from('%PDF-teste'+ 'x'.repeat(150)+'%%EOF').toString('base64'):''};return codigo==='anterior'?{cobranca:{pagador,multa:{codigo:'PERCENTUAL',taxa:2},mora:{codigo:'TAXAMENSAL',taxa:1},descontos:[]}}:{cobranca:{...state.payload,situacao:'A_RECEBER'},boleto:{nossoNumero:'123456'}}}
  export async function emitirCobrancaInter({empresa,competencia,payload,autorizacaoPainel}){if(!autorizacaoPainel)throw Error('not authorized');if(state.fail==='before')throw Error('auth');state.posts++;state.payload=payload;const key=createHash('sha256').update(payload.pagador.cpfCnpj+':'+competencia).digest('hex');records.set('AdminDocumentos:inter-emissoes-'+empresa+':'+key,{json:JSON.stringify(payload),status:'solicitada',...(state.fail==='after'?{}:{codigoSolicitacao:'nova'}),etag:'1'});if(state.fail==='after')throw Error('timeout');return {codigoSolicitacao:'nova'}}`);
 let source=compile("../app/api/admin/documentos/route.ts");
 for(const [name,target] of Object.entries({
@@ -28,6 +28,7 @@ for(const [name,target] of Object.entries({
  "@azure/storage-blob":uri("export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({uploadData:async()=>{}})}}}"),
  "../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test')==='yes'"),"../_remote":uri("export const encaminharAdmin=async()=>null"),
  "@/lib/cobrancas":model,"@/lib/boleto-painel":boletoModel,"@/admin-api/src/services/inter.js":bank,
+ "@/lib/documentos-pdf":uri("export const recuperarPdfNotaSP=async()=>{throw Error('sem registro fiscal')};export const validarPdfOficial=b=>{if(b.length<100||!b.subarray(0,5).equals(Buffer.from('%PDF-'))||!b.includes(Buffer.from('%%EOF')))throw Error('PDF inválido');return b;};"),
 }))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source)),{records}=await import(db),{state}=await import(bank);
 process.env.ADMIN_STORAGE_ACCOUNT="test";
@@ -57,16 +58,22 @@ test("campos monetários, PO e variáveis preservam valores, escapes e textos an
 test("boleto revisado exige autorização, trava concorrência e recupera PDF sem reemitir",async()=>{
  const e=setup();assert.equal((await GET(req(null,"sysney",{"x-test":"no"}))).status,401);
  assert.equal((await POST(req({acao:"preparar-boleto",id},"sysney",{origin:"https://outro"}))).status,403);
- assert.equal((await (await GET(req(null))).json()).nfseDisponivel,false);
+ assert.match((await (await GET(req(null))).json()).motivoNfse,/registro da nota/);
  assert.equal((await POST(req({acao:"preparar-boleto",id},"drsoft"))).status,400);
  const p=await preparar(e);assert.equal(state.posts,0);assert.ok(Object.values(p.payload.mensagem).join('').includes('PO 069825'));
  assert.equal((await POST(req({...emitir(e,p),aprovado:false}))).status,400);
- const resultados=await Promise.all([POST(req(emitir(e,p))),POST(req(emitir(e,p)))]);
+ state.pdf=false;const resultados=await Promise.all([POST(req(emitir(e,p))),POST(req(emitir(e,p)))]);
  assert.equal(state.posts,1);assert.ok(resultados.some(r=>r.status===409||r.status===400));
  state.pdf=false;assert.equal((await POST(req({acao:"consultar-boleto",id}))).status,400);assert.equal(state.posts,1);
  state.pdf=true;const r=await POST(req({acao:"consultar-boleto",id}));assert.equal(r.status,200);
  const pronto=(await r.json()).email;assert.equal(pronto.fluxo.boleto,"123456");assert.equal(pronto.anexos.length,1);assert.equal(pronto.status,"rascunho");assert.equal(pronto.tentativas.length,0);assert.equal(pronto.aprovacaoEnvio,undefined);
  assert.equal((await POST(req({acao:"preparar-boleto",id,atualizadoEm:pronto.atualizadoEm}))).status,400);assert.equal(state.posts,1);
+ const repetido=await (await POST(req({acao:"consultar-boleto",id}))).json();assert.equal(repetido.email.atualizadoEm,pronto.atualizadoEm);assert.equal(repetido.email.anexos.length,1);assert.equal(state.posts,1);
+});
+
+test("emissão bancária concluída recupera e anexa PDF automaticamente, sem enviar",async()=>{
+ const e=setup(),p=await preparar(e),r=await POST(req(emitir(e,p)));
+ assert.equal(r.status,200);const d=await r.json();assert.equal(d.email.anexos.length,1);assert.equal(d.email.fluxo.boleto,"123456");assert.equal(d.email.tentativas.length,0);assert.equal(state.posts,1);
 });
 test("falhas pré-transmissão permitem revisão; resultado incerto nunca repete POST",async()=>{
  let e=setup(),p=await preparar(e);state.fail="before";
