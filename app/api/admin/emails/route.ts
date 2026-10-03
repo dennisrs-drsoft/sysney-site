@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { novoEmail, emailsValidos, destinatarios, htmlEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
-import { mesValido, dataValida, prevista, type Cobranca, type Plano } from "@/lib/cobrancas";
+import { mesValido, dataValida, hojeBrasil, prevista, type Cobranca, type Plano } from "@/lib/cobrancas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +68,20 @@ async function conferirFluxo(e: EmailCobranca) {
     if (c.competencia !== e.competencia || c.centavos !== e.centavos || c.vencimento !== e.vencimento || c.nota !== e.fluxo.nota || c.boleto !== e.fluxo.boleto) throw new Error("O acompanhamento mudou. Confira os documentos da cobrança novamente antes de enviar.");
   }
 }
+async function buscarCobranca(empresa: string, id: string) {
+  if (typeof id !== "string" || !/^[a-f0-9]{64}_20\d{2}-(0[1-9]|1[0-2])$/.test(id)) throw new Error("Cobrança inválida.");
+  try {
+    const row = await table().getEntity<{json:string}>(`cobrancas-${empresa}`,id);
+    return {c:JSON.parse(row.json) as Cobranca,etag:row.etag};
+  } catch(e) {
+    if ((e as {statusCode?:number}).statusCode !== 404) throw e;
+    const [planoId,competencia] = id.split("_");
+    const configs = new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred);
+    const p: Plano = JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`,planoId)).json);
+    if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora da recorrência.");
+    return {c:prevista(p,competencia),etag:undefined};
+  }
+}
 function erro(e: unknown) {
   const code = (e as { statusCode?: number }).statusCode;
   if (code === 409 || code === 412) return reply({ erro: "Mensagem alterada em outra operação. Atualize a lista." }, 409);
@@ -120,17 +134,7 @@ export async function POST(req: NextRequest) {
     const raw = await req.text(); if (raw.length > 15000) throw new Error("Mensagem muito longa.");
     const body = JSON.parse(raw);
     if (body.acao === "preparar-cobranca") {
-      if (typeof body.cobrancaId !== "string" || !/^[a-f0-9]{64}_20\d{2}-(0[1-9]|1[0-2])$/.test(body.cobrancaId)) throw new Error("Cobrança inválida.");
-      let c: Cobranca;
-      try { c = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${empresa}`,body.cobrancaId)).json); }
-      catch (e) {
-        if ((e as {statusCode?:number}).statusCode !== 404) throw e;
-        const [planoId, competencia] = body.cobrancaId.split("_");
-        const configs = new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred);
-        const p: Plano = JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`,planoId)).json);
-        if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora da recorrência.");
-        c = prevista(p,competencia);
-      }
+      const {c} = await buscarCobranca(empresa,body.cobrancaId);
       // One durable link per billing cycle; never create another draft on a retry.
       const linkKey = `fila-${c.id}`;
       let link: {emailId:string} | undefined;
@@ -169,6 +173,26 @@ export async function POST(req: NextRequest) {
     }
     const { email, etag } = await ler(empresa, body.id);
     if (body.atualizadoEm !== email.atualizadoEm) throw new Error("Revise a versão atual da mensagem antes de continuar.");
+    if (body.acao === "registrar-documento-manual") {
+      if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para alteração.");
+      if ((body.tipo !== "nota" && body.tipo !== "boleto") || typeof body.numero !== "string" || !body.numero.trim() || body.numero.length > 120) throw new Error("Informe o tipo e o número do documento já emitido.");
+      const tipo: "nota" | "boleto" = body.tipo, numero = body.numero.trim();
+      const {c,etag:cetag} = await buscarCobranca(empresa,email.fluxo.cobrancaId);
+      if (c.competencia !== email.competencia || c.centavos !== email.centavos || c.vencimento !== email.vencimento) throw new Error("A cobrança mudou. Confira o acompanhamento.");
+      if (c[tipo] && c[tipo] !== numero) throw new Error("Já existe outro documento registrado. Não substitua sem conferir o cancelamento ou a baixa do anterior.");
+      const em = new Date().toISOString();
+      if (c[tipo] !== numero) {
+        if (c.eventos.length >= 100) throw new Error("Limite de histórico atingido.");
+        c[tipo]=numero;c.persistida=true;
+        c.eventos.push({id:randomUUID(),tipo:"documentos",data:hojeBrasil(),registradoEm:em,responsavel:responsavel(req),detalhe:`${tipo === "nota" ? "NFS-e" : "Boleto"} ${numero} registrado como emitido fora do sistema. Não houve transmissão, emissão, cancelamento ou envio por esta ação.`});
+        const entity={partitionKey:`cobrancas-${empresa}`,rowKey:c.id,json:JSON.stringify(c)};
+        if(Buffer.byteLength(entity.json,"utf16le")>60000)throw new Error("Limite de histórico atingido.");
+        if(cetag)await table().updateEntity(entity,"Replace",{etag:cetag});else await table().createEntity(entity);
+      }
+      email.fluxo.nota=c.nota;email.fluxo.boleto=c.boleto;delete email.fluxo.documentos;delete email.aprovacaoEnvio;
+      email.status="rascunho";email.atualizadoEm=em;await guardar(email,etag);
+      return reply({email,mensagem:"Documento externo registrado. Anexe o PDF correspondente e confira os dois documentos antes de aprovar o envio. Nenhuma emissão foi realizada."});
+    }
     if (body.acao === "conferir-documentos") {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para conferência.");
       const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${empresa}`,email.fluxo.cobrancaId)).json);

@@ -299,8 +299,8 @@ function VisaoGeral({
           </h2>
           <div className="mt-5 space-y-3">
             <Integracao
-              titulo="NFS-e paulistana"
-              texto="Aguardando certificado e parâmetros fiscais no ambiente seguro."
+              titulo="NFS-e — Prefeitura de São Paulo"
+              texto="Emissão pelo sistema ainda bloqueada. Consultar notas ou acessar o portal não comprova emissão integrada: faltam validar a transmissão e o uso seguro do certificado no servidor."
             />
             <Integracao
               titulo="Inter Empresas"

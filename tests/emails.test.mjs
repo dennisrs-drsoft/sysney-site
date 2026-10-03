@@ -136,6 +136,24 @@ test("fila prepara previsão sem documentos e não aceita conferência fictícia
  assert.equal(saved.fluxo.cobrancaId,cobrancaId);assert.equal(saved.fluxo.documentos,undefined);
 });
 
+test("documentos externos são registrados separadamente sem emitir, substituir ou liberar envio",async()=>{
+ const planoId='c'.repeat(64),cobrancaId=planoId+'_2026-10';
+ records.set(`AdminConfiguracoes:cobrancas-drsoft:${planoId}`,{json:JSON.stringify({id:planoId,inicio:"2026-10",clienteNome:"Teste manual",email:"cliente@example.com",descricao:"Serviço",centavos:10000,diaEnvio:1,mesEnvio:1,diaVencimento:8,mesVencimento:2}),etag:'1'});
+ let e=(await (await POST(request({acao:"preparar-cobranca",cobrancaId},"drsoft"))).json()).email;
+ const registrar=async(tipo,numero)=>POST(request({acao:"registrar-documento-manual",id:e.id,atualizadoEm:e.atualizadoEm,tipo,numero},"drsoft"));
+ e=(await (await registrar("boleto","externo-123")).json()).email;
+ assert.equal(e.fluxo.boleto,"externo-123");assert.equal(e.fluxo.nota,"");assert.equal(e.fluxo.documentos,undefined);assert.equal(e.tentativas.length,0);
+ const key=`AdminDocumentos:cobrancas-drsoft:${cobrancaId}`;
+ assert.equal(JSON.parse(records.get(key).json).eventos.length,1);
+ e=(await (await registrar("boleto","externo-123")).json()).email;
+ assert.equal(JSON.parse(records.get(key).json).eventos.length,1);
+ assert.equal((await registrar("boleto","outro-456")).status,400);
+ assert.equal((await POST(request({acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"drsoft@example.com"},"drsoft"))).status,400);
+ e=(await (await registrar("nota","100")).json()).email;
+ assert.equal(e.fluxo.nota,"100");assert.equal(JSON.parse(records.get(key).json).eventos.length,2);assert.equal(e.aprovacaoEnvio,undefined);
+ assert.equal((await POST(request({acao:"conferir-documentos",id:e.id,atualizadoEm:e.atualizadoEm},"drsoft"))).status,400);
+});
+
 test("hash muda com PDF, logo, destinatários e remetente",async()=>{
   const {assinaturaEnvio}=await import(approvalModel);
   const e=novoEmail("sysney","Teste");const hash=assinaturaEnvio(e,"a@example.com","logo",["pdf"]);
