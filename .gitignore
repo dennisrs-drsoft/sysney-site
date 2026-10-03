@@ -20,6 +20,9 @@
 
 # production
 /build
+/admin-api/generated/
+/admin-api/public/
+/README.financeiro-local.md
 
 # misc
 .DS_Store

@@ -1,6 +1,8 @@
 import { DefaultAzureCredential } from "@azure/identity";
 import { SecretClient } from "@azure/keyvault-secrets";
 import { Agent, request } from "undici";
+import { TableClient } from "@azure/data-tables";
+import { createHash } from "node:crypto";
 
 const TOKEN_URL_PADRAO =
   "https://cdpj.partners.bancointer.com.br/oauth/v2/token";
@@ -20,6 +22,7 @@ const configuracoes = {
 
 let credential;
 let secretClient;
+const tokens = new Map();
 
 function obterCredential() {
   credential ??= new DefaultAzureCredential();
@@ -96,11 +99,14 @@ async function respostaJson(resposta, contexto) {
   }
 }
 
-async function obterToken({ clientId, clientSecret }, dispatcher) {
+async function obterToken({ clientId, clientSecret }, dispatcher, scope = process.env.INTER_READ_SCOPE || ESCOPO_LEITURA) {
+  const cacheKey = `${clientId}:${scope}`;
+  const cached = tokens.get(cacheKey);
+  if (cached && cached.ate > Date.now()) return cached.token;
   const corpo = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
-    scope: process.env.INTER_READ_SCOPE || ESCOPO_LEITURA,
+    scope,
     grant_type: "client_credentials",
   });
 
@@ -122,7 +128,76 @@ async function obterToken({ clientId, clientSecret }, dispatcher) {
   if (!dados.access_token) {
     throw new Error("Autenticação do Inter não retornou token.");
   }
+  tokens.set(cacheKey, { token: dados.access_token, ate: Date.now() + Math.max(0, Math.min(Number(dados.expires_in) || 3600, 3600) - 120) * 1000 });
   return dados.access_token;
+}
+
+// Consulta individual e PDF conforme SDK oficial inter-co/pj-sdk-java.
+export async function consultarCobrancaInter(empresa, codigo, pdf = false) {
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(codigo)) throw new Error("Código de cobrança inválido.");
+  const credenciais = await carregarCredenciais(empresa);
+  const dispatcher = agenteMtls(credenciais);
+  try {
+    const token = await obterToken(credenciais, dispatcher);
+    const resposta = await request(new URL(`/cobranca/v3/cobrancas/${codigo}${pdf ? "/pdf" : ""}`, API_URL_PADRAO), {
+      method: "GET", dispatcher,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}`, ...(credenciais.contaCorrente ? { "x-conta-corrente": credenciais.contaCorrente } : {}) },
+      signal: AbortSignal.timeout(30000),
+    });
+    return await respostaJson(resposta, "Consulta individual do Inter");
+  } finally { await dispatcher.close(); }
+}
+
+export async function emitirCobrancaInter({ empresa, competencia, payload }) {
+  if (process.env.INTER_WRITE_OPERATIONS_ENABLED !== "true") throw new Error("Emissão bancária não habilitada.");
+  if (empresa !== "sysney" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new Error("Empresa ou competência inválida.");
+  if (!payload?.pagador?.cpfCnpj || !Number.isFinite(payload.valorNominal) || payload.valorNominal <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.dataVencimento)) throw new Error("Cobrança incompleta.");
+  const table = new TableClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT || "sysneyadm2602"}.table.core.windows.net`, "AdminDocumentos", obterCredential());
+  const rowKey = createHash("sha256").update(`${payload.pagador.cpfCnpj.replace(/\D/g, "")}:${competencia}`).digest("hex");
+  const partitionKey = `inter-emissoes-${empresa}`;
+  // Preparar acesso antes do bloqueio. Nenhum POST bancário é repetido automaticamente.
+  const credenciais = await carregarCredenciais(empresa);
+  const dispatcher = agenteMtls(credenciais);
+  try {
+    const token = await obterToken(credenciais, dispatcher, "boleto-cobranca.write");
+    const registro = { partitionKey, rowKey, competencia, status: "enviando", json: JSON.stringify(payload), criadoEm: new Date().toISOString() };
+    await table.createEntity(registro); // Conflito impede nova emissão da mesma competência.
+    try {
+      const resposta = await request(new URL("/cobranca/v3/cobrancas", API_URL_PADRAO), {
+        method: "POST", dispatcher,
+        headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${token}`, ...(credenciais.contaCorrente ? { "x-conta-corrente": credenciais.contaCorrente } : {}) },
+        body: JSON.stringify(payload), signal: AbortSignal.timeout(30000),
+      });
+      const dados = await respostaJson(resposta, "Emissão de cobrança do Inter");
+      if (!dados.codigoSolicitacao) throw new Error("Resposta sem código; conferir no banco antes de qualquer repetição.");
+      await table.updateEntity({ partitionKey, rowKey, status: "solicitada", codigoSolicitacao: dados.codigoSolicitacao }, "Merge");
+      return dados;
+    } catch (erro) {
+      await table.updateEntity({ partitionKey, rowKey, status: "incerto" }, "Merge").catch(() => {});
+      throw erro;
+    }
+  } finally { await dispatcher.close(); }
+}
+
+export async function cancelarCobrancaPorSubstituicao(empresa, codigo) {
+  if (process.env.INTER_WRITE_OPERATIONS_ENABLED !== "true") throw new Error("Cancelamento não habilitado.");
+  if (!/^[a-zA-Z0-9-]{1,100}$/.test(codigo)) throw new Error("Código inválido.");
+  const detalhe = await consultarCobrancaInter(empresa, codigo);
+  if (detalhe.cobranca.situacao === "CANCELADO") return { jaCancelado:true };
+  if (detalhe.cobranca.situacao !== "A_RECEBER") throw new Error("Situação bancária impede cancelamento automático.");
+  const credenciais = await carregarCredenciais(empresa);
+  const dispatcher = agenteMtls(credenciais);
+  try {
+    const token = await obterToken(credenciais, dispatcher, "boleto-cobranca.write");
+    const resposta = await request(new URL(`/cobranca/v3/cobrancas/${codigo}/cancelar`, API_URL_PADRAO), {
+      method:"POST", dispatcher,
+      headers:{ Authorization:`Bearer ${token}`, "Content-Type":"application/json", ...(credenciais.contaCorrente ? { "x-conta-corrente":credenciais.contaCorrente } : {}) },
+      body:JSON.stringify({ motivoCancelamento:"SUBSTITUICAO" }), signal:AbortSignal.timeout(30000),
+    });
+    await resposta.body.text();
+    if (resposta.statusCode < 200 || resposta.statusCode >= 300) throw new Error(`Cancelamento retornou HTTP ${resposta.statusCode}; conferir antes de repetir.`);
+    return { solicitado:true };
+  } finally { await dispatcher.close(); }
 }
 
 function conteudoCobrancas(resposta) {

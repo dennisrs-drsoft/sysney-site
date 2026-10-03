@@ -1,10 +1,21 @@
 "use client";
 
-import Image from "next/image";
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { AdminShell } from "./admin-shell";
+import { Cobrancas } from "./cobrancas";
+import { LaboratorioEmails } from "./laboratorio-emails";
+import { HistoricoInter } from "./historico-inter";
+import { NfseNacional } from "./nfse-nacional";
+import { Aprovacoes } from "./aprovacoes";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 type EmpresaId = "drsoft" | "sysney";
-type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos";
+type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "emails" | "historico-inter" | "nfse-nacional" | "aprovacoes";
 
 type Cliente = {
   id: string;
@@ -14,6 +25,12 @@ type Cliente = {
   email: string;
   telefone: string;
   criadoEm: string;
+  origem?: string;
+};
+
+type RespostaClientes = {
+  clientes?: Cliente[];
+  erro?: string;
 };
 
 type Rascunho = {
@@ -62,6 +79,11 @@ const empresas = {
 
 const secoes: { id: SecaoId; label: string }[] = [
   { id: "visao-geral", label: "Visão geral" },
+  { id: "cobrancas", label: "Cobranças mensais" },
+  { id: "aprovacoes", label: "Aprovar emissão" },
+  { id: "emails", label: "Laboratório de e-mails" },
+  { id: "historico-inter", label: "Histórico do Inter" },
+  { id: "nfse-nacional", label: "NFS-e Nacional" },
   { id: "nova-emissao", label: "Nova emissão" },
   { id: "clientes", label: "Clientes" },
   { id: "documentos", label: "Documentos" },
@@ -211,7 +233,7 @@ function VisaoGeral({
                 <p className="mt-1 text-sm text-slate-500">{empresa.regime}</p>
               </div>
               <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
-                Simulação local
+                Ambiente de homologação
               </span>
             </div>
           </div>
@@ -246,9 +268,9 @@ function VisaoGeral({
             </h3>
             <div className="mt-4 space-y-3">
               {[
-                "Concluir o acesso do usuário administrador no Azure",
+                "Manter o acesso administrativo protegido no Azure",
                 "Conectar os certificados fiscais pelo cofre seguro",
-                "Validar as credenciais do Inter em homologação",
+                "Revisar a carteira importada do Inter Empresas",
                 "Homologar serviço, alíquota e retenções com a contabilidade",
               ].map((item, indice) => (
                 <div
@@ -281,9 +303,10 @@ function VisaoGeral({
               titulo="Inter Empresas"
               texto={
                 empresaId === "sysney"
-                  ? "Integração ativa no Inter; aguardando certificado cliente e credenciais no cofre."
+                  ? "Credenciais validadas e carteira de clientes sincronizada com segurança."
                   : "Integração da DRSOFT ainda está em validação no Banco Inter."
               }
+              pronta={empresaId === "sysney"}
             />
             <Integracao
               titulo="Infraestrutura Azure"
@@ -301,10 +324,16 @@ function CadastroClientes({
   empresaId,
   clientes,
   salvar,
+  atualizando,
+  erroAtualizacao,
+  atualizar,
 }: {
   empresaId: EmpresaId;
   clientes: Cliente[];
   salvar: (cliente: Cliente) => void;
+  atualizando: boolean;
+  erroAtualizacao: string;
+  atualizar: () => void;
 }) {
   const [nome, setNome] = useState("");
   const [documento, setDocumento] = useState("");
@@ -400,10 +429,26 @@ function CadastroClientes({
               Clientes cadastrados
             </h2>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">
-            {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-600">
+              {clientes.length} {clientes.length === 1 ? "cliente" : "clientes"}
+            </span>
+            <button
+              type="button"
+              onClick={atualizar}
+              disabled={atualizando}
+              className="rounded-full border border-blue-200 px-3 py-1.5 text-xs font-black text-blue-700 hover:bg-blue-50 disabled:cursor-wait disabled:opacity-60"
+            >
+              {atualizando ? "Atualizando..." : "Atualizar lista"}
+            </button>
+          </div>
         </div>
+
+        {erroAtualizacao && (
+          <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+            {erroAtualizacao}
+          </p>
+        )}
 
         {clientes.length === 0 ? (
           <div className="mt-8 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-12 text-center">
@@ -427,7 +472,7 @@ function CadastroClientes({
                     </p>
                   </div>
                   <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                    Disponível
+                    {cliente.origem === "inter-cobrancas" ? "Banco Inter" : "Local"}
                   </span>
                 </div>
                 <div className="mt-4 grid gap-1 text-sm text-slate-600 sm:grid-cols-2">
@@ -800,8 +845,11 @@ export function AdminDashboard() {
   const [empresaId, setEmpresaId] = useState<EmpresaId>("drsoft");
   const [secao, setSecao] = useState<SecaoId>("visao-geral");
   const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clientesAzure, setClientesAzure] = useState<Cliente[]>([]);
   const [rascunhos, setRascunhos] = useState<Rascunho[]>([]);
   const [carregado, setCarregado] = useState(false);
+  const [atualizandoClientes, setAtualizandoClientes] = useState(false);
+  const [erroClientes, setErroClientes] = useState("");
   const [aviso, setAviso] = useState("");
   const empresa = empresas[empresaId];
 
@@ -814,6 +862,41 @@ export function AdminDashboard() {
 
     return () => window.cancelAnimationFrame(quadro);
   }, []);
+
+  const carregarClientesAzure = useCallback(async () => {
+    setAtualizandoClientes(true);
+    setErroClientes("");
+    try {
+      const respostas = await Promise.all(
+        (["drsoft", "sysney"] as EmpresaId[]).map(async (empresa) => {
+          const resposta = await fetch(`/api/admin/clientes?empresa=${empresa}`, {
+            cache: "no-store",
+          });
+          const dados = (await resposta.json()) as RespostaClientes;
+          if (!resposta.ok) {
+            throw new Error(dados.erro || "Falha ao carregar clientes.");
+          }
+          return dados.clientes || [];
+        })
+      );
+      setClientesAzure(respostas.flat());
+    } catch (erro) {
+      setErroClientes(
+        erro instanceof Error
+          ? erro.message
+          : "Não foi possível carregar os clientes sincronizados."
+      );
+    } finally {
+      setAtualizandoClientes(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const quadro = window.requestAnimationFrame(() => {
+      void carregarClientesAzure();
+    });
+    return () => window.cancelAnimationFrame(quadro);
+  }, [carregarClientesAzure]);
 
   useEffect(() => {
     if (carregado) {
@@ -833,10 +916,24 @@ export function AdminDashboard() {
     return () => window.clearTimeout(temporizador);
   }, [aviso]);
 
-  const clientesEmpresa = useMemo(
-    () => clientes.filter((item) => item.empresaId === empresaId),
-    [clientes, empresaId]
-  );
+  const clientesEmpresa = useMemo(() => {
+    const unicos = new Map<string, Cliente>();
+    for (const cliente of clientesAzure) {
+      if (cliente.empresaId === empresaId) {
+        unicos.set(cliente.documento.replace(/\D/g, "") || cliente.id, cliente);
+      }
+    }
+    for (const cliente of clientes) {
+      if (cliente.empresaId === empresaId) {
+        const chave = cliente.documento.replace(/\D/g, "") || cliente.id;
+        const remoto = unicos.get(chave);
+        unicos.set(chave, remoto ? { ...remoto, ...cliente } : cliente);
+      }
+    }
+    return [...unicos.values()].sort((a, b) =>
+      a.nome.localeCompare(b.nome, "pt-BR")
+    );
+  }, [clientes, clientesAzure, empresaId]);
   const rascunhosEmpresa = useMemo(
     () => rascunhos.filter((item) => item.empresaId === empresaId),
     [rascunhos, empresaId]
@@ -854,7 +951,17 @@ export function AdminDashboard() {
   }
 
   let conteudo;
-  if (secao === "nova-emissao") {
+  if (secao === "aprovacoes") {
+    conteudo = <Aprovacoes key={empresaId} empresa={empresaId} rascunhos={rascunhos.filter(r=>r.empresaId === empresaId)} />;
+  } else if (secao === "nfse-nacional") {
+    conteudo = <NfseNacional empresa={empresaId} />;
+  } else if (secao === "historico-inter") {
+    conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
+  } else if (secao === "emails") {
+    conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
+  } else if (secao === "cobrancas") {
+    conteudo = <Cobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
+  } else if (secao === "nova-emissao") {
     conteudo = (
       <NovaEmissao
         key={empresaId}
@@ -871,6 +978,9 @@ export function AdminDashboard() {
         empresaId={empresaId}
         clientes={clientesEmpresa}
         salvar={salvarCliente}
+        atualizando={atualizandoClientes}
+        erroAtualizacao={erroClientes}
+        atualizar={() => void carregarClientesAzure()}
       />
     );
   } else if (secao === "documentos") {
@@ -892,110 +1002,8 @@ export function AdminDashboard() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-950">
-      <header className="bg-[#07111f] text-white">
-        <div className="mx-auto max-w-[1600px] px-5 py-5 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap items-center justify-between gap-5">
-            <div className="flex items-center gap-4">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-2">
-                <Image
-                  src="/logo.png"
-                  alt="SYSNEY Informática"
-                  width={120}
-                  height={120}
-                  className="h-auto w-20"
-                  priority
-                />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.24em] text-sky-300">
-                  Área privada
-                </p>
-                <h1 className="mt-1 text-xl font-black sm:text-2xl">
-                  Administração financeira
-                </h1>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-1">
-                {(Object.keys(empresas) as EmpresaId[]).map((id) => (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => setEmpresaId(id)}
-                    className={`rounded-xl px-4 py-2.5 text-sm font-black transition ${
-                      empresaId === id
-                        ? "bg-blue-500 text-white shadow-lg shadow-blue-500/20"
-                        : "text-slate-300 hover:bg-white/5 hover:text-white"
-                    }`}
-                  >
-                    {empresas[id].nome}
-                  </button>
-                ))}
-              </div>
-              <a
-                href="/.auth/logout?post_logout_redirect_uri=/"
-                className="hidden rounded-xl border border-white/15 px-4 py-3 text-sm font-bold text-slate-300 hover:bg-white/5 hover:text-white sm:block"
-              >
-                Sair
-              </a>
-            </div>
-          </div>
-
-          <div className="mt-6 flex items-center justify-between gap-4 border-t border-white/10 pt-4">
-            <div>
-              <p className={`text-sm font-black ${empresa.destaque}`}>
-                {empresa.nome}
-              </p>
-              <p className="text-xs text-slate-400">{empresa.regime}</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-bold text-amber-200">
-              <span className="h-2.5 w-2.5 rounded-full bg-amber-300 shadow-[0_0_12px_#fcd34d]" />
-              Simulação local
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <div className="mx-auto max-w-[1600px] px-5 py-6 sm:px-6 lg:px-8 lg:py-8">
-        <div className="mb-5 rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          <strong>Ambiente seguro de teste:</strong> clientes e rascunhos ficam
-          apenas neste navegador. Nenhuma informação é enviada à Prefeitura, ao
-          Banco Inter ou ao servidor.
-        </div>
-
-        {aviso && (
-          <div
-            role="status"
-            className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800"
-          >
-            {aviso}
-          </div>
-        )}
-
-        <nav
-          className="mb-6 flex gap-2 overflow-x-auto pb-2"
-          aria-label="Administração"
-        >
-          {secoes.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => setSecao(item.id)}
-              className={`shrink-0 rounded-full px-5 py-3 text-sm font-black transition ${
-                secao === item.id
-                  ? "bg-slate-950 text-white shadow-lg shadow-slate-300"
-                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-700"
-              }`}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        {conteudo}
-      </div>
-    </main>
+    <AdminShell empresa={empresaId} regime={empresa.regime} secao={secao} secoes={secoes} onEmpresa={setEmpresaId} onSecao={setSecao} aviso={aviso}>
+      {conteudo}
+    </AdminShell>
   );
 }

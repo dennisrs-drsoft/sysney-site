@@ -1,38 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-
-type Principal = {
-  userRoles?: string[];
-};
-
-function usuarioAdministrador(request: NextRequest) {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    process.env.ADMIN_DEV_BYPASS === "true"
-  ) {
-    return true;
-  }
-
-  const encodedPrincipal = request.headers.get("x-ms-client-principal");
-  if (!encodedPrincipal) return false;
-
-  try {
-    const principal = JSON.parse(
-      Buffer.from(encodedPrincipal, "base64").toString("utf8")
-    ) as Principal;
-
-    return principal.userRoles?.some(
-      (role) => role.toLowerCase() === "administrador"
-    );
-  } catch {
-    return false;
-  }
-}
+import { usuarioAdministrador } from "../_auth";
+import { encaminharAdmin } from "../_remote";
 
 function todasDefinidas(nomes: string[]) {
   return nomes.every((nome) => Boolean(process.env[nome]?.trim()));
 }
 
 export async function GET(request: NextRequest) {
+  const remote = await encaminharAdmin(request); if (remote) return remote;
   if (!usuarioAdministrador(request)) {
     return NextResponse.json({ erro: "Não autorizado." }, { status: 401 });
   }
