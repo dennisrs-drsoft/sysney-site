@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { novoEmail, htmlEmail, type EmailCobranca } from "@/lib/emails-cobranca";
 import type { Empresa } from "@/lib/cobrancas";
+import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import styles from "./laboratorio-emails.module.css";
 const campo = "mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-950";
 const botao = "rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-bold text-slate-700 disabled:opacity-40";
@@ -21,7 +22,7 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
   const carregar = useCallback(async () => {
     try {
       const r = await fetch(`/api/admin/emails?empresa=${empresa}`, { cache: "no-store" });
-      const d = await r.json(); if (!r.ok) throw new Error(d.erro);
+      const d = await lerRespostaAdmin<{emails: EmailCobranca[]; remetente: string; erro?: string}>(r); if (!r.ok) throw new Error(d.erro);
       setLista(d.emails); setRemetente(d.remetente);
     } catch (e) { setAviso(e instanceof Error ? e.message : "Falha na consulta."); }
   }, [empresa]);
@@ -33,7 +34,7 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
     setOcupado(true); setAviso("");
     try {
       const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente }) });
-      const d = await res.json();
+      const d = await lerRespostaAdmin<{email?: EmailCobranca; mensagem?: string; erro?: string}>(res, true);
       if (d.email) { setEmail(d.email); setAlterado(false); }
       if (!res.ok) throw new Error(d.erro);
       setAviso(d.mensagem || (acao === "salvar" ? "Rascunho salvo." : "Mensagem revisada com os documentos anexos.")); setEnvioAberto(false);
@@ -46,7 +47,7 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
     try {
       const data = new FormData(e.currentTarget); data.set("id", email.id);
       const r = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", body: data });
-      const d = await r.json(); if (!r.ok) throw new Error(d.erro);
+      const d = await lerRespostaAdmin<{email: EmailCobranca; erro?: string}>(r, true); if (!r.ok) throw new Error(d.erro);
       setEmail(d.email); setAlterado(false); setAviso("PDF anexado. Confira o documento antes de revisar o envio."); await carregar();
     } catch(e) { setAviso(e instanceof Error ? e.message : "Falha ao anexar."); }
     finally { setOcupado(false); }

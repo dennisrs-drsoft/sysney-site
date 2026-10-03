@@ -22,6 +22,25 @@ test("ponte bloqueia anônimo, origem cruzada e configuração incompleta; trans
  globalThis.fetch=async(url,opts)=>{calls++;assert.equal(url,"https://sysney-admin-api-2602.azurewebsites.net/api/financeiro/painel/emails?empresa=sysney");assert.equal(opts.headers.get("x-functions-key"),"test-private-key");assert.equal(opts.headers.get("cookie"),null);assert.equal(opts.redirect,"error");assert.equal(Buffer.from(opts.body).toString(),"%PDF-test");return new Response("%PDF-output",{headers:{"content-type":"application/pdf","x-functions-key":"must-not-leak","set-cookie":"private"}});};
  try {const result=await encaminharAdmin(request("POST",{cookie:"do-not-forward","content-type":"application/pdf"},"%PDF-test"));assert.equal(await result.text(),"%PDF-output");assert.equal(result.headers.get("set-cookie"),null);assert.equal(result.headers.get("x-functions-key"),null);assert.equal(calls,1);}finally{globalThis.fetch=old;}
 });
+test("ponte reconhece host público do proxy sem liberar origem externa ou sessão anônima",async()=>{
+ process.env.NODE_ENV="production";delete process.env.ADMIN_BACKEND_EXECUTION;process.env.ADMIN_BACKEND_KEY="test-private-key";
+ const proxied=(method,headers={})=>{const r=request(method,headers,method==="POST"?"{}":undefined);r.nextUrl=new URL("http://localhost:8080/api/admin/emails?empresa=sysney");return r;};
+ const old=globalThis.fetch;let calls=0;
+ globalThis.fetch=async(url,opts)=>{calls++;assert.equal(opts.headers.get("x-admin-site-origin"),"https://www.sysney.com");if(opts.method==="POST")assert.equal(opts.headers.get("origin"),"https://www.sysney.com");return Response.json({emails:[]});};
+ try {
+  assert.equal((await encaminharAdmin(proxied("GET",{"x-forwarded-host":"www.sysney.com"}))).status,200);
+  assert.equal((await encaminharAdmin(proxied("POST",{host:"www.sysney.com"}))).status,200);
+  assert.equal((await encaminharAdmin(proxied("GET"))).status,403);
+  for(const host of ["evil.test","www.sysney.com.evil.test","www.sysney.com, evil.test","www.sysney.com/path","www.sysney.com@evil.test"]){
+   assert.equal((await encaminharAdmin(proxied("GET",{"x-forwarded-host":host}))).status,403);
+  }
+  assert.equal((await encaminharAdmin(proxied("POST",{"x-forwarded-host":"www.sysney.com",origin:"https://evil.test"}))).status,403);
+  assert.equal((await encaminharAdmin(proxied("POST",{"x-forwarded-host":"www.sysney.com",origin:""}))).status,403);
+  assert.equal((await encaminharAdmin(proxied("GET",{"x-forwarded-host":"www.sysney.com","x-test-admin":"no"}))).status,401);
+  assert.equal(calls,2);
+ }finally{globalThis.fetch=old;}
+});
+
 test("API isolada exige canal de servidor, perfil administrador e origem; mantém query e resposta PDF",async()=>{
  process.env.ADMIN_BACKEND_EXECUTION="true";
  let calls=0;

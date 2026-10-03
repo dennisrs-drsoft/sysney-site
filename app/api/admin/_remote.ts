@@ -6,6 +6,15 @@ const destino = "https://sysney-admin-api-2602.azurewebsites.net";
 const origens = new Set(["https://www.sysney.com", "https://sysney.com", "https://lively-ocean-0b7f9dd10.7.azurestaticapps.net"]);
 const erro = (mensagem: string, status: number) => NextResponse.json({erro:mensagem},{status,headers:{"Cache-Control":"no-store"}});
 
+/** SWA terminates HTTPS and can give Next an internal URL. Never accept arbitrary proxy hosts. */
+function origemPublica(req: NextRequest): string | null {
+  for (const nome of ["x-forwarded-host", "host"]) {
+    const host = req.headers.get(nome)?.toLowerCase();
+    if (host && origens.has(`https://${host}`)) return `https://${host}`;
+  }
+  return origens.has(req.nextUrl.origin) ? req.nextUrl.origin : null;
+}
+
 /** The Function runs these same handlers locally; only the website forwards. */
 export async function encaminharAdmin(req: NextRequest): Promise<Response | null> {
   if (process.env.ADMIN_BACKEND_EXECUTION === "true") return null;
@@ -13,8 +22,9 @@ export async function encaminharAdmin(req: NextRequest): Promise<Response | null
   if (!usuarioAdministrador(req)) return erro("Não autorizado.",401);
   const rota = req.nextUrl.pathname.split("/").at(-1) || "";
   if (!rotas.has(rota) || !["GET","POST"].includes(req.method)) return erro("Operação não permitida.",405);
-  if (!origens.has(req.nextUrl.origin)) return erro("Origem não permitida.",403);
-  if (req.method === "POST" && req.headers.get("origin") !== req.nextUrl.origin) return erro("Origem inválida.",403);
+  const origem = origemPublica(req);
+  if (!origem) return erro("Origem não permitida.",403);
+  if (req.method === "POST" && req.headers.get("origin") !== origem) return erro("Origem inválida.",403);
   const key = process.env.ADMIN_BACKEND_KEY;
   if (!key) return erro("Serviço administrativo ainda não configurado.",503);
   if (Number(req.headers.get("content-length") || 0) > 5_500_000) return erro("Arquivo muito grande.",413);
@@ -23,9 +33,9 @@ export async function encaminharAdmin(req: NextRequest): Promise<Response | null
   const headers = new Headers({
     "x-functions-key":key,
     "x-ms-client-principal":req.headers.get("x-ms-client-principal") || "",
-    "x-admin-site-origin":req.nextUrl.origin,
+    "x-admin-site-origin":origem,
   });
-  if (req.method === "POST") headers.set("origin",req.nextUrl.origin);
+  if (req.method === "POST") headers.set("origin",origem);
   const contentType = req.headers.get("content-type");
   if (contentType) headers.set("content-type",contentType);
   try {
