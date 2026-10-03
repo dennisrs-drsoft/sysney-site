@@ -3,6 +3,7 @@
 import { AdminShell } from "./admin-shell";
 import { Cobrancas } from "./cobrancas";
 import { LaboratorioEmails } from "./laboratorio-emails";
+import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
 import { NfseNacional } from "./nfse-nacional";
 import { Aprovacoes } from "./aprovacoes";
@@ -867,19 +868,10 @@ export function AdminDashboard() {
     setAtualizandoClientes(true);
     setErroClientes("");
     try {
-      const respostas = await Promise.all(
-        (["drsoft", "sysney"] as EmpresaId[]).map(async (empresa) => {
-          const resposta = await fetch(`/api/admin/clientes?empresa=${empresa}`, {
-            cache: "no-store",
-          });
-          const dados = (await resposta.json()) as RespostaClientes;
-          if (!resposta.ok) {
-            throw new Error(dados.erro || "Falha ao carregar clientes.");
-          }
-          return dados.clientes || [];
-        })
-      );
-      setClientesAzure(respostas.flat());
+      const resposta = await fetch(`/api/admin/clientes?empresa=${empresaId}`, { cache: "no-store" });
+      const dados = await lerRespostaAdmin<RespostaClientes>(resposta);
+      if (!resposta.ok) throw new Error(dados.erro || "Falha ao carregar clientes.");
+      setClientesAzure(atuais => [...atuais.filter(c => c.empresaId !== empresaId), ...(dados.clientes || [])]);
     } catch (erro) {
       setErroClientes(
         erro instanceof Error
@@ -889,7 +881,7 @@ export function AdminDashboard() {
     } finally {
       setAtualizandoClientes(false);
     }
-  }, []);
+  }, [empresaId]);
 
   useEffect(() => {
     const quadro = window.requestAnimationFrame(() => {
@@ -958,7 +950,7 @@ export function AdminDashboard() {
   } else if (secao === "historico-inter") {
     conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
   } else if (secao === "emails") {
-    conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
+    conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "cobrancas") {
     conteudo = <Cobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
   } else if (secao === "nova-emissao") {

@@ -122,6 +122,17 @@ export async function POST(req: NextRequest) {
     }
     const { email, etag } = await ler(empresa, body.id);
     if (body.atualizadoEm !== email.atualizadoEm) throw new Error("Revise a versão atual da mensagem antes de continuar.");
+    if (body.acao === "remover-anexo") {
+      if (!["rascunho", "revisado"].includes(email.status)) throw new Error("Crie outra mensagem para alterar documentos após o envio.");
+      if (body.tipo !== "nota" && body.tipo !== "boleto") throw new Error("Tipo de documento inválido.");
+      if (!email.anexos.some(a => a.tipo === body.tipo)) throw new Error("Anexo não encontrado. Atualize a mensagem.");
+      // Remove only the draft reference: a duplicated message may still use the same blob.
+      email.anexos = email.anexos.filter(a => a.tipo !== body.tipo);
+      delete email.aprovacaoEnvio;
+      email.status = "rascunho"; email.atualizadoEm = new Date().toISOString();
+      await guardar(email, etag);
+      return reply({ email, mensagem: "Anexo removido desta mensagem. Inclua o PDF correto e aprove novamente antes de enviar." });
+    }
     if (body.acao === "duplicar") {
       if (email.status === "enviando" || email.status === "incerto") throw new Error("Confira o resultado do envio anterior no provedor antes de preparar um reenvio.");
       const copia: EmailCobranca = { ...email, id: randomUUID(), status: "rascunho", tentativas: [], atualizadoEm: new Date().toISOString() };

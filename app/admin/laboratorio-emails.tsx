@@ -9,7 +9,7 @@ const botao = "rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm fon
 const destaque = "rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-40";
 const nomes = { rascunho: "Rascunho", revisado: "Revisado", enviando: "Envio em processamento — não repetir", aceito: "Aceito pelo provedor", incerto: "Resultado incerto — conferir provedor" };
 
-export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; clientes: { nome: string; email: string }[] }) {
+export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroClientes, atualizarClientes }: { empresa: Empresa; clientes: { id: string; nome: string; email: string }[]; carregandoClientes: boolean; erroClientes: string; atualizarClientes: () => Promise<void> }) {
   const [lista, setLista] = useState<EmailCobranca[]>([]);
   const [email, setEmail] = useState<EmailCobranca>(() => novoEmail(empresa));
   const [remetente, setRemetente] = useState("");
@@ -30,10 +30,10 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
   function mudar<K extends keyof EmailCobranca>(chave: K, valor: EmailCobranca[K]) {
     setEmail(e => ({ ...e, [chave]: valor, status: "rascunho" })); setAlterado(true); setEnvioAberto(false);
   }
-  async function executar(acao: string) {
+  async function executar(acao: string, tipo?: "nota" | "boleto") {
     setOcupado(true); setAviso("");
     try {
-      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente }) });
+      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, tipo, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente }) });
       const d = await lerRespostaAdmin<{email?: EmailCobranca; mensagem?: string; erro?: string}>(res, true);
       if (d.email) { setEmail(d.email); setAlterado(false); }
       if (!res.ok) throw new Error(d.erro);
@@ -64,7 +64,10 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
       <section className={`${styles.editor} rounded-3xl border border-slate-200 bg-white p-5`}><div className={styles.cardHeading}><div><p>CONFIGURAR MENSAGEM</p><h3 className="font-black">Conteúdo e documentos</h3></div><span className={styles.badge}>{nomes[email.status]}</span></div>
         <fieldset disabled={ocupado || bloqueado} className="mt-5 space-y-4">
           <details open className={styles.group}><summary><span>01</span> Cliente e destinatários</summary><div className={styles.fields}>
-          <label className="block text-sm font-semibold">Preencher cliente<select className={campo} value="" onChange={e => { const c = clientes.find(c => c.nome === e.target.value); if (c) { setEmail(x => ({ ...x, cliente:c.nome, para:c.email, status:"rascunho" })); setAlterado(true); } }}><option value="">Selecione um cliente</option>{clientes.map(c => <option key={c.nome}>{c.nome}</option>)}</select></label>
+          <label className="block text-sm font-semibold">Preencher cliente · {empresa.toUpperCase()}<select className={campo} disabled={carregandoClientes} value={clientes.find(c => c.nome === email.cliente)?.id || ""} onChange={e => { const c = clientes.find(c => c.id === e.target.value); if (c) { setEmail(x => ({ ...x, cliente:c.nome, para:c.email, status:"rascunho" })); setAlterado(true); setEnvioAberto(false); } }}><option value="">{carregandoClientes ? "Carregando clientes..." : "Selecione um cliente"}</option>{clientes.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</select></label>
+          {erroClientes && <p role="alert" className="text-sm text-amber-800">{erroClientes}</p>}
+          {!carregandoClientes && clientes.length === 0 && <p className="text-sm text-slate-600">Nenhum cliente disponível para {empresa.toUpperCase()}. Confira a empresa no menu. Você também pode preencher os dados abaixo manualmente.</p>}
+          <button className={botao} disabled={carregandoClientes} onClick={() => void atualizarClientes()}>Atualizar clientes</button>
           {texto("cliente","Cliente")}{texto("para","Para (separe e-mails por ponto e vírgula)")}{texto("cc","Cópia (opcional)")}
           <label className="block text-sm font-semibold">Receber respostas em<input type="email" className={campo} maxLength={254} value={email.responderPara || ""} onChange={e => mudar("responderPara",e.target.value)}/></label>
           </div></details>
@@ -82,7 +85,8 @@ export function LaboratorioEmails({ empresa, clientes }: { empresa: Empresa; cli
         </fieldset>
         {email.id && <button className={`${botao} mt-4`} disabled={ocupado || alterado || email.status === "incerto" || email.status === "enviando"} onClick={() => void executar("duplicar")}>Duplicar para revisar ou reenviar</button>}
         <div className={styles.documents}><h3 className="font-black">04 · Documentos e aprovação</h3><p className="mt-1 text-xs text-slate-500">Confira empresa, cliente, competência, valor e vencimento nos dois PDFs.</p>
-        {email.anexos.map(a => <p className="mt-2 break-words text-sm" key={a.tipo}><a target="_blank" rel="noreferrer" className="text-blue-700 underline" href={`/api/admin/emails?empresa=${empresa}&id=${email.id}&anexo=${a.tipo}`}>{a.tipo === "nota" ? "NFS-e" : "Boleto"}: {a.nome}</a></p>)}
+        {email.anexos.map(a => <div className="mt-3 flex flex-wrap items-center gap-3 text-sm" key={a.tipo}><a target="_blank" rel="noreferrer" className="break-words text-blue-700 underline" href={`/api/admin/emails?empresa=${empresa}&id=${email.id}&anexo=${a.tipo}`}>{a.tipo === "nota" ? "NFS-e" : "Boleto"}: {a.nome}</a><button className={botao} disabled={alterado || ocupado || bloqueado} onClick={() => { if (window.confirm(`Remover ${a.nome} desta mensagem? Será necessário anexar o documento correto e aprovar novamente.`)) void executar("remover-anexo", a.tipo); }}>Remover {a.tipo === "nota" ? "nota" : "boleto"}</button></div>)}
+        <p className="mt-3 text-xs text-slate-500">Para substituir, selecione o mesmo tipo e anexe o PDF correto. Isso substitui apenas o anexo desta mensagem; não cancela a nota ou o boleto emitido.</p>
         <form onSubmit={anexar} className="mt-4"><fieldset disabled={!email.id || alterado || ocupado || bloqueado} className="space-y-3"><label className="block text-sm">Documento<select name="tipo" className={campo}><option value="nota">Nota fiscal (PDF)</option><option value="boleto">Boleto (PDF)</option></select></label><input aria-label="PDF do documento" name="arquivo" type="file" accept="application/pdf" required className="w-full text-sm"/><button className={botao}>Anexar PDF</button></fieldset></form>
         <p className="mt-5 text-sm text-slate-600">Etapa 2: confira o remetente, destinatários e abra os dois PDFs antes de aprovar. Alterações exigem nova aprovação. Esta aprovação não emite documentos.</p>
         {email.aprovacaoEnvio && !alterado && <p className="mt-2 text-xs text-blue-800">Última aprovação: {email.aprovacaoEnvio.por} · {new Date(email.aprovacaoEnvio.em).toLocaleString("pt-BR")} · remetente {email.aprovacaoEnvio.remetente}</p>}

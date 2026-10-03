@@ -83,6 +83,25 @@ test("aprovação vincula dados e remetente; salvar e duplicar revogam; legado n
   assert.equal((await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm}))).status,400);
 });
 
+test("remoção de anexo revoga aprovação, preserva cópias e bloqueia versão antiga ou enviada",async()=>{
+ let e=(await (await POST(request({acao:"salvar",email:novoEmail("sysney","Remoção")}))).json()).email;
+ const key=`AdminDocumentos:emails-sysney:${e.id}`;
+ e={...e,status:"revisado",aprovacaoEnvio:{hash:"old"},anexos:[{tipo:"nota",nome:"nota.pdf",blob:"shared/nota",tamanho:10},{tipo:"boleto",nome:"errado.pdf",blob:"shared/boleto",tamanho:10}]};
+ records.get(key).json=JSON.stringify(e);
+ const copy=(await (await POST(request({acao:"duplicar",id:e.id,atualizadoEm:e.atualizadoEm}))).json()).email;
+ const action={acao:"remover-anexo",id:e.id,atualizadoEm:e.atualizadoEm,tipo:"boleto"};
+ assert.equal((await POST(request({...action,atualizadoEm:"stale"}))).status,400);
+ assert.equal((await POST(request({...action,tipo:"outro"}))).status,400);
+ assert.equal((await POST(request(action,"drsoft"))).status,503);
+ e=(await (await POST(request(action))).json()).email;
+ assert.equal(e.status,"rascunho");assert.equal(e.aprovacaoEnvio,undefined);
+ assert.deepEqual(e.anexos.map(a=>a.tipo),["nota"]);
+ assert.equal(JSON.parse(records.get(`AdminDocumentos:emails-sysney:${copy.id}`).json).anexos.length,2);
+ assert.equal((await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm}))).status,400);
+ records.get(key).json=JSON.stringify({...e,status:"aceito"});
+ assert.equal((await POST(request({...action,atualizadoEm:e.atualizadoEm,tipo:"nota"}))).status,400);
+});
+
 test("hash muda com PDF, logo, destinatários e remetente",async()=>{
   const {assinaturaEnvio}=await import(approvalModel);
   const e=novoEmail("sysney","Teste");const hash=assinaturaEnvio(e,"a@example.com","logo",["pdf"]);
