@@ -45,7 +45,7 @@ export async function GET(req:NextRequest){
     const emp=empresa(req),id=req.nextUrl.searchParams.get("id");
     let trabalho:TrabalhoSP|null=null,perfil=null,retencoes=null;
     if(id){const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);const t=await opcional<{json:string}>(`nfse-retencoes-${emp}`,c.documento,"AdminConfiguracoes");if(t)retencoes=JSON.parse(t.json);}
-    return reply({local:executorMunicipalDisponivel(),producao:executorMunicipalDisponivel()&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,retencoes,historicoRegime:(await regimeEmpresa(emp)).historico,regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
+    return reply({local:executorMunicipalDisponivel(),remoto:process.env.NFSE_SP_WORKER_HABILITADO==="true",producao:executorMunicipalDisponivel()&&process.env.NFSE_SP_WORKER_HABILITADO!=="true"&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,retencoes,historicoRegime:(await regimeEmpresa(emp)).historico,regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
   }catch(e){return falha(e);}
 }
 export async function POST(req:NextRequest){
@@ -135,6 +135,7 @@ export async function POST(req:NextRequest){
       return reply({trabalho,mensagem:resultado.sucesso?"Teste aceito pela Prefeitura. Nenhuma nota foi emitida. Confira também os alertas antes de aprovar a emissão real.":"Teste rejeitado. Confira os erros fiscais abaixo, corrija e teste novamente. Nenhuma nota foi emitida."});
     }
     if(body.acao==="emitir"){
+      if(process.env.NFSE_SP_WORKER_HABILITADO==="true")throw Error("Serviço da VM em homologação: emissão real bloqueada.");
       if(process.env.NFSE_SP_PRODUCAO_HABILITADA!=="true")throw Error("Produção fiscal bloqueada até a homologação da integração.");
       if(body.aprovado!==true||trabalho.status!=="testada"||trabalho.teste?.hash!==trabalho.hash||!trabalho.teste.resultado.sucesso||Date.now()-Date.parse(trabalho.teste.em)>1800000)throw Error("Teste aprovado recente e aprovação explícita são obrigatórios.");
       let por="Administrador local";const p=req.headers.get("x-ms-client-principal");if(p){const u=JSON.parse(Buffer.from(p,"base64").toString("utf8"));por=String(u.userDetails||u.userId||por).slice(0,254);}

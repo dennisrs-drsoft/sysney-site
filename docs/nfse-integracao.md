@@ -70,9 +70,9 @@ conciliar é obrigatório antes de qualquer substituição.
 - Escopo municipal: serviço tributado/prestado em São Paulo, tomador CNPJ,
   sem intermediário, sem obra, exportação, imunidade ou exigibilidade suspensa.
   Casos diferentes usam emissão manual.
-- O painel on-line pode preparar dados; **não pode usar o certificado deste
-  Windows**. Teste/transmissão/consulta acontecem no painel local. Um assinador
-  remoto seguro/worker local autenticado ainda precisa ser implementado.
+- O certificado local não é acessível pelo painel on-line. O serviço remoto
+  descrito abaixo permite somente testes e consultas; transmissão real na VM
+  permanece bloqueada independentemente das aprovações do painel.
 - O XML de retorno fica no registro fiscal privado. Não há download automático
   de PDF nesta etapa: obter o PDF no portal, anexar e revisar antes de aprovar o
   envio. O módulo não apresenta um PDF próprio como documento oficial.
@@ -96,3 +96,27 @@ Os dados são sintéticos e o transporte fiscal é simulado. A validação Power
 usa `-ValidarSomente`, não acessa certificados e não transmite dados.
 
 Testes locais aprovados não substituem homologação junto à Prefeitura.
+
+## Serviço fiscal isolado na VM
+
+`deploy/instalar-fiscal-vm.ps1` instala a tarefa de inicialização
+`SYSNEY-Fiscal-Teste` em `C:\ProgramData\SYSNEY\FiscalTeste`, executada como
+SYSTEM, sem janela e sem abrir portas. A pasta permite acesso somente a SYSTEM
+e administradores. A instalação recusa pasta ou tarefa já existentes.
+
+O serviço acessa exclusivamente a tabela privada `FiscalFila` por identidade
+gerenciada da VM e papel Storage Table Data Contributor restrito àquela tabela.
+Não recebe chave de Storage, senha de certificado ou segredo do site.
+Os certificados permanecem em LocalMachine/My, selecionados por CNPJ e
+thumbprint fixado na configuração privada. IIS e SQL Server não são alterados.
+
+O backend utiliza `NFSE_SP_WORKER_HABILITADO=true` e `ADMIN_STORAGE_ACCOUNT`.
+Sem sinal recente de saúde do serviço, não enfileira pedidos. Pedidos expiram
+em 85 segundos; a espera termina em 90 segundos e não gera repetição automática.
+O worker aceita apenas testar/consultar e força o assinador a modo de teste.
+Emissão real continua recusada mesmo com a variável de produção habilitada.
+
+Uma atualização deve parar somente esta tarefa, preservar configuração privada,
+arquivar a versão anterior e substituir apenas arquivos do serviço; nunca
+reinstalar por cima de pasta desconhecida. Saúde da fila não significa teste
+fiscal aceito: conferir o retorno da Prefeitura no painel antes da produção.
