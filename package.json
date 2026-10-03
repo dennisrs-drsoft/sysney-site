@@ -18,7 +18,8 @@
     "@sendgrid/mail": "^8.1.6",
     "next": "^16.3.1",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "undici": "^8.11.2"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
