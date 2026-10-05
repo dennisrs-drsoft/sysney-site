@@ -28,6 +28,18 @@ for(const [name,target] of Object.entries({
   "@/lib/aprovacao-envio":approvalModel,
 }))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source)); const {records}=await import(db);
+
+test("resumo financeiro exige administrador e não expõe HTML, destinatários ou configuração de envio", async () => {
+  const draft = { ...novoEmail("sysney", "Resumo"), para: "cliente@example.com", competencia: "2026-10", centavos: 10000, vencimento: "2026-11-03" };
+  const e = (await (await POST(request({ acao: "salvar", email: draft }))).json()).email;
+  const req = request(null); req.nextUrl.searchParams.set("resumo", "financeiro");
+  const result = await (await GET(req)).json();
+  const row = result.emails.find(r => r.id === e.id);
+  assert.equal(row.centavos, 10000); assert.equal(row.para, undefined); assert.equal(row.assunto, undefined); assert.equal(row.anexos, undefined);
+  assert.equal(result.remetente, undefined); assert.equal(result.auditoria, undefined);
+  const anon = request(null, "sysney", { "x-test-auth": "no" }); anon.nextUrl.searchParams.set("resumo", "financeiro");
+  assert.equal((await GET(anon)).status, 401);
+});
 process.env.ADMIN_STORAGE_ACCOUNT="test";
 process.env.SENDGRID_API_KEY="test-key";
 process.env.SENDGRID_FROM_EMAIL="sender@example.com";

@@ -113,6 +113,13 @@ export async function GET(req: NextRequest) {
     }
     const emails: EmailCobranca[] = [];
     for await (const r of table().listEntities<{ json: string }>({ queryOptions: { filter: `PartitionKey eq 'emails-${empresa}'` } })) emails.push(JSON.parse(r.json));
+    if (req.nextUrl.searchParams.get("resumo") === "financeiro") {
+      // O dashboard não precisa de destinatários, HTML, arquivos ou segredos de envio.
+      return reply({ emails: emails.map(({ id, competencia, centavos, vencimento, fluxo, status, aprovacaoEnvio, tentativas }) => ({
+        id, competencia, centavos, vencimento, fluxo, status, aprovacaoEnvio: aprovacaoEnvio ? { em: aprovacaoEnvio.em } : undefined,
+        tentativas: tentativas.map(t => ({ status: t.status })),
+      })) });
+    }
     let remetente = "", auditoria = "";
     try { const config = await mailConfig(empresa); remetente = config.from; auditoria = config.auditoria; } catch { /* A revisão permanece disponível sem configuração de envio. */ }
     return reply({ emails: emails.sort((a,b) => b.atualizadoEm.localeCompare(a.atualizadoEm)), remetente, auditoria });

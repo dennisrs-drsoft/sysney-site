@@ -19,9 +19,9 @@ export async function GET(req: NextRequest) {
     const table = new TableClient(`https://${conta}.table.core.windows.net`, "AdminDocumentos", new DefaultAzureCredential());
     const cobrancas = [];
     for await (const entity of table.listEntities<{ json: string; atualizadoEm: string }>({ queryOptions: { filter: `PartitionKey eq 'inter-historico-${empresa}'` } })) {
-      const { cobranca: c } = JSON.parse(entity.json);
+      const { cobranca: c, boleto } = JSON.parse(entity.json);
       if (!c) continue;
-      cobrancas.push({ id: entity.rowKey, cliente: c.pagador?.nome || "Não informado", documento: c.pagador?.cpfCnpj || "", numero: c.seuNumero || "", emissao: c.dataEmissao || "", vencimento: c.dataVencimento || "", valor: Number(c.valorNominal), situacao: c.situacao || "Não informada", dataSituacao: c.dataSituacao || "", consultadoEm: entity.atualizadoEm });
+      cobrancas.push({ id: entity.rowKey, cliente: c.pagador?.nome || "Não informado", documento: c.pagador?.cpfCnpj || "", numero: c.seuNumero || "", nossoNumero: boleto?.nossoNumero || c.nossoNumero || "", emissao: c.dataEmissao || "", vencimento: c.dataVencimento || "", valor: Number(c.valorNominal), situacao: c.situacao || "Não informada", dataSituacao: c.dataSituacao || "", consultadoEm: entity.atualizadoEm });
     }
     cobrancas.sort((a, b) => b.vencimento.localeCompare(a.vencimento));
     return reply({ cobrancas });
