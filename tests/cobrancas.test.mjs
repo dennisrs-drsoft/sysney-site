@@ -5,8 +5,22 @@ import ts from "typescript";
 
 const source = readFileSync(new URL("../lib/cobrancas.ts", import.meta.url), "utf8");
 const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } });
-const { dataMensal, dataValida, carteira, prevista, pago, situacao, integrarEnvios } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
+const { dataMensal, dataValida, carteira, prevista, pago, situacao, integrarEnvios, validarAlteracaoVencimento } = await import(`data:text/javascript;base64,${Buffer.from(outputText).toString("base64")}`);
 const plano = { id: "p1", inicio: "2026-08", fim: "", clienteNome: "Cliente de teste", descricao: "Suporte", email: "teste@example.com", centavos: 123456, diaEnvio: 4, mesEnvio: 1, diaVencimento: 8, mesVencimento: 2 };
+
+test("alterar vencimento preserva a recorrência e impede alteração após documentos ou tentativas",()=>{
+ const c=prevista(plano,"2026-08");
+ const e={status:"rascunho",tentativas:[],anexos:[],fluxo:{cobrancaId:c.id,nota:"",boleto:""}};
+ assert.doesNotThrow(()=>validarAlteracaoVencimento(c,e,"2026-10-09","2026-10-05"));
+ assert.equal(c.vencimento,"2026-10-08");assert.equal(plano.diaVencimento,8);
+ for(const v of ["2026-02-30","2026-10-04","2026-08-01",""])assert.throws(()=>validarAlteracaoVencimento(c,e,v,"2026-10-05"));
+ for(const status of ["enviando","aceito","incerto","emitindo_documento"])assert.throws(()=>validarAlteracaoVencimento(c,{...e,status},"2026-10-09","2026-10-05"));
+ for(const patch of [{nota:"926"},{boleto:"112"},{eventos:[{tipo:"pagamento"}]},{eventos:[{tipo:"envio"}]}])assert.throws(()=>validarAlteracaoVencimento({...c,...patch},e,"2026-10-09","2026-10-05"));
+ for(const patch of [{anexos:[{}]},{tentativas:[{status:"incerto"}]},{fluxo:{...e.fluxo,nota:"926"}},{fluxo:{...e.fluxo,boleto:"1"}},{fluxo:{...e.fluxo,cobrancaId:"outro"}}])assert.throws(()=>validarAlteracaoVencimento(c,{...e,...patch},"2026-10-09","2026-10-05"));
+ const corrigida={...c,vencimento:"2026-10-09",eventos:[{tipo:"alteracao"}],persistida:true};
+ assert.doesNotThrow(()=>validarAlteracaoVencimento(corrigida,e,"2026-10-12","2026-10-05"));
+ assert.equal(carteira([plano],[corrigida],"2026-09").find(x=>x.id===c.id).vencimento,"2026-10-09");
+});
 
 test("acompanhamento reconhece aceitação, sem duplicar ou inferir recebimento",()=>{
  const c=prevista(plano,"2026-08");

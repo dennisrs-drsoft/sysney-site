@@ -6,7 +6,7 @@ export type Plano = {
   mesVencimento: number; criadoEm: string;
 };
 export type Evento = {
-  id: string; tipo: "documentos" | "envio" | "recebimento" | "pagamento" | "estorno";
+  id: string; tipo: "documentos" | "envio" | "recebimento" | "pagamento" | "estorno" | "alteracao";
   data: string; registradoEm: string; responsavel: string; detalhe: string;
   centavos?: number; referencia?: string;
 };
@@ -66,6 +66,13 @@ export function moeda(v: number) {
   return (v / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 export function dataBr(v: string) { return v ? v.split("-").reverse().join("/") : "—"; }
+
+export function validarAlteracaoVencimento(c:Cobranca,e:{status:string;tentativas:unknown[];anexos:unknown[];fluxo?:{cobrancaId:string;nota:string;boleto:string}},v:unknown,hoje=hojeBrasil()) {
+  if(!e.fluxo || e.fluxo.cobrancaId!==c.id || !["rascunho","revisado"].includes(e.status) || e.tentativas.length)throw new Error("A cobrança já está em processamento ou possui tentativa de envio. Consulte o resultado antes de alterar.");
+  if(!dataValida(v) || v<c.envioPrevisto || v<hoje)throw new Error("Informe um vencimento válido, igual ou posterior a hoje e ao envio previsto.");
+  if(c.nota || c.boleto || e.fluxo.nota || e.fluxo.boleto || e.anexos.length || c.eventos.some(x=>x.tipo!=="alteracao"))throw new Error("Há documentos ou movimentações registrados. Não é possível alterar o vencimento por esta ação; confira os documentos existentes primeiro.");
+  if(c.eventos.length>=100)throw new Error("Limite de histórico atingido.");
+}
 
 // Projeção dos envios confirmados pelo provedor; não dispara nem repete envios.
 export function integrarEnvios(cobrancas: Cobranca[], emails: {empresa:string; competencia:string; centavos:number; vencimento:string; fluxo?:{cobrancaId:string}; tentativas:{id:string;data:string;status:string;messageId?:string}[]}[], empresa: Empresa) {

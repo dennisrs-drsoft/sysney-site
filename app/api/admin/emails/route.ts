@@ -10,7 +10,7 @@ import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
-import { mesValido, dataValida, hojeBrasil, prevista, type Cobranca, type Plano } from "@/lib/cobrancas";
+import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, type Cobranca, type Plano } from "@/lib/cobrancas";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -188,6 +188,41 @@ export async function POST(req: NextRequest) {
     }
     const { email, etag } = await ler(empresa, body.id);
     if (body.atualizadoEm !== email.atualizadoEm) throw new Error("Revise a versão atual da mensagem antes de continuar.");
+    if (body.acao === "alterar-vencimento") {
+      if (!email.fluxo || !["rascunho","revisado"].includes(email.status) || email.tentativas.length) throw new Error("A cobrança já está em processamento ou possui tentativa de envio. Consulte o resultado antes de alterar.");
+      const {c,etag:cetag} = await buscarCobranca(empresa,email.fluxo.cobrancaId);
+      const vencimento = body.vencimento;
+      validarAlteracaoVencimento(c,email,vencimento);
+      const plano:Plano=JSON.parse((await new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
+      const chave=createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${c.competencia}`).digest("hex");
+      // Lock the same email that document generation locks, before checking durable attempts.
+      const bloqueio={...email,status:"emitindo_documento" as const,atualizadoEm:new Date().toISOString()};
+      await guardar(bloqueio,etag);
+      let cobrancaGravada=false;
+      try {
+        let fiscal:{status:string;aprovacao?:unknown}|undefined;
+        try { fiscal=JSON.parse((await table().getEntity<{json:string}>(`nfse-sp-${empresa}`,chave)).json); } catch(e) { if((e as {statusCode?:number}).statusCode!==404)throw e; }
+        if(fiscal && (fiscal.aprovacao || !["preparada","testada","rejeitada"].includes(fiscal.status)))throw new Error("Há uma tentativa fiscal em andamento ou já transmitida. Consulte a nota antes de alterar.");
+        try { await table().getEntity(`inter-emissoes-${empresa}`,chave);throw new Error("Já existe tentativa bancária. Consulte o boleto antes de alterar."); } catch(e) { if((e as {statusCode?:number}).statusCode!==404)throw e; }
+        const anterior=c.vencimento;
+        c.vencimento=vencimento;c.persistida=true;c.demonstrativo=false;
+        c.eventos.push({id:randomUUID(),tipo:"alteracao",data:hojeBrasil(),registradoEm:bloqueio.atualizadoEm,responsavel:responsavel(req),detalhe:`Vencimento alterado de ${anterior} para ${vencimento}. Apenas esta cobrança; recorrência preservada. Revisão revogada. Nenhum documento ou e-mail emitido.`});
+        const entity={partitionKey:`cobrancas-${empresa}`,rowKey:c.id,json:JSON.stringify(c)};
+        if(Buffer.byteLength(entity.json,"utf16le")>60000)throw new Error("Limite de histórico atingido.");
+        if(cetag)await table().updateEntity(entity,"Replace",{etag:cetag});else await table().createEntity(entity);
+        cobrancaGravada=true;
+        email.vencimento=vencimento;delete email.aprovacaoEnvio;delete email.fluxo.documentos;
+        email.status="rascunho";email.atualizadoEm=new Date().toISOString();
+        const atual=await ler(empresa,email.id);
+        if(atual.email.atualizadoEm!==bloqueio.atualizadoEm || atual.email.status!=="emitindo_documento")throw new Error("A versão mudou durante a alteração. Confira a cobrança antes de continuar.");
+        await guardar(email,atual.etag);
+        return reply({email,mensagem:"Vencimento atualizado nesta cobrança e no e-mail. A recorrência foi preservada. Revise novamente antes de emitir documentos ou enviar."});
+      } catch(e) {
+        // If the charge was persisted but synchronizing failed, keep the lock: never send stale data.
+        if(!cobrancaGravada){const atual=await ler(empresa,email.id);if(atual.email.atualizadoEm===bloqueio.atualizadoEm)await guardar(email,atual.etag);}
+        throw e;
+      }
+    }
     if (body.acao === "registrar-documento-manual") {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para alteração.");
       if ((body.tipo !== "nota" && body.tipo !== "boleto") || typeof body.numero !== "string" || !body.numero.trim() || body.numero.length > 120) throw new Error("Informe o tipo e o número do documento já emitido.");

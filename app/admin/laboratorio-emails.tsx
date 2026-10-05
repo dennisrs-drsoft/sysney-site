@@ -23,6 +23,7 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
   const [alterado, setAlterado] = useState(false);
   const [compacto, setCompacto] = useState(false);
   const [envioAberto, setEnvioAberto] = useState(false);
+  const [novoVencimento, setNovoVencimento] = useState("");
   const bloqueado = !["rascunho", "revisado"].includes(email.status);
   const carregar = useCallback(async () => {
     try {
@@ -35,12 +36,12 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
   function mudar<K extends keyof EmailCobranca>(chave: K, valor: EmailCobranca[K]) {
     setEmail(e => ({ ...e, [chave]: valor, status: "rascunho" })); setAlterado(true); setEnvioAberto(false);
   }
-  async function executar(acao: string, tipo?: "nota" | "boleto", numero?: string) {
+  async function executar(acao: string, tipo?: "nota" | "boleto", numero?: string, vencimento?: string) {
     setOcupado(true); setAviso("");
     try {
-      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, tipo, numero, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente, auditoria }) });
+      const res = await fetch(`/api/admin/emails?empresa=${empresa}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, tipo, numero, vencimento, email, id: email.id, atualizadoEm: email.atualizadoEm, remetente, auditoria }) });
       const d = await lerRespostaAdmin<{email?: EmailCobranca; mensagem?: string; erro?: string}>(res, true);
-      if (d.email) { setEmail(d.email); setAlterado(false); }
+      if (d.email) { setEmail(d.email); setAlterado(false); setNovoVencimento(""); }
       if (!res.ok) throw new Error(d.erro);
       setAviso(d.mensagem || (acao === "salvar" ? "Rascunho salvo." : "Mensagem revisada com os documentos anexos.")); setEnvioAberto(false);
       await carregar();
@@ -85,6 +86,7 @@ export function LaboratorioEmails({ empresa, clientes, carregandoClientes, erroC
           <div className="grid grid-cols-2 gap-3"><label className="text-sm font-semibold">Competência<input disabled={!!email.fluxo} type="month" className={campo} value={email.competencia} onChange={e => mudar("competencia",e.target.value)}/></label><label className="text-sm font-semibold">Valor (R$)<input disabled={!!email.fluxo} type="text" inputMode="decimal" className={campo} value={valorFormatado(email.centavos)} onChange={e => {const v=valorDigitado(e.target.value);if(v!==null)mudar("centavos",v);}}/></label></div>
           <label className="block text-sm font-semibold">Pedido de compra (PO)<input className={campo} maxLength={120} placeholder="Ex.: 069825" value={email.po || ""} onChange={e=>mudar("po",e.target.value)}/><span className="text-xs font-normal text-slate-500">Aparece em destaque no demonstrativo. Confira também a PO nos PDFs.</span></label>
           <label className="block text-sm font-semibold">Vencimento<input disabled={!!email.fluxo} type="date" className={campo} value={email.vencimento} onChange={e => mudar("vencimento",e.target.value)}/></label>
+          {email.fluxo && <details className="rounded-xl border border-blue-200 bg-blue-50 p-3"><summary className="cursor-pointer text-sm font-bold">Alterar vencimento desta cobrança</summary><p className="mt-2 text-xs">Antes de emitir documentos ou enviar, escolha outra data. Esta alteração não muda a recorrência dos próximos meses e exige nova revisão. Documentos ou tentativas já registrados impedem a alteração.</p><label className="mt-3 block text-sm font-semibold">Novo vencimento<input type="date" className={campo} value={novoVencimento} onChange={e=>setNovoVencimento(e.target.value)}/></label><button type="button" className={`${botao} mt-3`} disabled={alterado || !novoVencimento || novoVencimento===email.vencimento} onClick={async()=>{if(await confirmar({titulo:"Alterar vencimento da cobrança?",subtitulo:"Somente esta competência será ajustada",descricao:"O vencimento será atualizado na cobrança e no e-mail salvo. A aprovação anterior será revogada; revise novamente antes de emitir ou enviar. Esta ação não altera documentos já emitidos.",confirmar:"Salvar novo vencimento",tom:"atencao",detalhes:[{rotulo:"Cliente",valor:email.cliente},{rotulo:"De",valor:email.vencimento.split("-").reverse().join("/")},{rotulo:"Para",valor:novoVencimento.split("-").reverse().join("/")}],observacao:"Nenhum boleto, nota fiscal ou e-mail será emitido por esta alteração."}))void executar("alterar-vencimento",undefined,undefined,novoVencimento);}}>Salvar novo vencimento</button>{alterado&&<p className="mt-2 text-xs">Salve primeiro as alterações do rascunho.</p>}</details>}
           {texto("descricao","Descrição do serviço")}
           </div></details>
           <details className={styles.group}><summary><span>03</span> Texto e apresentação</summary><div className={styles.fields}>
