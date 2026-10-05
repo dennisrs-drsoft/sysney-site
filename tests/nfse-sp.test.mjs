@@ -7,10 +7,11 @@ const uri=s=>`data:text/javascript;base64,${Buffer.from(s).toString("base64")}`;
 const compile=p=>ts.transpileModule(readFileSync(new URL(p,import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 const impostos=uri(compile("../lib/retencoes-fiscais.ts"));
 const {calcularRetencoes,taxasPlanilha}=await import(impostos);
-const model=uri(compile("../lib/nfse-sp.ts").replaceAll('"./retencoes-fiscais"',JSON.stringify(impostos)));
-const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFiscalSP}=await import(model);
+const leiaute=uri(compile("../lib/leiaute-nfse-sp.ts"));
+const model=uri(compile("../lib/nfse-sp.ts").replaceAll('"./retencoes-fiscais"',JSON.stringify(impostos)).replaceAll('"./leiaute-nfse-sp"',JSON.stringify(leiaute)));
+const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFiscalSP,leiauteSP}=await import(model);
 // Dados exclusivamente sintéticos: nenhum certificado ou serviço externo é usado.
-const fiscal={regime:"presumido",serie:"SB001",numeroInicial:"1",dataEmissao:"2026-10-03",codigoServico:"02684",aliquota:"2.9",issRetido:false,nbs:"111111111",indicadorOperacao:"100101",classificacaoTributaria:"000001",consumidorFinal:false,municipioPrestacao:"3550308",deducoes:0,pis:0,cofins:0,inss:0,ir:0,csll:0,ipi:0,endereco:{tipo:"R",logradouro:"Rua Teste",numero:"1",bairro:"Centro",municipio:"3550308",uf:"SP",cep:"01000000"}};
+const fiscal={regime:"presumido",serie:"SB001",numeroInicial:"1",dataEmissao:"2026-10-03",codigoServico:"02660",aliquota:"2.9",issRetido:false,nbs:"111111111",indicadorOperacao:"100101",classificacaoTributaria:"000001",consumidorFinal:false,municipioPrestacao:"3550308",deducoes:0,pis:0,cofins:0,inss:0,ir:0,csll:0,ipi:0,endereco:{tipo:"R",logradouro:"Rua Teste",numero:"1",bairro:"Centro",municipio:"3550308",uf:"SP",cep:"01000000"}};
 const dados={empresa:"drsoft",cnpj:"12345678000199",inscricao:"12345678",clienteDocumento:"98765432000199",clienteNome:"Cliente fictício",competencia:"2026-09",centavos:123456,descricao:"Teste & validação",po:"123",numero:"1",fiscal};
 test("assinador verifica RPS com a chave pública do certificado",()=>{
  const script=readFileSync(new URL("../admin-api/scripts/executar-nfse-sp.ps1",import.meta.url),"utf8");
@@ -28,12 +29,26 @@ test("RPS v2 assina inscrição com 12 dígitos e valor final; hash cobre fiscal
  assert.throws(()=>hashNotaSP({...dados,fiscal:{...fiscal,municipioPrestacao:"9999999"}}));
 });
 test("XML gerado satisfaz XSD oficiais v1 e v2 offline, sem certificado e sem emissão",{skip:process.platform!=="win32"},()=>{
- for(const perfil of [{regime:"simples"},{regime:"presumido"},{regime:"presumido",calcularRetencoes:true,taxasRetencao:taxasPlanilha,retencaoPisCofins:"3"}])for(const acao of ["testar","emitir","consultar"]){
+ for(const perfil of [{regime:"simples"},{regime:"presumido"},{regime:"presumido",calcularRetencoes:true,taxasRetencao:taxasPlanilha,retencaoPisCofins:"3"},{regime:"presumido",codigoServico:"02684",nbs:"",indicadorOperacao:"",classificacaoTributaria:"",calcularRetencoes:true,taxasRetencao:taxasPlanilha,retencaoPisCofins:"3"}])for(const acao of ["testar","emitir","consultar"]){
   const nota={...dados,fiscal:normalizarFiscalSP({...fiscal,...perfil},dados.centavos)};
   // ValidarSomente não permite executar comunicação nem consultar a chave privada.
   const r=spawnSync("powershell.exe",["-NoProfile","-NonInteractive","-ExecutionPolicy","Bypass","-File","admin-api/scripts/executar-nfse-sp.ps1","-ValidarSomente"],{input:JSON.stringify({acao,cnpj:nota.cnpj,cadeia:cadeiaAssinaturaSP(nota),xml:acao==="consultar"?montarConsultaSP(nota):montarXmlSP(nota,acao==="testar")}),encoding:"utf8",env:{...process.env,NFSE_SP_PRODUCAO_HABILITADA:"true"},timeout:15000,windowsHide:true});
   assert.equal(r.status,0,r.stderr);assert.deepEqual(JSON.parse(r.stdout),{schemaValido:true,transmitido:false});
  }
+});
+
+test("Lucro Presumido no item 1.03 mantém leiaute 1 até novembro sem perder retenções",()=>{
+ for(const codigoServico of ["02684","02800"]){
+  const f=normalizarFiscalSP({...fiscal,codigoServico,dataEmissao:"2026-10-05",nbs:undefined,indicadorOperacao:undefined,classificacaoTributaria:undefined,calcularRetencoes:true,taxasRetencao:taxasPlanilha,retencaoPisCofins:"3"},324258);
+  const n={...dados,centavos:324258,fiscal:f};
+  assert.equal(leiauteSP(f),1);assert.equal(cadeiaAssinaturaSP(n).length,86);
+  const xml=montarXmlSP(n,false);assert.match(xml,/<ValorServicos>3242.58<\/ValorServicos>/);assert.match(xml,/<ValorIR>48.64<\/ValorIR>/);assert.match(xml,/<ValorCSLL>32.43<\/ValorCSLL>/);assert.match(xml,/<ValorPIS>21.08<\/ValorPIS>/);assert.match(xml,/<ValorCOFINS>97.28<\/ValorCOFINS>/);assert.match(xml,/<RetencaoPisCofins>3<\/RetencaoPisCofins>/);assert.doesNotMatch(xml,/IBSCBS|<NBS>/);
+  assert.equal(leiauteSP({...f,dataEmissao:"2026-11-30"}),1);
+  assert.equal(leiauteSP({...f,dataEmissao:"2026-12-01"}),2);
+  assert.throws(()=>normalizarFiscalSP({...f,dataEmissao:"2026-12-01"},324258),/nbs/);
+  assert.notEqual(hashNotaSP(n),hashNotaSP({...n,fiscal:normalizarFiscalSP({...fiscal,codigoServico,dataEmissao:"2026-12-01",calcularRetencoes:true,taxasRetencao:taxasPlanilha,retencaoPisCofins:"3"},324258)}));
+ }
+ assert.equal(leiauteSP({...fiscal,codigoServico:"02919"}),2);
 });
 test("regime não depende da empresa; Simples sem complementos; impostos recalculados sem reduzir total",()=>{
  for(const empresa of ["sysney","drsoft"]){
