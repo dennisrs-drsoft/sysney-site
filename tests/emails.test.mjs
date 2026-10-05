@@ -7,7 +7,7 @@ const compile = p => ts.transpileModule(readFileSync(new URL(p,import.meta.url),
 const model=uri(compile("../lib/cobrancas.ts"));
 const emailModel=uri(compile("../lib/emails-cobranca.ts").replaceAll('"./cobrancas"',JSON.stringify(model)));
 const approvalModel=uri(compile("../lib/aprovacao-envio.ts").replaceAll('"./emails-cobranca"',JSON.stringify(emailModel)));
-const {novoEmail,htmlEmail}=await import(emailModel);
+const {novoEmail,htmlEmail,validarDocumentosEmail}=await import(emailModel);
 const db=uri(`export const records=new Map(); export class TableClient {
 constructor(url,name){this.name=name} key(p,r){return this.name+':'+p+':'+r}
 async getEntity(p,r){const e=records.get(this.key(p,r));if(!e)throw Object.assign(new Error('Missing'),{statusCode:404});return structuredClone(e)}
@@ -20,7 +20,7 @@ for(const [name,target] of Object.entries({
   "@azure/data-tables":db,
   "@azure/identity":uri("export class DefaultAzureCredential {}"),
   "@azure/keyvault-secrets":uri("export class SecretClient {async getSecret(){return {value:'test'}}}"),
-  "@azure/storage-blob":uri("export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({downloadToBuffer:async()=>Buffer.from('%PDF-test')})}}}"),
+  "@azure/storage-blob":uri("export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({downloadToBuffer:async()=>Buffer.from('%PDF-test'),uploadData:async()=>{}})}}}"),
   "../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test-auth')==='yes'"),
   "../_remote":uri("export const encaminharAdmin=async()=>null"),
   "@/lib/emails-cobranca":emailModel,
@@ -190,4 +190,49 @@ test("auditoria é aplicada no servidor, exige revisão e fica registrada sem ex
    assert.equal(e.status,"aceito");assert.equal(e.tentativas[0].bcc,para === "audit@example.com" ? "" : "audit@example.com");
   }
  } finally {globalThis.fetch=original;records.delete(configKey);}
+});
+
+test("PIX exige nota e OS, aceita upload/remoção da OS e revoga aprovação ao alterar a chave",async()=>{
+ const planoId='f'.repeat(64),cobrancaId=planoId+'_2026-10';
+ const c={id:cobrancaId,planoId,competencia:"2026-10",vencimento:"2026-10-09",centavos:709755,clienteNome:"IAGA teste",email:"cliente@example.com",descricao:"Serviços prestados",nota:"52",boleto:""};
+ records.set(`AdminDocumentos:cobrancas-sysney:${cobrancaId}`,{json:JSON.stringify(c),etag:'1'});
+ records.set(`AdminConfiguracoes:cobrancas-sysney:${planoId}`,{json:JSON.stringify({documento:"57569436000113"}),etag:'1'});
+ let e=(await (await POST(request({acao:"preparar-cobranca",cobrancaId}))).json()).email;
+ e=(await (await POST(request({acao:"salvar",email:{...e,formaPagamento:"pix",pixChave:"57.767.099/0001-79",pixBeneficiario:"SYSNEY"}}))).json()).email;
+ assert.equal(e.formaPagamento,"pix");
+ const key=`AdminDocumentos:emails-sysney:${e.id}`;
+ e.anexos=[{tipo:"nota",nome:"nota.pdf",blob:"nota",tamanho:10}];
+ records.get(key).json=JSON.stringify(e);
+ assert.throws(()=>validarDocumentosEmail(e),/ordem de serviço/);
+ const form=new FormData();form.set("id",e.id);form.set("tipo","ordem-servico");form.set("arquivo",new File(["%PDF-test"],"OS.pdf",{type:"application/pdf"}));
+ const url=new URL("http://localhost:3100/api/admin/emails?empresa=sysney");
+ const upload=new Request(url,{method:"POST",headers:{origin:url.origin,"x-test-auth":"yes"},body:form});upload.nextUrl=url;
+ const ur=await POST(upload);assert.equal(ur.status,200);
+ e=(await ur.json()).email;assert.deepEqual(e.anexos.map(a=>a.tipo),["nota","ordem-servico"]);
+ const conferir=()=>POST(request({acao:"conferir-documentos",id:e.id,atualizadoEm:e.atualizadoEm}));
+ e=(await (await conferir()).json()).email;assert.ok(e.fluxo.documentos);
+ e=(await (await POST(request({acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"sender@example.com"}))).json()).email;
+ assert.equal(e.status,"revisado");assert.equal(e.tentativas.length,0);
+ assert.ok(htmlEmail(e).includes("Chave PIX"));assert.ok(htmlEmail(e).includes("SYSNEY"));
+ const originalFetch=globalThis.fetch;
+ try {
+  globalThis.fetch=async(_,options)=>{const p=JSON.parse(options.body);assert.deepEqual(p.attachments.filter(a=>a.disposition==="attachment").map(a=>a.filename),["nota.pdf","OS.pdf"]);assert.ok(p.content[0].value.includes("Chave PIX"));return new Response(null,{status:202});};
+  const enviado=(await (await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm}))).json()).email;
+  assert.equal(enviado.status,"aceito");assert.equal(enviado.tentativas.length,1);
+ } finally {globalThis.fetch=originalFetch;records.get(key).json=JSON.stringify(e);}
+ const oldHash=e.aprovacaoEnvio.hash;
+ const {assinaturaEnvio}=await import(approvalModel);
+ assert.notEqual(oldHash,assinaturaEnvio({...e,pixChave:"outra-chave"},"sender@example.com","logo",["pdf"]));
+ e=(await (await POST(request({acao:"salvar",email:{...e,pixChave:"outra-chave"}}))).json()).email;
+ assert.equal(e.fluxo.documentos,undefined);assert.equal(e.aprovacaoEnvio,undefined);
+ e=(await (await POST(request({acao:"remover-anexo",id:e.id,atualizadoEm:e.atualizadoEm,tipo:"ordem-servico"}))).json()).email;
+ assert.deepEqual(e.anexos.map(a=>a.tipo),["nota"]);
+ assert.equal((await conferir()).status,400);
+ assert.throws(()=>validarDocumentosEmail({...e,pixChave:""}),/chave/);
+ assert.throws(()=>validarDocumentosEmail({...e,anexos:[...e.anexos,{tipo:"boleto"}]}),/boleto/);
+ const {createHash}=await import("node:crypto");
+ const bankKey=createHash("sha256").update("57569436000113:2026-10").digest("hex");
+ records.set(`AdminDocumentos:inter-emissoes-sysney:${bankKey}`,{status:"incerto",etag:"1"});
+ assert.equal((await POST(request({acao:"salvar",email:e}))).status,400);
+ records.delete(`AdminDocumentos:inter-emissoes-sysney:${bankKey}`);
 });

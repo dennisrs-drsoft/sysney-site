@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
+import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
 import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, type Cobranca, type Plano } from "@/lib/cobrancas";
 
 export const runtime = "nodejs";
@@ -49,7 +49,7 @@ function validarEnvio(e: EmailCobranca) {
   if (!emailsValidos(e.para) || (e.cc && !emailsValidos(e.cc))) throw new Error("Confira os destinatários.");
   if (!e.responderPara || !emailsValidos(e.responderPara) || destinatarios(e.responderPara).length !== 1) throw new Error("Informe um e-mail para receber as respostas do cliente.");
   if (!e.cliente || !e.assunto || !e.descricao || !mesValido(e.competencia) || !dataValida(e.vencimento) || !Number.isSafeInteger(e.centavos) || e.centavos <= 0) throw new Error("Confirme cliente, competência, descrição, valor e vencimento antes da revisão.");
-  if (!e.anexos.some(a => a.tipo === "nota") || !e.anexos.some(a => a.tipo === "boleto")) throw new Error("Anexe os PDFs da nota e do boleto desta cobrança.");
+  validarDocumentosEmail(e);
 }
 function responsavel(req: NextRequest) {
   const raw = req.headers.get("x-ms-client-principal");
@@ -65,9 +65,10 @@ async function pacote(e: EmailCobranca) {
   return { config, logo, buffers, hash:assinaturaEnvio(e,config.from,hash(logo),buffers.map(hash),config.auditoria) };
 }
 async function hashDocumentos(e: EmailCobranca) {
-  if (!e.fluxo?.nota || !e.fluxo.boleto || !e.anexos.some(a=>a.tipo === "nota") || !e.anexos.some(a=>a.tipo === "boleto")) throw new Error("A emissão integrada ainda não está disponível. Informe os documentos já emitidos no acompanhamento e anexe os dois PDFs para conferência.");
+  validarDocumentosEmail(e);
+  if (!e.fluxo?.nota || (e.formaPagamento!=="pix" && !e.fluxo.boleto)) throw new Error("Registre o número da nota e, para pagamento por boleto, o nosso número antes de conferir os documentos.");
   const anexos = await Promise.all(e.anexos.map(async a=>({tipo:a.tipo,hash:createHash("sha256").update(await container().getBlockBlobClient(a.blob).downloadToBuffer()).digest("hex")})));
-  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos})).digest("hex");
+  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:{})})).digest("hex");
 }
 async function conferirFluxo(e: EmailCobranca) {
   if (e.fluxo && (!e.fluxo.documentos || e.fluxo.documentos.hash !== await hashDocumentos(e))) throw new Error("Confira e aprove primeiro os documentos existentes desta cobrança. Nenhuma nova emissão será realizada.");
@@ -128,7 +129,8 @@ export async function POST(req: NextRequest) {
       const f = await req.formData(); const id = String(f.get("id")); const tipo = f.get("tipo"); const file = f.get("arquivo");
       const { email, etag } = await ler(empresa, id);
       if (email.status !== "rascunho" && email.status !== "revisado") throw new Error("Crie outra mensagem para alterar documentos após o envio.");
-      if (!(file instanceof File) || file.size > 5_000_000 || (tipo !== "nota" && tipo !== "boleto")) throw new Error("Selecione um PDF de até 5 MB.");
+      if (!(file instanceof File) || file.size > 5_000_000 || (tipo !== "nota" && tipo !== "boleto" && tipo !== "ordem-servico")) throw new Error("Selecione um PDF de até 5 MB.");
+      if(tipo==="boleto"&&email.formaPagamento==="pix")throw new Error("Cobrança por PIX não recebe anexo de boleto. Confira a forma de pagamento.");
       const data = Buffer.from(await file.arrayBuffer());
       if (!data.subarray(0,5).equals(Buffer.from("%PDF-"))) throw new Error("O arquivo não é um PDF reconhecido.");
       const blob = `${empresa}/emails/${id}/${randomUUID()}.pdf`;
@@ -169,6 +171,15 @@ export async function POST(req: NextRequest) {
       if (anterior && body.email.atualizadoEm !== anterior.email.atualizadoEm) throw new Error("A mensagem mudou. Atualize antes de salvar.");
       const e = { ...body.email, id: anterior?.email.id || randomUUID(), empresa, anexos: anterior?.email.anexos || [], tentativas: anterior?.email.tentativas || [], status: "rascunho", atualizadoEm: new Date().toISOString() } as EmailCobranca;
       e.fluxo = anterior?.email.fluxo;
+      validarPagamento(e);
+      if(e.fluxo && e.formaPagamento==="pix") {
+        const {c}=await buscarCobranca(empresa,e.fluxo.cobrancaId);
+        if(c.boleto)throw new Error("Há boleto registrado no acompanhamento. Confira a baixa antes de mudar para PIX.");
+        const plano:Plano=JSON.parse((await new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
+        const chave=createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${c.competencia}`).digest("hex");
+        try {await table().getEntity(`inter-emissoes-${empresa}`,chave);throw new Error("Há tentativa bancária registrada. Consulte o resultado antes de mudar para PIX.");}catch(err){if((err as {statusCode?:number}).statusCode!==404)throw err;}
+      }
+      if(e.fluxo && ["formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior?.email[k as keyof EmailCobranca])) delete e.fluxo.documentos;
       for (const key of ["po","contato"] as const) {
         e[key] ??= "";
         if(typeof e[key] !== "string" || e[key].length > 120 || /[\r\n]/.test(e[key])) throw new Error("PO ou contato inválido (máximo 120 caracteres).");
@@ -227,6 +238,7 @@ export async function POST(req: NextRequest) {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para alteração.");
       if ((body.tipo !== "nota" && body.tipo !== "boleto") || typeof body.numero !== "string" || !body.numero.trim() || body.numero.length > 120) throw new Error("Informe o tipo e o número do documento já emitido.");
       const tipo: "nota" | "boleto" = body.tipo, numero = body.numero.trim();
+      if(tipo==="boleto"&&email.formaPagamento==="pix")throw new Error("Esta cobrança usa PIX. Não registre um boleto neste fluxo.");
       const {c,etag:cetag} = await buscarCobranca(empresa,email.fluxo.cobrancaId);
       if (c.competencia !== email.competencia || c.centavos !== email.centavos || c.vencimento !== email.vencimento) throw new Error("A cobrança mudou. Confira o acompanhamento.");
       if (c[tipo] && c[tipo] !== numero) throw new Error("Já existe outro documento registrado. Não substitua sem conferir o cancelamento ou a baixa do anterior.");
@@ -255,7 +267,7 @@ export async function POST(req: NextRequest) {
     }
     if (body.acao === "remover-anexo") {
       if (!["rascunho", "revisado"].includes(email.status)) throw new Error("Crie outra mensagem para alterar documentos após o envio.");
-      if (body.tipo !== "nota" && body.tipo !== "boleto") throw new Error("Tipo de documento inválido.");
+      if (body.tipo !== "nota" && body.tipo !== "boleto" && body.tipo !== "ordem-servico") throw new Error("Tipo de documento inválido.");
       if (!email.anexos.some(a => a.tipo === body.tipo)) throw new Error("Anexo não encontrado. Atualize a mensagem.");
       // Remove only the draft reference: a duplicated message may still use the same blob.
       email.anexos = email.anexos.filter(a => a.tipo !== body.tipo);
