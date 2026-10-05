@@ -59,7 +59,7 @@ export async function GET(req:NextRequest){
       const notas=[];
       for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'nfse-historico-${emp}'`}})){
         const n=JSON.parse(row.json);
-        notas.push({numero:n.numero,documento:n.documento,cliente:n.cliente,emissao:n.emissao,centavos:n.centavos,situacao:n.situacao,xml:!!n.xmlBlob,pdf:!!n.pdfBlob,consultadoEm:n.consultadoEm});
+        notas.push({numero:n.numero,documento:n.documento,cliente:n.cliente,emissao:n.emissao,centavos:n.centavos,situacao:n.situacao,tributos:n.tributos,xml:!!n.xmlBlob,pdf:!!n.pdfBlob,consultadoEm:n.consultadoEm});
       }
       return reply({notas:notas.sort((a,b)=>b.emissao.localeCompare(a.emissao))});
     }

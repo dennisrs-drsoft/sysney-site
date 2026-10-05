@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { resolve, sep } from "node:path";
 import { consultarCobrancaInter, listarCobrancasInter } from "../src/services/inter.js";
+import { extrairTributosXml } from "../../lib/extrato-fiscal-xml.ts";
 
 const [modo, coleta] = process.argv.slice(2);
 if (!['notas', 'boletos'].includes(modo) || (modo === 'notas' && !/^[a-f0-9-]{36}$/.test(coleta || ''))) throw Error('Informe notas + ID da coleta, ou boletos.');
@@ -69,6 +70,7 @@ if(modo === 'notas') {
     const bytes=Buffer.from(n.xmlBase64,'base64');
     const xmlBlob=await arquivar(bytes,'nfse',`NFSe_15539300_${n.numero}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
     const {xmlBase64,...metadados}=n;
+    metadados.tributos = extrairTributosXml(bytes.toString('utf8'), String(n.numero), n.inscricao);
     let anterior={};try{anterior=JSON.parse((await doc.getEntity('nfse-historico-sysney',String(Number(n.numero)))).json);}catch(e){if(e.statusCode!==404)throw e;}
     await doc.upsertEntity({partitionKey:'nfse-historico-sysney',rowKey:String(Number(n.numero)),json:JSON.stringify({...anterior,...metadados,xmlBlob,consultadoEm:status.em,coleta})},'Replace');
   }

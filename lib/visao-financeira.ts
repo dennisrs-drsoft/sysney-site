@@ -17,7 +17,7 @@ export type LinhaFinanceira = {
   pagamento: string; fontePagamento: "manual" | "banco" | ""; recebidoNominal: boolean;
   emissaoPrevista: string; emissaoNota: string;
 };
-export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string };
+export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string; tributos?: import("./extrato-fiscal-xml").TributosXml; xml?: boolean; pdf?: boolean };
 export const nomesEstados: Record<EstadoFinanceiro, string> = {
   previsto: "Prevista", aberto: "Em aberto", atrasado: "Vencida", parcial: "Pagamento parcial",
   pago: "Pagamento registrado", cancelado: "Cancelada", expirado: "Expirada", conferir: "Conferir vínculo / situação",
