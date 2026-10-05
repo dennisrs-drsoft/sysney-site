@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { hojeBrasil, dataBr, moeda, type Cobranca, type Plano } from "@/lib/cobrancas";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
-import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados, type EmailFinanceiro, type EstadoFinanceiro, type RegistroInter } from "@/lib/visao-financeira";
+import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados, type EmailFinanceiro, type EstadoFinanceiro, type RegistroInter, type NotaFinanceira, type FiltroFinanceiro } from "@/lib/visao-financeira";
 import { MensagemAdmin } from "./dialogos-admin";
+import { RelatoriosFinanceiros } from "./relatorios-financeiros";
 
-type Destino = "cobrancas" | "acompanhamento" | "historico-inter";
-type Dados = { cobrancas: Cobranca[]; planos: Plano[]; banco: RegistroInter[]; emails: EmailFinanceiro[] };
+type Destino = "cobrancas" | "acompanhamento" | "historico-inter" | "historico-fiscal";
+type Dados = { cobrancas: Cobranca[]; planos: Plano[]; banco: RegistroInter[]; emails: EmailFinanceiro[]; notas: NotaFinanceira[] };
 const campo = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
 const botao = "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50";
 const painel = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6";
@@ -18,16 +19,20 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const [carga, setCarga] = useState(0);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
+  const [erroPeriodo, setErroPeriodo] = useState("");
   const [ajuda, setAjuda] = useState(false);
-  const [mes, setMes] = useState("");
-  const [por, setPor] = useState<"vencimento" | "competencia" | "emissao">("vencimento");
+  const [inicio, setInicio] = useState("");
+  const [fim, setFim] = useState("");
+  const [por, setPor] = useState<FiltroFinanceiro["por"]>("vencimento");
+  const [aba, setAba] = useState<"carteira" | "analises">("carteira");
   const [estado, setEstado] = useState("");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
   const hoje = hojeBrasil();
   // Inclui previsão do próximo mês sem alterar ou emitir nenhuma cobrança.
   const horizonte = new Date(Date.UTC(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)), 1)).toISOString().slice(0, 7);
-  const ate = mes > horizonte ? mes : horizonte;
+  const mesFinal = fim.slice(0, 7);
+  const ate = mesFinal > horizonte ? mesFinal : horizonte;
   useEffect(() => {
     const controller = new AbortController();
     async function ler<T>(url: string): Promise<T> {
@@ -39,12 +44,13 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
     async function carregar() {
       setCarregando(true);
       try {
-        const [carteira, historico, mensagens] = await Promise.all([
+        const [carteira, historico, mensagens, fiscal] = await Promise.all([
           ler<{ cobrancas: Cobranca[]; planos: Plano[] }>(`/api/admin/cobrancas?empresa=${empresa}&mes=${ate}`),
           ler<{ cobrancas: RegistroInter[] }>(`/api/admin/historico-inter?empresa=${empresa}`),
           ler<{ emails: EmailFinanceiro[] }>(`/api/admin/emails?empresa=${empresa}&resumo=financeiro`),
+          ler<{ notas: NotaFinanceira[] }>(`/api/admin/nfse?empresa=${empresa}&historico=1`),
         ]);
-        if (!controller.signal.aborted) { setDados({ ...carteira, banco: historico.cobrancas, emails: mensagens.emails }); setErro(""); }
+        if (!controller.signal.aborted) { setDados({ ...carteira, banco: historico.cobrancas, emails: mensagens.emails, notas: fiscal.notas }); setErro(""); }
       } catch (e) {
         if (!controller.signal.aborted) { setDados(null); setErro(e instanceof Error && e.name === "TimeoutError" ? "A consulta demorou mais que o esperado. Atualize o painel para tentar novamente." : e instanceof Error ? e.message : "Não foi possível carregar os dados."); }
       } finally { if (!controller.signal.aborted) setCarregando(false); }
@@ -53,8 +59,9 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
     return () => controller.abort();
   }, [empresa, ate, carga]);
 
-  const linhas = dados ? consolidarFinanceiro(dados.cobrancas, dados.planos, dados.banco, dados.emails, hoje) : [];
-  const filtradas = filtrarFinanceiro(linhas, { mes, por, estado, busca });
+  const linhas = dados ? consolidarFinanceiro(dados.cobrancas, dados.planos, dados.banco, dados.emails, hoje, dados.notas) : [];
+  const filtro = { inicio, fim, por, estado, busca };
+  const filtradas = filtrarFinanceiro(linhas, filtro);
   const resumo = resumoFinanceiro(filtradas, hoje);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / 12));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -65,7 +72,13 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const dataConsulta = (v: string) => Number.isFinite(Date.parse(v)) ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(v)) : "não informada";
   const pendencias = carregando ? [] : filtradas.filter(r => r.origem !== "inter" && !r.envio && ["previsto", "aberto", "atrasado", "parcial"].includes(r.estado));
   const proximas = carregando ? [] : filtradas.filter(r => ["aberto", "atrasado", "parcial"].includes(r.estado) && r.vencimento >= hoje).sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 4);
-  function limpar() { setMes(""); setEstado(""); setBusca(""); setPor("vencimento"); setPagina(1); }
+  function limpar() { setInicio(""); setFim(""); setEstado(""); setBusca(""); setPor("vencimento"); setPagina(1); }
+  function periodoRapido(tipo: "mes" | "ano" | "completo" | "todos") {
+    setPagina(1);
+    if(tipo === "todos"){setInicio("");setFim("");return;}
+    setInicio(tipo === "mes" ? `${hoje.slice(0, 7)}-01` : `${hoje.slice(0, 4)}-01-01`);
+    setFim(tipo === "mes" ? new Date(Date.UTC(Number(hoje.slice(0,4)),Number(hoje.slice(5,7)),0)).toISOString().slice(0,10) : tipo === "completo" ? `${hoje.slice(0,4)}-12-31` : hoje);
+  }
 
   return <div className="space-y-5">
     <section className="rounded-2xl bg-[#071b30] p-6 text-white sm:p-8">
@@ -78,23 +91,27 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
       <div className="mt-6 flex flex-wrap gap-3">
         <button className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500" onClick={() => navegar("cobrancas")}>Abrir fila de cobranças →</button>
         <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("acompanhamento")}>Gerenciar recorrências</button>
+        <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("historico-fiscal")}>Notas antigas / XML</button>
       </div>
     </section>
 
     <section className={painel} aria-label="Filtros financeiros">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1.5fr]">
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Filtrar mês por</span><select className={campo} value={por} onChange={e => { setPor(e.target.value as typeof por); setPagina(1); }}><option value="vencimento">Vencimento</option><option value="competencia">Competência</option><option value="emissao">Emissão / registro de documentos</option></select></label>
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Mês (vazio = todo o histórico)</span><input type="month" className={campo} value={mes} onChange={e => { setMes(e.target.value); setPagina(1); }} /></label>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data de referência</span><select className={campo} value={por} onChange={e => { setPor(e.target.value as typeof por); setPagina(1); }}><option value="vencimento">Vencimento</option><option value="competencia">Competência do serviço</option><option value="emissao">Emissão do boleto / registro de documentos</option><option value="pagamento">Baixa / pagamento registrado</option></select></label>
+        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data inicial</span><input type="date" className={campo} value={inicio} onChange={e => { setInicio(e.target.value); setPagina(1); }} onBlur={() => {if(inicio && fim && inicio > fim)setErroPeriodo("A data inicial deve ser igual ou anterior à data final. Ajuste o período para consultar e comparar.");}} /></label>
+        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data final (incluída)</span><input type="date" className={campo} value={fim} onChange={e => { setFim(e.target.value); setPagina(1); }} onBlur={() => {if(inicio && fim && inicio > fim)setErroPeriodo("A data inicial deve ser igual ou anterior à data final. Ajuste o período para consultar e comparar.");}} /></label>
         <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Situação</span><select className={campo} value={estado} onChange={e => { setEstado(e.target.value); setPagina(1); }}><option value="">Todas as situações</option>{Object.entries(nomesEstados).map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}</select></label>
         <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Cliente, documento, nota ou boleto</span><input className={campo} placeholder="Buscar na carteira…" value={busca} onChange={e => { setBusca(e.target.value); setPagina(1); }} /></label>
       </div>
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">{mes ? `Mês selecionado: ${mes.split("-").reverse().join("/")}` : "Todo o histórico salvo"} · Previsões até {ate.split("-").reverse().join("/")} · Indicadores seguem os filtros.</p><div className="flex gap-2"><button className={botao} onClick={limpar}>Limpar filtros</button><button className={botao} disabled={carregando} onClick={() => setCarga(v => v + 1)}>{carregando ? "Carregando…" : "Atualizar painel"}</button></div></div>
-      {por === "competencia" && <p className="mt-3 text-xs text-amber-800">O Inter não informa a competência do serviço. Registros exclusivamente bancários não aparecem neste filtro mensal; use vencimento para consultar o histórico.</p>}
+      <div className="mt-4 flex flex-wrap gap-2">{[["mes","Este mês"],["ano","Ano até hoje"],["completo","Ano completo"],["todos","Todo o histórico"]].map(([tipo,nome])=><button key={tipo} className={botao} onClick={()=>periodoRapido(tipo as Parameters<typeof periodoRapido>[0])}>{nome}</button>)}</div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">{inicio || fim ? `${inicio ? dataBr(inicio) : "Início do histórico"} a ${fim ? dataBr(fim) : "Fim do histórico salvo"}` : "Todo o histórico salvo"} · Previsões até {ate.split("-").reverse().join("/")} · Indicadores seguem os filtros.</p><div className="flex gap-2"><button className={botao} onClick={limpar}>Limpar filtros</button><button className={botao} disabled={carregando} onClick={() => setCarga(v => v + 1)}>{carregando ? "Carregando…" : "Atualizar painel"}</button></div></div>
+      {por === "competencia" && <p className="mt-3 text-xs text-amber-800">O Inter não informa a competência do serviço. Registros exclusivamente bancários não aparecem neste filtro por período; use vencimento. A competência é mensal: todos os meses abrangidos pelo intervalo são incluídos.</p>}
+      {por === "pagamento" && <p className="mt-3 text-xs text-amber-800">Este filtro exige uma data de quitação registrada. No Inter é a data da baixa, que pode diferir do dia em que o cliente pagou; parciais sem quitação completa não aparecem.</p>}
     </section>
 
     <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">
       {ultimaConsulta ? <>Inter: dados salvos entre {dataConsulta(primeiraConsulta!)} e {dataConsulta(ultimaConsulta)} (horário de Brasília). Situações bancárias podem ter mudado desde a consulta. </> : <>Nenhum histórico do Inter disponível nesta empresa. </>}
-      Atualizar o painel relê a base; não consulta o banco nem emite documentos. Para o Inter, os valores são nominais, sem apurar juros ou descontos; este painel não substitui o extrato bancário.
+      Atualizar o painel relê a base; não consulta o banco nem emite documentos. Recebimentos usam o valor recebido informado pelo Inter quando disponível; na ausência dele, usam o nominal. O painel não substitui o extrato bancário.
     </div>
     {resumo.conferir > 0 && <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p>{resumo.conferir} registro(s) precisam de conferência de vínculo ou situação e estão fora dos totais.</p><button className={botao} onClick={() => { setEstado("conferir"); setPagina(1); }}>Ver registros</button></div>}
 
@@ -107,7 +124,9 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
       ].map(([titulo, valor, legenda, tom]) => <article key={titulo} className={painel}><p className="text-xs font-semibold text-slate-500">{titulo}</p><p className={`mt-3 text-2xl font-bold tracking-tight ${tom}`}>{carregando ? "…" : dados ? moeda(Number(valor)) : "—"}</p><p className="mt-2 text-xs leading-5 text-slate-500">{legenda}</p></article>)}
     </div>
 
-    <div className="grid gap-5 xl:grid-cols-2">
+    <div role="group" aria-label="Visão do painel" className="flex gap-2 rounded-2xl border border-slate-200 bg-white p-2"><button className={`${botao} ${aba==="carteira"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="carteira"} onClick={()=>setAba("carteira")}>Carteira e vencimentos</button><button className={`${botao} ${aba==="analises"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="analises"} onClick={()=>setAba("analises")}>Análises e comparativos</button></div>
+    {aba==="analises" && (dados && !carregando ? <RelatoriosFinanceiros linhas={linhas} filtradas={filtradas} filtro={filtro} hoje={hoje} notas={dados.notas}/> : <p className={painel}>{carregando ? "Carregando análises…" : "Análises indisponíveis. Atualize o painel."}</p>)}
+    {aba==="carteira" && <><div className="grid gap-5 xl:grid-cols-2">
       <section className={painel}><div className="flex items-start justify-between gap-3"><div><h3 className="font-bold text-slate-900">Próximos vencimentos</h3><p className="mt-1 text-xs text-slate-500">Somente documentos emitidos · valores do filtro atual</p></div><span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">A receber</span></div>
         <div className="my-5 grid grid-cols-3 divide-x divide-slate-100">{[["Hoje", resumo.hoje], ["Até 7 dias", resumo.sete], ["Até 30 dias", resumo.trinta]].map(([nome, valor]) => <div key={nome} className="px-2 first:pl-0"><p className="text-xs text-slate-500">{nome}</p><p className="mt-2 text-sm font-bold text-slate-900">{dados && !carregando ? moeda(Number(valor)) : "—"}</p></div>)}</div>
         <p className="mb-3 text-xs text-slate-400">Janelas acumuladas; não somar entre si.</p>
@@ -128,8 +147,9 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
         {(carregando || !visiveis.length) && <tr><td colSpan={6} className="py-12 text-center text-sm text-slate-500">{carregando ? "Reunindo cobranças e pagamentos…" : !dados ? "Dados indisponíveis. Atualize o painel para tentar novamente." : "Nenhuma cobrança neste filtro. Experimente limpar os filtros."}</td></tr>}
       </tbody></table></div>
       <div className="mt-4 flex items-center justify-between gap-3"><p className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</p><div className="flex gap-2"><button className={botao} disabled={paginaAtual <= 1 || carregando} onClick={() => setPagina(paginaAtual - 1)}>Anterior</button><button className={botao} disabled={paginaAtual >= totalPaginas || carregando} onClick={() => setPagina(paginaAtual + 1)}>Próxima</button></div></div>
-    </section>
+    </section></>}
     <MensagemAdmin mensagem={erro} titulo="Não foi possível atualizar o painel" subtitulo="Os indicadores não estão disponíveis nesta consulta" observacao="Nenhuma cobrança foi emitida, cancelada ou enviada. Verifique a conexão e tente atualizar novamente." tom="erro" aoFechar={() => setErro("")} acao={() => { setErro(""); setCarga(v => v + 1); }} />
+    <MensagemAdmin mensagem={erroPeriodo} titulo="Confira o período selecionado" subtitulo="As datas estão em ordem inversa" observacao="Feche esta mensagem e ajuste a data inicial ou final. Nenhum dado financeiro foi alterado." tom="erro" aoFechar={() => setErroPeriodo("")} />
     <MensagemAdmin mensagem={ajuda ? "A receber reúne saldos de documentos emitidos; previsões ficam separadas. Recebimentos são os pagamentos registrados no sistema ou no histórico importado do Inter, não o saldo da conta bancária. Envio aceito pelo SendGrid não confirma entrega, leitura ou pagamento. Vencidas já fazem parte do valor a receber. Possíveis duplicidades e situações desconhecidas ficam fora dos totais até conferência." : ""} titulo="Entenda sua visão financeira" subtitulo="Fontes diferentes, informações identificadas" observacao="O Inter é um retrato da última consulta. O sistema só une registros pelo identificador bancário e dados compatíveis; nunca apenas pelo nome ou valor. A data de registro de documentos do sistema pode diferir da data fiscal de emissão." aoFechar={() => setAjuda(false)} />
   </div>;
 }

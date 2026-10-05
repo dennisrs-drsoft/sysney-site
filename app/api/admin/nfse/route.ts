@@ -1,6 +1,7 @@
 import {NextRequest,NextResponse} from "next/server";
 import {TableClient} from "@azure/data-tables";
 import {DefaultAzureCredential} from "@azure/identity";
+import {BlobServiceClient} from "@azure/storage-blob";
 import {createHash} from "node:crypto";
 import {usuarioAdministrador} from "../_auth";
 import {encaminharAdmin} from "../_remote";
@@ -44,6 +45,24 @@ export async function GET(req:NextRequest){
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
   try{
     const emp=empresa(req),id=req.nextUrl.searchParams.get("id");
+    if(req.nextUrl.searchParams.get("historico")==="1"){
+      const numero=req.nextUrl.searchParams.get("numero"),arquivo=req.nextUrl.searchParams.get("arquivo");
+      if(numero && arquivo){
+        if(!/^\d{1,15}$/.test(numero)||!["xml","pdf"].includes(arquivo))throw Error("Arquivo fiscal inválido.");
+        const row=await table().getEntity<{json:string}>(`nfse-historico-${emp}`,String(Number(numero)));
+        const nota=JSON.parse(row.json),blob=arquivo==="xml"?nota.xmlBlob:nota.pdfBlob;
+        if(typeof blob!=="string"||!blob.startsWith(`historico/${emp}/nfse/`))return reply({erro:"Arquivo ainda não importado."},404);
+        const conta=process.env.ADMIN_STORAGE_ACCOUNT||(process.env.NODE_ENV!=="production"?"sysneyadm2602":"");
+        const bytes=await new BlobServiceClient(`https://${conta}.blob.core.windows.net`,cred).getContainerClient("admin-anexos").getBlockBlobClient(blob).downloadToBuffer();
+        return new NextResponse(new Uint8Array(bytes),{headers:{"Content-Type":arquivo==="xml"?"application/xml; charset=utf-8":"application/pdf","Content-Disposition":`attachment; filename="NFSe_${numero}.${arquivo}"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      }
+      const notas=[];
+      for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'nfse-historico-${emp}'`}})){
+        const n=JSON.parse(row.json);
+        notas.push({numero:n.numero,documento:n.documento,cliente:n.cliente,emissao:n.emissao,centavos:n.centavos,situacao:n.situacao,xml:!!n.xmlBlob,pdf:!!n.pdfBlob,consultadoEm:n.consultadoEm});
+      }
+      return reply({notas:notas.sort((a,b)=>b.emissao.localeCompare(a.emissao))});
+    }
     let trabalho:TrabalhoSP|null=null,perfil=null,retencoes=null;
     if(id){const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);const t=await opcional<{json:string}>(`nfse-retencoes-${emp}`,c.documento,"AdminConfiguracoes");if(t)retencoes=JSON.parse(t.json);}
     return reply({local:executorMunicipalDisponivel(),remoto:process.env.NFSE_SP_WORKER_HABILITADO==="true",producao:executorMunicipalDisponivel()&&(process.env.NFSE_SP_WORKER_HABILITADO!=="true"||process.env.NFSE_SP_VM_PRODUCAO_HABILITADA==="true")&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,retencoes,historicoRegime:(await regimeEmpresa(emp)).historico,regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});

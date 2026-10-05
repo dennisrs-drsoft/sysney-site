@@ -7,6 +7,7 @@ import { FilaCobrancas } from "./fila-cobrancas";
 import { LaboratorioEmails } from "./laboratorio-emails";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
+import { HistoricoFiscal } from "./historico-fiscal";
 import { NfseNacional } from "./nfse-nacional";
 import { Aprovacoes } from "./aprovacoes";
 import {MensagemAdmin} from "./dialogos-admin";
@@ -19,7 +20,7 @@ import {
 } from "react";
 
 type EmpresaId = "drsoft" | "sysney";
-type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "nfse-nacional" | "aprovacoes";
+type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "historico-fiscal" | "nfse-nacional" | "aprovacoes";
 
 type Cliente = {
   id: string;
@@ -88,6 +89,7 @@ const secoes: { id: SecaoId; label: string }[] = [
   { id: "aprovacoes", label: "Aprovar emissão" },
   { id: "emails", label: "Laboratório de e-mails" },
   { id: "historico-inter", label: "Histórico do Inter" },
+  { id: "historico-fiscal", label: "Notas antigas e XML" },
   { id: "nfse-nacional", label: "NFS-e Nacional" },
   { id: "nova-emissao", label: "Nova emissão" },
   { id: "clientes", label: "Clientes" },
@@ -772,6 +774,8 @@ export function AdminDashboard() {
     conteudo = <NfseNacional empresa={empresaId} />;
   } else if (secao === "historico-inter") {
     conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
+  } else if (secao === "historico-fiscal") {
+    conteudo = <HistoricoFiscal key={empresaId} empresa={empresaId} />;
   } else if (secao === "emails") {
     conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "cobrancas") {
