@@ -31,7 +31,11 @@ Os valores das capturas pertencem ao ambiente de demonstração e não represent
 
 ## Publicação
 
-Esta entrega prepara alterações locais. Nenhum push ou deploy foi executado. Uma eventual release deve incorporar o `origin/main` atual e seguir a coordenação do site e financeiro em `CONSOLIDACAO-SYSNEY.md`.
+Publicação autorizada pelo usuário e concluída em 08/10/2026. Versão pública `2026.10.08.007`, commit de release `cad9af71c26d3042843e0ab02d775358656f0ebf`, preservando a base financeira `1756432`. Workflow [37846508240](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/37846508240) concluído com sucesso. Apenas Next.js/Azure Static Web Apps foi publicado; não houve deploy da API externa nem do serviço fiscal da VM.
+
+Home, nova página, pedidos para moda, contato, sitemap, robots e as seis imagens responderam HTTP 200. A galeria publicada foi conferida no navegador. Canonical e nova rota do sitemap confirmados. `/admin`, `/api/admin/status`, `/api/admin/clientes` e `/api/admin/emails` anônimos continuam redirecionando à autenticação GitHub (HTTP 302). Isso confirma a proteção anônima, não homologa uma sessão administrativa autenticada nem o envio do formulário.
+
+Os 105 testes existentes passaram antes do push, sem envio ou emissão reais. O build normal da aplicação foi aprovado no workflow Azure, além do build local com webpack.
 
 ## Validação local
 
