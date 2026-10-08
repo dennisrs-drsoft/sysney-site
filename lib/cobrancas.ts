@@ -21,6 +21,19 @@ export function hojeBrasil() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
+export type VinculoPix = { tipo: "vinculo"; cobrancaId: string; pixId: string; documento: string; centavos: number; vencimento: string; data: string; em: string; responsavel: string; modo: string };
+// Vínculo bancário reservado uma única vez. Não soma com pagamentos manuais nem ignora estornos.
+export function integrarPagamentosPix(cobrancas: Cobranca[], planos: Plano[], vinculos: VinculoPix[], emails: {formaPagamento?:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string}}[]) {
+  return cobrancas.map(c=>{
+    if(c.boleto || c.eventos.some(e=>["pagamento","estorno"].includes(e.tipo)))return c;
+    const vs=vinculos.filter(v=>v.tipo==="vinculo"&&v.cobrancaId===c.id);
+    if(vs.length!==1)return c;
+    const v=vs[0],doc=planos.find(p=>p.id===c.planoId)?.documento.replace(/\D/g,"");
+    if(vinculos.filter(x=>x.pixId===v.pixId).length!==1||doc!==v.documento||v.centavos!==c.centavos||v.vencimento!==c.vencimento||!dataValida(v.data)||!Number.isFinite(Date.parse(v.em))||!emails.some(e=>e.formaPagamento==="pix"&&e.fluxo?.cobrancaId===c.id&&e.centavos===c.centavos&&e.vencimento===c.vencimento))return c;
+    return {...c,eventos:[...c.eventos,{id:`pix-${v.pixId}`,tipo:"pagamento" as const,data:v.data,registradoEm:v.em,responsavel:v.responsavel,centavos:v.centavos,fonte:"banco" as const,detalhe:`PIX conciliado com o extrato Inter (${v.modo}). Identificador: ${v.pixId}. Não representa novo faturamento nem envio de cobrança.`}]};
+  });
+}
+
 // Projeção somente leitura: não altera eventos manuais nem cria baixa no Inter.
 export function integrarPagamentosInter(cobrancas:Cobranca[], planos:Plano[], banco:{cobranca:{pagador?:{cpfCnpj?:string};dataVencimento?:string;valorNominal?:number;situacao?:string;dataSituacao?:string;valorTotalRecebido?:number;codigoSolicitacao?:string};boleto?:{nossoNumero?:string};consultadoEm:string}[], emails:{competencia:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string;boleto?:string}}[]) {
   const numero=(v:string)=>v.replace(/\D/g,"").replace(/^0+/,"");

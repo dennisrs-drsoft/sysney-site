@@ -33,7 +33,7 @@ export function SincronizacaoInter({empresa,aoAtualizar}:{empresa:"sysney"|"drso
     <p aria-live="polite" className="text-sm text-slate-600">{estado?nomes[estado.estado]||estado.estado:"Consultando estado…"} · Último sucesso: {horario(estado?.ultimoSucesso)} (Brasília).</p>
     {estado?.ultimaTentativa&&<p className="text-xs text-slate-500">Última tentativa: {horario(estado.ultimaTentativa)} · {estado.atualizadas||0} registro(s) atualizado(s) nessa execução.</p>}
     {estado?.erro&&<button className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900" onClick={()=>setAviso(estado.erro||"")}>Ver detalhes da pendência bancária</button>}
-    <p className="text-xs text-slate-500">Boletos recentes são consultados em cada execução; registros antigos são revisitados em grupos. Não é confirmação instantânea. PIX avulsos não são baixados por coincidência de nome ou valor. A tela acompanha o estado a cada 30 segundos enquanto aberta.</p>
+    <p className="text-xs text-slate-500">Boletos recentes e créditos PIX dos últimos 90 dias são consultados em cada execução; boletos antigos são revisitados em grupos. PIX direto exige regra autorizada por cobrança, CNPJ/CPF, valor integral, período e vínculo único. Não é confirmação instantânea. A tela acompanha o estado a cada 30 segundos enquanto aberta.</p>
     <button className="text-sm font-semibold text-blue-700" onClick={()=>void carregar()}>Atualizar estado da consulta</button>
     <MensagemAdmin mensagem={aviso} aoFechar={()=>setAviso("")} titulo="Consulta bancária não solicitada" subtitulo="Nenhum boleto foi emitido ou cancelado" tom="erro"/>
   </section>;

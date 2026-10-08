@@ -1,6 +1,6 @@
 {
-  "version": "2026.10.08.005",
-  "release": "sincronizacao-bancaria-sysney",
+  "version": "2026.10.08.006",
+  "release": "conciliacao-pix-vinculos-fiscais",
   "siteBase": "90cb4c7",
   "adminBase": "4c11675"
 }

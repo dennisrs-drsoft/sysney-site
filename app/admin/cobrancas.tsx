@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { dataBr, hojeBrasil, moeda, pago, situacao, type Cobranca, type Empresa, type Plano } from "@/lib/cobrancas";
 import {MensagemAdmin} from "./dialogos-admin";
+import { ConciliacaoPix } from "./conciliacao-pix";
 
 type Cliente = { id: string; nome: string; email: string; origem?: string };
 type Dados = { planos: Plano[]; cobrancas: Cobranca[]; hoje: string };
@@ -117,6 +118,7 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
       {visiveis.length === 0 ? <p className="my-8 rounded-xl bg-slate-50 p-6 text-center text-slate-600">{loading ? "Carregando cobranças..." : planos.length ? "Nenhuma cobrança neste filtro." : "Cadastre a primeira mensalidade para gerar a agenda por competência."}</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b text-xs uppercase text-slate-500"><tr>{["Cliente / competência", "Envio previsto / realizado", "Vencimento", "Saldo", "Situação", ""].map((h,i) => <th key={i} className="px-3 py-3">{h}</th>)}</tr></thead><tbody>{visiveis.map(c => <tr key={c.id} className="border-b border-slate-100"><td className="px-3 py-4"><strong>{c.clienteNome}</strong><p className="mt-1 text-slate-500">{c.competencia.split("-").reverse().join("/")}</p></td><td className="px-3 py-4">{dataBr(c.envioPrevisto)}<p className="mt-1 text-xs text-slate-500">{primeiroEvento(c, "envio") ? `Enviado: ${dataBr(primeiroEvento(c, "envio")!.data)}` : "Envio não registrado"}</p></td><td className="px-3 py-4">{dataBr(c.vencimento)}</td><td className="px-3 py-4 font-bold">{moeda(c.centavos - pago(c))}<p className="mt-1 text-xs font-normal text-slate-500">Total: {moeda(c.centavos)}</p></td><td className="px-3 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${situacao(c,hoje) === "Atrasado" ? "bg-red-50 text-red-700" : situacao(c,hoje) === "Pago" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{situacao(c,hoje)}</span></td><td className="px-3 py-4"><button className={secondary} onClick={() => { setSelecionada(c.id); setAviso(""); }}>Acompanhar</button></td></tr>)}</tbody></table></div>}
     </section>
     {selecionado && <Detalhe key={selecionado.id} c={selecionado} ocupado={ocupado || loading} hoje={hoje} salvar={salvar} fechar={() => setSelecionada(null)}/>}
+    {selecionado && empresa==="sysney" && !selecionado.boleto && selecionado.persistida && <ConciliacaoPix key={`pix-${selecionado.id}`} c={selecionado} aoAtualizar={()=>void carregar()}/>}
   </div>;
 }
 

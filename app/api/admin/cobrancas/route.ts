@@ -4,7 +4,7 @@ import { TableClient, type TableEntityResult, type TransactionAction } from "@az
 import { createHash } from "node:crypto";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, integrarPagamentosInter, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
+import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, integrarPagamentosInter, integrarPagamentosPix, type VinculoPix, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
 import type { EmailCobranca } from "@/lib/emails-cobranca";
 import { validarPlanejamentoFiscal, validarLoteRegularizacao, simularRegularizacao, type LoteRegularizacao, type RegularizacaoFiscal } from "@/lib/regularizacao-fiscal";
 
@@ -66,7 +66,8 @@ export async function GET(req: NextRequest) {
     const projetadas=integrarEnvios(carteira(planos, salvas, ate), emails, empresa(req));
     const banco:Parameters<typeof integrarPagamentosInter>[2]=[];
     if(empresa(req)==="sysney")for await(const row of tabela("AdminDocumentos").listEntities<Registro&{atualizadoEm:string}>({queryOptions:{filter:"PartitionKey eq 'inter-historico-sysney'"}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
-    return resposta({ planos, cobrancas: integrarPagamentosInter(projetadas,planos,banco,emails), hoje: hojeBrasil() });
+    const vs=empresa(req)==="sysney"?(await ler<VinculoPix>(tabela("AdminDocumentos"),"pix-conciliacao-sysney")).filter(v=>v.tipo==="vinculo"):[];
+    return resposta({ planos, cobrancas: integrarPagamentosPix(integrarPagamentosInter(projetadas,planos,banco,emails),planos,vs,emails), hoje: hojeBrasil() });
   } catch (e) { return falha(e); }
 }
 export async function POST(req: NextRequest) {
@@ -179,7 +180,13 @@ export async function POST(req: NextRequest) {
       if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora do contrato.");
       c = prevista(p, competencia);
     }
-    c = integrarEnvios([c], await ler<EmailCobranca>(table, `emails-${emp}`), emp)[0];
+    const mensagens=await ler<EmailCobranca>(table, `emails-${emp}`);
+    c = integrarEnvios([c], mensagens, emp)[0];
+    if(emp==="sysney"&&["pagamento","estorno"].includes(body.acao)){
+      const planos=await ler<Plano>(planosTable,part);
+      const vinculos=(await ler<VinculoPix>(table,"pix-conciliacao-sysney")).filter(v=>v.tipo==="vinculo");
+      c=integrarPagamentosPix([c],planos,vinculos,mensagens)[0];
+    }
     const operacaoId = texto(body.operacaoId, 36);
     if (!/^[a-f0-9-]{36}$/.test(operacaoId)) throw new Error("Identificador inválido.");
     if (c.eventos.some(e => e.id === operacaoId)) return resposta({ sucesso: true });
@@ -216,7 +223,7 @@ export async function POST(req: NextRequest) {
         const pagamento = c.eventos.find(e => e.id === body.referencia && e.tipo === "pagamento");
         if (!pagamento || c.eventos.some(e => e.tipo === "estorno" && e.referencia === pagamento.id)) throw new Error("Pagamento não disponível para correção.");
         evento.referencia = pagamento.id;
-        evento.detalhe = `Correção de registro manual, sem movimentação bancária: ${texto(body.detalhe)}`;
+        evento.detalhe = `Correção de registro no acompanhamento, sem devolução ou movimentação bancária: ${texto(body.detalhe)}`;
         break;
       }
       default: throw new Error("Ação inválida.");

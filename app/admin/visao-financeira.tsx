@@ -5,7 +5,7 @@ import { SincronizacaoInter } from "./sincronizacao-inter";
 import { hojeBrasil, dataBr, moeda, type Cobranca, type Plano } from "@/lib/cobrancas";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados, type EmailFinanceiro, type EstadoFinanceiro, type RegistroInter, type NotaFinanceira, type FiltroFinanceiro } from "@/lib/visao-financeira";
-import { MensagemAdmin } from "./dialogos-admin";
+import { MensagemAdmin, useConfirmarAdmin } from "./dialogos-admin";
 import { RelatoriosFinanceiros } from "./relatorios-financeiros";
 import { FaturamentoFiscal } from "./faturamento-fiscal";
 
@@ -24,6 +24,14 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const [erro, setErro] = useState("");
   const [erroPeriodo, setErroPeriodo] = useState("");
   const [ajuda, setAjuda] = useState(false);
+  const [cruzando,setCruzando]=useState(false),[resultadoVinculos,setResultadoVinculos]=useState("");
+  const confirmar=useConfirmarAdmin();
+  async function cruzarNotas(){
+    if(cruzando)return;
+    if(!await confirmar({titulo:"Vincular notas ao histórico",subtitulo:"Somente documentos já emitidos e importados",descricao:"O sistema cruza referência explícita da nota, documento do cliente, valor e data fiscal. Casos ambíguos permanecem sem vínculo. Não haverá emissão, cancelamento ou envio de e-mail.",confirmar:"Cruzar histórico"}))return;
+    setCruzando(true);
+    try{const r=await fetch(`/api/admin/historico-inter?empresa=${empresa}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"cruzar-notas"}),signal:AbortSignal.timeout(45000)});const d=await lerRespostaAdmin<{vinculadas:number;confirmadas:number;semVinculo:number;erro?:string}>(r);if(!r.ok)throw Error(d.erro||"Não foi possível cruzar as notas.");setResultadoVinculos(`${d.vinculadas} novo(s) vínculo(s); ${d.confirmadas} associação(ões) confirmada(s). ${d.semVinculo} registro(s) sem associação segura — incluindo cancelados e documentos sem correspondência.`);setCarga(v=>v+1);}catch(e){setErro(e instanceof Error?e.message:"Conciliação indisponível.");}finally{setCruzando(false);}
+  }
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [por, setPor] = useState<FiltroFinanceiro["por"]>("vencimento");
@@ -95,6 +103,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
         <button className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500" onClick={() => navegar("cobrancas")}>Abrir fila de cobranças →</button>
         <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("acompanhamento")}>Gerenciar recorrências</button>
         <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("historico-fiscal")}>Notas antigas / XML</button>
+        {empresa==="sysney"&&<button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15 disabled:opacity-50" disabled={cruzando} onClick={()=>void cruzarNotas()}>{cruzando?"Cruzando documentos…":"Vincular notas ao histórico"}</button>}
       </div>
     </section>
 
@@ -154,6 +163,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
       <div className="mt-4 flex items-center justify-between gap-3"><p className="text-xs text-slate-500">Página {paginaAtual} de {totalPaginas}</p><div className="flex gap-2"><button className={botao} disabled={paginaAtual <= 1 || carregando} onClick={() => setPagina(paginaAtual - 1)}>Anterior</button><button className={botao} disabled={paginaAtual >= totalPaginas || carregando} onClick={() => setPagina(paginaAtual + 1)}>Próxima</button></div></div>
     </section></>}
     <MensagemAdmin mensagem={erro} titulo="Não foi possível atualizar o painel" subtitulo="Os indicadores não estão disponíveis nesta consulta" observacao="Nenhuma cobrança foi emitida, cancelada ou enviada. Verifique a conexão e tente atualizar novamente." tom="erro" aoFechar={() => setErro("")} acao={() => { setErro(""); setCarga(v => v + 1); }} />
+    <MensagemAdmin mensagem={resultadoVinculos} titulo="Histórico fiscal conciliado" subtitulo="Notas existentes associadas às cobranças" aoFechar={()=>setResultadoVinculos("")}/>
     <MensagemAdmin mensagem={erroPeriodo} titulo="Confira o período selecionado" subtitulo="As datas estão em ordem inversa" observacao="Feche esta mensagem e ajuste a data inicial ou final. Nenhum dado financeiro foi alterado." tom="erro" aoFechar={() => setErroPeriodo("")} />
     <MensagemAdmin mensagem={ajuda ? "A receber reúne saldos de documentos emitidos; previsões ficam separadas. Recebimentos são os pagamentos registrados no sistema ou no histórico importado do Inter, não o saldo da conta bancária. Envio aceito pelo SendGrid não confirma entrega, leitura ou pagamento. Vencidas já fazem parte do valor a receber. Possíveis duplicidades e situações desconhecidas ficam fora dos totais até conferência." : ""} titulo="Entenda sua visão financeira" subtitulo="Fontes diferentes, informações identificadas" observacao="O Inter é um retrato da última consulta. O sistema só une registros pelo identificador bancário e dados compatíveis; nunca apenas pelo nome ou valor. A data de registro de documentos do sistema pode diferir da data fiscal de emissão." aoFechar={() => setAjuda(false)} />
   </div>;

@@ -2,6 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { DefaultAzureCredential } from "@azure/identity";
 import { TableClient } from "@azure/data-tables";
 import { listarCobrancasInter, consultarCobrancaInter } from "./inter.js";
+import { sincronizarPix, cruzarNotas } from "./conciliacao-inter.js";
 
 const partitionKey = "inter-sync-sysney", rowKey = "controle";
 const intervalo = 15 * 60_000, lease = 10 * 60_000;
@@ -42,7 +43,7 @@ export function normalizarSnapshot(item) {
   return { partitionKey: "inter-historico-sysney", rowKey: createHash("sha256").update(c.codigoSolicitacao).digest("hex"), json, atualizadoEm: new Date().toISOString() };
 }
 // Banco somente GET. Merge mantém PDF e eventos manuais em suas partições originais.
-export async function executarSync({ table = tabelaSync(), listar = listarCobrancasInter, consultar = consultarCobrancaInter } = {}) {
+export async function executarSync({ table = tabelaSync(), listar = listarCobrancasInter, consultar = consultarCobrancaInter, pix = sincronizarPix, notas = cruzarNotas } = {}) {
   if (process.env.INTER_SYNC_SYSNEY_ENABLED !== "true") return { desativada: true };
   const row = await lerSync(table), s = row ? JSON.parse(row.json) : {}, agora = Date.now();
   if (s.estado === "executando" && Date.parse(s.iniciadoEm) + lease > agora) return { ocupada: true };
@@ -75,11 +76,17 @@ export async function executarSync({ table = tabelaSync(), listar = listarCobran
       if (snapshot.rowKey !== r.rowKey) throw Error("Identificação bancária divergente; registro preservado.");
       await table.upsertEntity(snapshot, "Merge"); atualizadas++;
     }
+    // Conciliação adicional não apaga os boletos quando uma fonte fica indisponível.
+    let conciliacaoErro="", recebimentosPix=0, baixasPix=0, notasVinculadas=0;
+    try { const r=await pix(table);recebimentosPix=r.recebimentos;baixasPix=r.baixas; }
+    catch { conciliacaoErro="Consulta de boletos concluída, mas a conciliação PIX não pôde ser concluída. Confira o extrato antes de registrar o pagamento."; }
+    try { notasVinculadas=(await notas(table)).vinculadas; }
+    catch { conciliacaoErro+=" Vínculos fiscais não atualizados; dados anteriores preservados."; }
     const lock = await lerSync(table), atual = JSON.parse(lock.json);
     if (atual.token !== token) throw Error("Execução substituída; consulte o estado atual.");
     const fim = new Date().toISOString();
-    await gravarControle(table, lock, { ...atual, estado: "concluida", finalizadoEm: fim, ultimoSucesso: fim, consultadas, atualizadas, erro: "" });
-    return { consultadas, atualizadas };
+    await gravarControle(table, lock, { ...atual, estado: conciliacaoErro?"parcial":"concluida", finalizadoEm: fim, ultimoSucesso: fim, consultadas, atualizadas, recebimentosPix, baixasPix, notasVinculadas, erro: conciliacaoErro });
+    return { consultadas, atualizadas, recebimentosPix, baixasPix, notasVinculadas };
   } catch {
     const lock = await lerSync(table), atual = JSON.parse(lock.json);
     if (atual.token === token) await gravarControle(table, lock, { ...atual, estado: "falha", finalizadoEm: new Date().toISOString(), consultadas, atualizadas, erro: "Não foi possível concluir a consulta bancária. Registros já consultados foram atualizados; os demais preservados. Tente novamente." });

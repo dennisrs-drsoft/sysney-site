@@ -1,9 +1,10 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { executarSync, solicitarSync, statusSync, normalizarSnapshot } from "../admin-api/src/services/inter-sync.js";
+import { executarSync as executarReal, solicitarSync, statusSync, normalizarSnapshot } from "../admin-api/src/services/inter-sync.js";
 import { integrarPagamentosInter } from "../lib/cobrancas.ts";
 import { readFileSync } from "node:fs";
 process.env.INTER_SYNC_SYSNEY_ENABLED="true";
+const executarSync=o=>executarReal({...o,pix:async()=>({recebimentos:0,baixas:0}),notas:async()=>({vinculadas:0})});
 function storage(){
  const rows=new Map();let etag=0;
  return {rows,async getEntity(p,r){const row=rows.get(`${p}/${r}`);if(!row)throw Object.assign(Error(),{statusCode:404});return {...row};},

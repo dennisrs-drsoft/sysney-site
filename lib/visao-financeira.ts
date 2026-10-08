@@ -7,6 +7,7 @@ export type RegistroInter = {
   id: string; cliente: string; documento: string; numero: string; nossoNumero?: string;
   emissao: string; vencimento: string; valor: number; situacao: string;
   dataSituacao: string; consultadoEm: string; valorRecebido?: number;
+  nota?: string; emissaoNota?: string;
 };
 export type EstadoFinanceiro = "previsto" | "aberto" | "atrasado" | "parcial" | "pago" | "cancelado" | "expirado" | "conferir";
 export type LinhaFinanceira = {
@@ -43,10 +44,10 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
     return { id: `inter:${b.id}`, cliente: b.cliente, documento: b.documento, competencia: "", emissao: data(b.emissao),
       vencimento: data(b.vencimento), centavos: Number.isSafeInteger(centavos) ? centavos : 0,
       recebido: estado === "pago" ? (b.valorRecebido !== undefined && Number.isFinite(b.valorRecebido) && b.valorRecebido >= 0 ? Math.round(b.valorRecebido * 100) : centavos) : 0, saldo: ["aberto", "atrasado"].includes(estado) ? centavos : 0,
-      estado, origem: "inter", nota: "", boleto: b.nossoNumero || b.numero, envio: false,
+      estado, origem: "inter", nota: b.nota || "", boleto: b.nossoNumero || b.numero, envio: false,
       etapa: "Histórico bancário; envio de e-mail desconhecido", consultadoEm: b.consultadoEm,
       pagamento: estado === "pago" ? data(b.dataSituacao) : "", fontePagamento: estado === "pago" ? "banco" : "",
-      recebidoNominal: estado === "pago" && b.valorRecebido === undefined, emissaoPrevista: "", emissaoNota: "" };
+      recebidoNominal: estado === "pago" && b.valorRecebido === undefined, emissaoPrevista: "", emissaoNota: b.emissaoNota || "" };
   });
   const usadas = new Set<number>();
   // Uma identificação repetida no sistema também exige conferência, nunca fusão arbitrária.
