@@ -32,3 +32,12 @@ O timer repete o cruzamento depois da sincronização. O botão **Vincular notas
 - Nenhuma emissão fiscal/bancária, cancelamento ou envio de e-mail realizado para validar esta alteração.
 
 Publicação autorizada separadamente pelo usuário nesta conversa. Registrar a confirmação da release após verificar a implantação, sem confundir build local com publicação.
+
+## Publicação confirmada
+
+- Site versão `2026.10.08.006`, commit `765e1a08a6e2f1ef6c44a3e201d8f28fa811ba9e`; workflow [37796232734](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/37796232734) concluído com sucesso.
+- API financeira externa publicada separadamente. GET autenticado confirmou 28 associações fiscais, uma delas a nota 48, e a consulta PIX da IAGA. Sua regra automática permanece desativada, aguardando revisão e autorização no painel.
+- Timer do Azure executou a nova versão às 11:57 de Brasília: 8 créditos PIX consultados, zero baixas e zero novos vínculos fiscais (os 28 já estavam gravados), sem erro.
+- Nova seção PIX conferida visualmente na sessão local do usuário, sem salvar regra ou registrar pagamento. Home e contato HTTP 200; acesso anônimo ao admin/endpoint privado redirecionado à autenticação.
+- 105 testes aprovados em execução serial; TypeScript, lint dos arquivos modificados, build Next.js e bundle da API aprovados. A primeira execução paralela teve timeout no verificador fiscal offline, confirmado como aprovado tanto isoladamente quanto na execução serial completa.
+- Não alterados site institucional, autenticação, integração DRSOFT, VM nem certificados fiscais. Documentos financeiros e scripts operacionais locais permaneceram fora do commit.
