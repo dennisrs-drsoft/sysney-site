@@ -24,3 +24,5 @@ O cronograma considera todo o histórico carregado da empresa, independentemente
 ## Release 2026.10.08.004
 
 Escopo: cronograma documental e explicação da validação contábil pendente. Somente Next.js; sem mudança na API financeira externa, serviço fiscal da VM, certificados ou dados financeiros persistidos. A publicação será confirmada pelo workflow e por `/version.json`, não pela existência deste arquivo.
+
+Publicação confirmada em 08/10/2026: commit `5d4356971fab52b16a4a47ffd35a263dcf238877`, workflow [37770287366](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/37770287366) concluído com sucesso e `/version.json` público retornando `2026.10.08.004`. Validações: 94 testes aprovados, TypeScript, ESLint dos arquivos alterados e build de produção aprovados. Home/contato HTTP 200; admin/endpoint privado HTTP 302 para autenticação. A checagem pública não substitui teste visual autenticado do usuário. Nenhuma nota, boleto, guia ou e-mail emitido nesta publicação.
