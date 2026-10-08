@@ -8,10 +8,10 @@ export type OpcoesDialogo = {
   titulo:string; subtitulo:string; descricao:string; confirmar?:string; cancelar?:string;
   detalhes?:{rotulo:string;valor:string}[]; observacao?:string; tom?:"info"|"atencao"|"erro";
 };
-type ModalProps=OpcoesDialogo & {aberto:boolean;aoFechar:()=>void;aoConfirmar?:()=>void;ocupado?:boolean};
+type ModalProps=OpcoesDialogo & {aberto:boolean;aoFechar:()=>void;aoConfirmar?:()=>void;ocupado?:boolean;children?:ReactNode};
 let modaisAbertos=0,overflowAnterior="";
 const subscribe=()=>()=>{},clientSnapshot=()=>true,serverSnapshot=()=>false;
-export function ModalAdmin({aberto,titulo,subtitulo,descricao,detalhes,observacao,tom="info",confirmar="Entendi",cancelar="Voltar e revisar",aoFechar,aoConfirmar,ocupado=false}:ModalProps) {
+export function ModalAdmin({aberto,titulo,subtitulo,descricao,detalhes,observacao,tom="info",confirmar="Entendi",cancelar="Voltar e revisar",aoFechar,aoConfirmar,ocupado=false,children}:ModalProps) {
   const montado=useSyncExternalStore(subscribe,clientSnapshot,serverSnapshot);
   const dialog=useRef<HTMLDialogElement>(null),voltar=useRef<HTMLButtonElement>(null),id=useId();
   useEffect(()=>{
@@ -31,6 +31,7 @@ export function ModalAdmin({aberto,titulo,subtitulo,descricao,detalhes,observaca
     <div className={styles.body}><p id={`${id}-descricao`} className={styles.description}>{descricao}</p>
       {!!detalhes?.length&&<dl className={styles.details}>{detalhes.map((d,i)=><div key={`${d.rotulo}-${i}`}><dt>{d.rotulo}</dt><dd>{d.valor}</dd></div>)}</dl>}
       {observacao&&<p className={styles.note}><span aria-hidden="true">i</span>{observacao}</p>}
+      {children}
     </div>
     <footer className={styles.actions}>{aoConfirmar&&<button ref={voltar} type="button" className={styles.secondary} disabled={ocupado} onClick={aoFechar}>{cancelar}</button>}<button ref={aoConfirmar?undefined:voltar} type="button" className={styles.primary} disabled={ocupado} onClick={aoConfirmar||aoFechar}>{ocupado?"Aguarde…":confirmar}</button></footer>
   </dialog>,document.body);

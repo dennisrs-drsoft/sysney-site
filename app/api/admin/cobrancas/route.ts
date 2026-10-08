@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { DefaultAzureCredential } from "@azure/identity";
-import { TableClient, type TableEntityResult } from "@azure/data-tables";
+import { TableClient, type TableEntityResult, type TransactionAction } from "@azure/data-tables";
 import { createHash } from "node:crypto";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
 import type { EmailCobranca } from "@/lib/emails-cobranca";
-import { validarPlanejamentoFiscal, type RegularizacaoFiscal } from "@/lib/regularizacao-fiscal";
+import { validarPlanejamentoFiscal, validarLoteRegularizacao, simularRegularizacao, type LoteRegularizacao, type RegularizacaoFiscal } from "@/lib/regularizacao-fiscal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,8 +50,10 @@ export async function GET(req: NextRequest) {
   try {
     if(req.nextUrl.searchParams.get("regularizacao")==="1") {
       const emp=empresa(req);
-      const registros=(await ler<RegularizacaoFiscal>(tabela("AdminDocumentos"),`regularizacao-${emp}`)).filter(r=>typeof r.id==="string"&&/^[a-f0-9]{64}$/.test(r.id));
-      return resposta({registros:registros.sort((a,b)=>a.recebimento.localeCompare(b.recebimento))});
+      const rows=await ler<RegularizacaoFiscal|LoteRegularizacao>(tabela("AdminDocumentos"),`regularizacao-${emp}`);
+      const registros=rows.filter((r):r is RegularizacaoFiscal=>typeof r.id==="string"&&/^[a-f0-9]{64}$/.test(r.id));
+      const lotes=rows.filter((r):r is LoteRegularizacao=>"tipo" in r&&r.tipo==="lote-regularizacao");
+      return resposta({registros:registros.sort((a,b)=>a.recebimento.localeCompare(b.recebimento)),lotes});
     }
     const part = `cobrancas-${empresa(req)}`;
     const mes = req.nextUrl.searchParams.get("mes") || hojeBrasil().slice(0, 7);
@@ -74,6 +76,38 @@ export async function POST(req: NextRequest) {
     const raw = await req.text();
     if (raw.length > 12000) throw new Error("Solicitação muito grande.");
     const body = JSON.parse(raw);
+    if(body.acao==="preparar-lote-regularizacao") {
+      if(!Array.isArray(body.recebimentos)||!body.recebimentos.length||body.recebimentos.length>40)throw Error("Selecione de 1 a 40 recebimentos.");
+      const table=tabela("AdminDocumentos"), partitionKey=`regularizacao-${emp}`;
+      const registros:RegularizacaoFiscal[]=[];
+      const originais:TableEntityResult<Registro>[]=[];
+      for(const item of body.recebimentos) {
+        if(!/^[a-f0-9]{64}$/.test(item.id||""))throw Error("Recebimento inválido.");
+        const original=await table.getEntity<Registro>(partitionKey,item.id);
+        const r:RegularizacaoFiscal=JSON.parse(original.json);
+        if(r.id!==item.id||r.atualizadoEm!==item.atualizadoEm)throw Error("O recebimento mudou. Atualize a consulta.");
+        registros.push(r);originais.push(original);
+      }
+      validarLoteRegularizacao(registros,emp);
+      for(const r of registros)validarPlanejamentoFiscal(r,{competencia:r.competencia,evidenciaCompetencia:r.evidenciaCompetencia,emissaoPlanejada:"",nota:""},hojeBrasil());
+      if(typeof body.percentual!=="string")throw Error("Informe a alíquota do cenário.");
+      const simulacao=simularRegularizacao(registros,body.percentual);
+      if(simulacao.imposto===null)throw Error("Alíquota do cenário inválida.");
+      const origemCenario=texto(body.origemCenario,1000);
+      const principal=req.headers.get("x-ms-client-principal");
+      const responsavel=principal?String(JSON.parse(Buffer.from(principal,"base64").toString("utf8")).userDetails||"Administrador").slice(0,254):"Administrador local";
+      const id=`lote-${createHash("sha256").update(registros.map(r=>r.id).sort().join("|")).digest("hex")}`;
+      const lote:LoteRegularizacao={id,tipo:"lote-regularizacao",empresa:emp,estado:"aguardando-validacao-fiscal",criadoEm:new Date().toISOString(),responsavel,dataPreparacao:hojeBrasil(),percentualCenario:body.percentual,origemCenario,total:simulacao.total,impostoEstimado:simulacao.imposto,
+        recebimentos:registros.map(r=>({id:r.id,recebimento:r.recebimento,competencia:r.competencia,centavos:r.centavos,vencimentoReferencia:r.vencimentoReferencia,descricao:`${r.descricao} Referência: ${r.competencia}. PIX recebido em ${r.recebimento}. Serviço já pago; sem nova cobrança.`,status:"pago"}))};
+      if(Buffer.byteLength(JSON.stringify(lote),"utf16le")>60000)throw Error("Lote muito grande. Selecione menos recebimentos.");
+      // Reservas exclusivas e ETags no mesmo lote: sem dupla preparação ou revisão concorrente.
+      await table.submitTransaction([
+        ["create",{partitionKey,rowKey:id,json:JSON.stringify(lote)}],
+        ...registros.map((r):TransactionAction=>["create",{partitionKey,rowKey:`reserva-${r.id}`,json:JSON.stringify({loteId:id})}]),
+        ...originais.map((r,i):TransactionAction=>["update",{partitionKey,rowKey:registros[i].id,json:r.json},"Replace",{etag:r.etag}]),
+      ]);
+      return resposta({lote,emissaoExecutada:false,emailEnviado:false},201);
+    }
     if(body.acao==="planejar-regularizacao") {
       if(!/^[a-f0-9]{64}$/.test(body.id || ""))throw new Error("Recebimento inválido.");
       const table=tabela("AdminDocumentos"), partitionKey=`regularizacao-${emp}`;
