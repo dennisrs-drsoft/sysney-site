@@ -6,6 +6,7 @@ import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
 import type { EmailCobranca } from "@/lib/emails-cobranca";
+import { validarPlanejamentoFiscal, type RegularizacaoFiscal } from "@/lib/regularizacao-fiscal";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,11 @@ export async function GET(req: NextRequest) {
   const remote = await encaminharAdmin(req); if (remote) return remote;
   if (!usuarioAdministrador(req)) return resposta({ erro: "Não autorizado." }, 401);
   try {
+    if(req.nextUrl.searchParams.get("regularizacao")==="1") {
+      const emp=empresa(req);
+      const registros=(await ler<RegularizacaoFiscal>(tabela("AdminDocumentos"),`regularizacao-${emp}`)).filter(r=>typeof r.id==="string"&&/^[a-f0-9]{64}$/.test(r.id));
+      return resposta({registros:registros.sort((a,b)=>a.recebimento.localeCompare(b.recebimento))});
+    }
     const part = `cobrancas-${empresa(req)}`;
     const mes = req.nextUrl.searchParams.get("mes") || hojeBrasil().slice(0, 7);
     if (!mesValido(mes)) throw new Error("Competência inválida.");
@@ -68,6 +74,38 @@ export async function POST(req: NextRequest) {
     const raw = await req.text();
     if (raw.length > 12000) throw new Error("Solicitação muito grande.");
     const body = JSON.parse(raw);
+    if(body.acao==="planejar-regularizacao") {
+      if(!/^[a-f0-9]{64}$/.test(body.id || ""))throw new Error("Recebimento inválido.");
+      const table=tabela("AdminDocumentos"), partitionKey=`regularizacao-${emp}`;
+      const original=await table.getEntity<Registro>(partitionKey,body.id);
+      const registro:RegularizacaoFiscal=JSON.parse(original.json);
+      if(registro.empresa!==emp || registro.id!==body.id)throw new Error("Recebimento de outra empresa.");
+      if(body.atualizadoEm!==registro.atualizadoEm)throw new Error("O planejamento mudou. Atualize antes de salvar.");
+      const atualizacao=validarPlanejamentoFiscal(registro,body,hojeBrasil());
+      if(atualizacao.nota) {
+        const nota=JSON.parse((await table.getEntity<Registro>(`nfse-historico-${emp}`,atualizacao.nota)).json);
+        if(nota.documento?.replace(/\D/g,"")!==registro.documento || nota.centavos!==registro.centavos || nota.situacao!=="N")throw new Error("A nota deve estar ativa, ser do mesmo cliente e ter o mesmo valor. Outros casos precisam de conciliação fiscal.");
+        for(const r of await ler<RegularizacaoFiscal>(table,partitionKey))if(r.id!==registro.id&&r.nota===atualizacao.nota)throw new Error("Essa nota já está vinculada a outro recebimento.");
+      }
+      let responsavel="Administrador local";
+      const principal=req.headers.get("x-ms-client-principal");
+      if(principal){const p=JSON.parse(Buffer.from(principal,"base64").toString("utf8"));responsavel=String(p.userDetails||p.userId||"Administrador").slice(0,254);}
+      const revisoes=registro.revisoes||[];
+      if(revisoes.length>=50)throw new Error("Limite de revisões atingido. Preserve o histórico para auditoria.");
+      const agora=new Date().toISOString();
+      const json=JSON.stringify({...registro,...atualizacao,atualizadoEm:agora,revisoes:[...revisoes,{data:agora,responsavel,...atualizacao}]});
+      if(Buffer.byteLength(json,"utf16le")>60000)throw new Error("Limite de armazenamento do histórico atingido.");
+      const entidade={partitionKey,rowKey:body.id,json};
+      if(atualizacao.nota&&!registro.nota) {
+        // Vínculo único e atualização com ETag no mesmo lote atômico: duas revisões
+        // concorrentes não podem atribuir a mesma nota a recebimentos diferentes.
+        await table.submitTransaction([
+          ["create",{partitionKey,rowKey:`nota-${atualizacao.nota}`,json:JSON.stringify({tipo:"vinculo-nota",recebimentoId:registro.id})}],
+          ["update",entidade,"Replace",{etag:original.etag}],
+        ]);
+      } else await table.updateEntity(entidade,"Replace",{etag:original.etag});
+      return resposta({sucesso:true});
+    }
     const planosTable = tabela("AdminConfiguracoes");
     if (body.acao === "plano") {
       const clienteId = texto(body.clienteId, 100);

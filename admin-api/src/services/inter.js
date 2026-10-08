@@ -248,6 +248,23 @@ export async function validarAutenticacaoInter(empresa) {
   }
 }
 
+// Somente leitura. Extrato enriquecido identifica PIX avulsos que não constam nos boletos.
+// Contrato: SDK oficial inter-co/pj-sdk-java, BankStatementClient.
+export async function consultarPaginaExtratoInter({ empresa, dataInicial, dataFinal, pagina = 0 }) {
+  const data = v => typeof v === "string" && /^20\d{2}-\d{2}-\d{2}$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString().slice(0, 10) === v;
+  if (!data(dataInicial) || !data(dataFinal) || dataInicial > dataFinal || (Date.parse(dataFinal) - Date.parse(dataInicial)) / 86400000 > 89 || !Number.isSafeInteger(pagina) || pagina < 0 || pagina > 9999) throw new Error("Período ou página do extrato inválido (máximo 90 dias).");
+  const credenciais = await carregarCredenciais(empresa);
+  const dispatcher = agenteMtls(credenciais);
+  try {
+    const token = await obterToken(credenciais, dispatcher, "extrato.read");
+    const url = new URL("/banking/v2/extrato/completo", API_URL_PADRAO);
+    for (const [k, v] of Object.entries({ dataInicio: dataInicial, dataFim: dataFinal, pagina, tamanhoPagina: 100 })) url.searchParams.set(k, String(v));
+    const resposta = await request(url, { method: "GET", dispatcher,
+      headers: { Accept: "application/json", Authorization: `Bearer ${token}`, ...(credenciais.contaCorrente ? { "x-conta-corrente": credenciais.contaCorrente } : {}) }, signal: AbortSignal.timeout(30000) });
+    return await respostaJson(resposta, "Extrato enriquecido do Inter");
+  } finally { await dispatcher.close(); }
+}
+
 export async function listarCobrancasInter({
   empresa,
   dataInicial,

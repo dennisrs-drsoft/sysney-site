@@ -22,7 +22,7 @@ function Icon({ name }: { name: string }) {
 const groups = [
   { label: "Visão do negócio", ids: ["visao-geral", "cobrancas", "acompanhamento"] },
   { label: "Operação financeira", ids: ["nova-emissao", "aprovacoes", "emails"] },
-  { label: "Cadastros e integrações", ids: ["clientes", "documentos", "historico-inter", "historico-fiscal", "nfse-nacional"] },
+  { label: "Cadastros e integrações", ids: ["clientes", "documentos", "historico-inter", "historico-fiscal", "regularizacao", "nfse-nacional"] },
 ];
 
 export function AdminShell<T extends string>({children, empresa, regime, secao, secoes, onEmpresa, onSecao, aviso, onFecharAviso}: {
