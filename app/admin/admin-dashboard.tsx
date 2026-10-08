@@ -1,11 +1,13 @@
 "use client";
 
 import { AdminShell } from "./admin-shell";
+import { VisaoFinanceira } from "./visao-financeira";
 import { Cobrancas } from "./cobrancas";
 import { FilaCobrancas } from "./fila-cobrancas";
 import { LaboratorioEmails } from "./laboratorio-emails";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
+import { HistoricoFiscal } from "./historico-fiscal";
 import { NfseNacional } from "./nfse-nacional";
 import { Aprovacoes } from "./aprovacoes";
 import {MensagemAdmin} from "./dialogos-admin";
@@ -18,7 +20,7 @@ import {
 } from "react";
 
 type EmpresaId = "drsoft" | "sysney";
-type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "nfse-nacional" | "aprovacoes";
+type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "historico-fiscal" | "nfse-nacional" | "aprovacoes";
 
 type Cliente = {
   id: string;
@@ -87,6 +89,7 @@ const secoes: { id: SecaoId; label: string }[] = [
   { id: "aprovacoes", label: "Aprovar emissão" },
   { id: "emails", label: "Laboratório de e-mails" },
   { id: "historico-inter", label: "Histórico do Inter" },
+  { id: "historico-fiscal", label: "Notas antigas e XML" },
   { id: "nfse-nacional", label: "NFS-e Nacional" },
   { id: "nova-emissao", label: "Nova emissão" },
   { id: "clientes", label: "Clientes" },
@@ -152,177 +155,6 @@ function formularioVazio(): FormularioEmissao {
   };
 }
 
-function Integracao({
-  titulo,
-  texto,
-  pronta = false,
-}: {
-  titulo: string;
-  texto: string;
-  pronta?: boolean;
-}) {
-  return (
-    <div
-      className={`flex items-start gap-3 rounded-2xl border p-4 ${
-        pronta
-          ? "border-emerald-200 bg-emerald-50"
-          : "border-amber-200 bg-amber-50"
-      }`}
-    >
-      <span
-        className={`mt-0.5 h-2.5 w-2.5 shrink-0 rounded-full ${
-          pronta
-            ? "bg-emerald-500 shadow-[0_0_0_4px_#d1fae5]"
-            : "bg-amber-400 shadow-[0_0_0_4px_#fef3c7]"
-        }`}
-      />
-      <div>
-        <p className="text-sm font-black text-slate-900">{titulo}</p>
-        <p className="mt-1 text-xs leading-5 text-slate-600">{texto}</p>
-      </div>
-    </div>
-  );
-}
-
-function VisaoGeral({
-  empresaId,
-  clientes,
-  rascunhos,
-  navegar,
-}: {
-  empresaId: EmpresaId;
-  clientes: Cliente[];
-  rascunhos: Rascunho[];
-  navegar: (secao: SecaoId) => void;
-}) {
-  const empresa = empresas[empresaId];
-  const valor = rascunhos.reduce((total, item) => total + item.valor, 0);
-  const indicadores = [
-    ["Rascunhos", String(rascunhos.length), "Preparados localmente"],
-    ["Valor planejado", moeda.format(valor), "Ainda não cobrado"],
-    ["Clientes", String(clientes.length), "Nesta empresa"],
-    ["NFS-e emitidas", "0", "Operação real bloqueada"],
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {indicadores.map(([rotulo, total, detalhe]) => (
-          <article
-            key={rotulo}
-            className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">
-              {rotulo}
-            </p>
-            <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
-              {total}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">{detalhe}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-        <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-6 py-5">
-            <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
-              Operação selecionada
-            </p>
-            <div className="mt-2 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-black text-slate-950">
-                  {empresa.razaoSocial}
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">{empresa.regime}</p>
-              </div>
-              <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
-                Ambiente de homologação
-              </span>
-            </div>
-          </div>
-
-          <div className="p-6">
-            <h3 className="text-lg font-black text-slate-950">
-              Prepare o primeiro fluxo de emissão
-            </h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-              Cadastre um cliente e monte um rascunho completo. Nenhum dado será
-              enviado à Prefeitura de São Paulo ou ao Banco Inter neste teste.
-            </p>
-            <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => navegar("clientes")}
-                className="rounded-full border border-slate-200 px-5 py-3 text-sm font-black text-slate-700 hover:border-blue-300 hover:text-blue-700"
-              >
-                Cadastrar cliente
-              </button>
-              <button
-                type="button"
-                onClick={() => navegar("nova-emissao")}
-                className="rounded-full bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700"
-              >
-                Criar rascunho
-              </button>
-            </div>
-
-            <h3 className="mt-8 text-lg font-black text-slate-950">
-              Próximos passos para produção
-            </h3>
-            <div className="mt-4 space-y-3">
-              {[
-                "Manter o acesso administrativo protegido no Azure",
-                "Conectar os certificados fiscais pelo cofre seguro",
-                "Revisar a carteira importada do Inter Empresas",
-                "Homologar serviço, alíquota e retenções com a contabilidade",
-              ].map((item, indice) => (
-                <div
-                  key={item}
-                  className="flex items-center gap-4 rounded-2xl bg-slate-50 px-4 py-3"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-blue-100 text-xs font-black text-blue-700">
-                    {indice + 1}
-                  </span>
-                  <p className="text-sm font-semibold text-slate-700">{item}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-          <p className="text-xs font-black uppercase tracking-[0.2em] text-blue-700">
-            Integrações
-          </p>
-          <h2 className="mt-2 text-2xl font-black text-slate-950">
-            Estado dos serviços
-          </h2>
-          <div className="mt-5 space-y-3">
-            <Integracao
-              titulo="NFS-e — Prefeitura de São Paulo"
-              texto="Emissão pelo sistema ainda bloqueada. Consultar notas ou acessar o portal não comprova emissão integrada: faltam validar a transmissão e o uso seguro do certificado no servidor."
-            />
-            <Integracao
-              titulo="Inter Empresas"
-              texto={
-                empresaId === "sysney"
-                  ? "Credenciais validadas e carteira de clientes sincronizada com segurança."
-                  : "Integração da DRSOFT ainda está em validação no Banco Inter."
-              }
-              pronta={empresaId === "sysney"}
-            />
-            <Integracao
-              titulo="Infraestrutura Azure"
-              texto="Cofre, armazenamento e serviço administrativo provisionados."
-              pronta
-            />
-          </div>
-        </section>
-      </div>
-    </div>
-  );
-}
 
 function CadastroClientes({
   empresaId,
@@ -942,6 +774,8 @@ export function AdminDashboard() {
     conteudo = <NfseNacional empresa={empresaId} />;
   } else if (secao === "historico-inter") {
     conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
+  } else if (secao === "historico-fiscal") {
+    conteudo = <HistoricoFiscal key={empresaId} empresa={empresaId} />;
   } else if (secao === "emails") {
     conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "cobrancas") {
@@ -979,10 +813,9 @@ export function AdminDashboard() {
     );
   } else {
     conteudo = (
-      <VisaoGeral
-        empresaId={empresaId}
-        clientes={clientesEmpresa}
-        rascunhos={rascunhosEmpresa}
+      <VisaoFinanceira
+        key={empresaId}
+        empresa={empresaId}
         navegar={setSecao}
       />
     );
