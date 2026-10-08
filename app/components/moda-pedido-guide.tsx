@@ -8,7 +8,7 @@ export function ModaPedidoGuide() {
       <h2 className="mt-4 text-3xl font-black tracking-tight md:text-4xl">Como organizar um pedido de moda por grade.</h2>
       <p className="mt-5 max-w-3xl leading-8 text-slate-600">Comece pelo cliente e pela coleção. Confira a tabela disponível, escolha os produtos e revise as quantidades por variação antes de confirmar o pedido.</p>
       <div className="mt-10 grid items-start gap-8 lg:grid-cols-2">
-        <figure className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"><Image src="/sisblink/catalogo-pedido.webp" alt="Tela do SISBlink com catálogo e montagem de pedido de coleção" width={1916} height={1073} sizes="(min-width: 1024px) 50vw, 100vw" className="h-auto w-full rounded-lg object-contain" /><figcaption className="px-2 py-4 text-sm leading-6 text-slate-600">Catálogo e pedido no SISBlink. Produtos e condições exibidos dependem da configuração da marca.</figcaption></figure>
+        <figure className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm"><Image src="/sisblink/telas/catalogo.webp" alt="Tela do SISBlink com catálogo e montagem de pedido de coleção" width={1920} height={1080} sizes="(min-width: 1024px) 50vw, 100vw" className="h-auto w-full rounded-lg object-contain" /><figcaption className="px-2 py-4 text-sm leading-6 text-slate-600">Catálogo e pedido no SISBlink. Produtos e condições exibidos dependem da configuração da marca.</figcaption></figure>
         <div className="space-y-4">{[
           ["1. Cliente e tabela", "Selecione o cliente autorizado e confira suas condições comerciais antes de montar o pedido."],
           ["2. Produto, cor e tamanho", "Apresente o produto no catálogo e distribua as quantidades entre as variações cadastradas."],

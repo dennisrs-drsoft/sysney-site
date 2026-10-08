@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
+import { SisblinkLiveHighlight } from "./components/sisblink-live-highlight";
 
 export const metadata: Metadata = {
   title: "Sistema de Força de Vendas B2B para Moda",
@@ -344,6 +345,8 @@ export default function Home() {
         </div>
       </section>
 
+      <SisblinkLiveHighlight />
+
       <section id="funcionalidades" className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <h2 className="text-center text-3xl font-black tracking-tight md:text-4xl">
@@ -414,10 +417,10 @@ export default function Home() {
           <div className="rounded-xl bg-[#07111f] p-3 shadow-2xl shadow-slate-300">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/catalogo-pedido.webp"
+                src="/sisblink/telas/catalogo.webp"
                 alt="Catálogo SISBlink"
-                width={1916}
-                height={1073}
+                width={1920}
+                height={1080}
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
@@ -440,10 +443,10 @@ export default function Home() {
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-2xl shadow-slate-200">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/catalogo.webp"
+                src="/sisblink/telas/catalogo.webp"
                 alt="Catálogo visual SISBlink"
-                width={1214}
-                height={929}
+                width={1920}
+                height={1080}
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
@@ -518,10 +521,10 @@ export default function Home() {
           <div className="rounded-xl border border-white/10 bg-white/5 p-3">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/dashboard.webp"
+                src="/sisblink/telas/dashboard.webp"
                 alt="Dashboard comercial SISBlink"
-                width={1263}
-                height={847}
+                width={1920}
+                height={1080}
                 sizes="(min-width: 1024px) 55vw, 100vw"
                 className="h-auto w-full"
               />

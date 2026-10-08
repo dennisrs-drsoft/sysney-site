@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { CommercialPage, type CommercialPageData } from "../components/commercial-page";
 import { ModaPedidoGuide } from "../components/moda-pedido-guide";
+import { SisblinkLiveHighlight } from "../components/sisblink-live-highlight";
 
 const title = "Sistema de pedidos para confecção e moda atacado";
 const description = "Catálogo digital para representantes, pedidos por grade, cor e tamanho, pré-venda de coleção e pronta entrega. Conheça o SISBlink e avalie a integração ao seu ERP.";
@@ -13,7 +14,7 @@ const data: CommercialPageData = {
   eyebrow: "Confecções · Marcas · Representantes",
   title: "Da coleção ao pedido: cor, tamanho e grade no mesmo lugar.",
   lead: "Vender moda no atacado exige mais do que uma lista de produtos. O SISBlink reúne catálogo digital, clientes e pedidos para o representante apresentar a coleção e negociar com clareza, sem depender de planilhas e informações espalhadas no WhatsApp.",
-  image: { src: "/sisblink/catalogo.webp", alt: "Catálogo digital SISBlink para apresentação de coleções de moda no atacado", width: 1214, height: 929 },
+  image: { src: "/sisblink/telas/catalogo.webp", alt: "Catálogo digital SISBlink para apresentação de coleções de moda no atacado", width: 1920, height: 1080 },
   benefits: [
     { title: "Pedido por grade, cor e tamanho", text: "Organize variações e quantidades no contexto do produto. Uma conferência clara ajuda a evitar a venda da cor errada, tamanhos esquecidos e retrabalho no pedido." },
     { title: "Catálogo digital para representantes", text: "Apresente imagens e produtos organizados por coleção e categoria pelo navegador. O lojista visualiza o mix enquanto o representante conduz o atendimento." },
@@ -39,4 +40,4 @@ const data: CommercialPageData = {
   ],
   value: { title: "Exija uma experiência profissional. Compare o investimento.", text: "Você não precisa escolher seu sistema apenas pelo tamanho do fornecedor. A SYSNEY reúne experiência em sistemas comerciais e uma plataforma dedicada à moda. Nossa proposta é entregar o que sua operação precisa com foco em custo-benefício, clareza de escopo e qualidade no atendimento.", points: ["Teste o fluxo real: catálogo, grade, pedido e conferência.", "Avalie integração e implantação antes de contratar.", "Compare investimento e suporte para o mesmo escopo."] },
 };
-export default function Page() { return <CommercialPage data={data}><ModaPedidoGuide /></CommercialPage>; }
+export default function Page() { return <CommercialPage data={data}><SisblinkLiveHighlight /><ModaPedidoGuide /></CommercialPage>; }
