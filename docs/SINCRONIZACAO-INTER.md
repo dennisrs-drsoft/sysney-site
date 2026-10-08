@@ -22,4 +22,13 @@ DRSOFT permanece indisponível. Não habilitar sua integração por esta release
 - [SDK Inter Empresas](https://developers.inter.co/docs/sdks/sdk-java)
 - [Situações de cobrança no Inter](https://ajuda.inter.co/conta-digital-pessoa-juridica/o-que-quer-dizer-os-status-que-constam-nos-meus-boletos-de-cobranca)
 
-Versão prevista: 2026.10.08.005. Confirmar execução, acesso privado e versão pública antes de considerar a ativação concluída.
+## Publicação e validação — 08/10/2026
+
+- Versão pública confirmada: **2026.10.08.005**, commit de código `ac62c770a879e74ccba59f1bd4e737c0deb4cb28`, workflow [37777173280](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/37777173280) concluído com sucesso.
+- API externa publicada e flag SYSNEY ativada. Metadados dos gatilhos sincronizados; `inter-sync-sysney` registrado no Azure.
+- Primeiro teste real da consulta atualizou 17 snapshots. Pedido manual via API autenticada retornou 202; o timer executou o pedido às 09:32 de Brasília, concluído às 09:32:04, atualizando 17 registros sem emissão/cancelamento bancário.
+- 99 testes automatizados aprovados; TypeScript, ESLint dos arquivos alterados, build Next.js e bundle administrativo aprovados.
+- Home/contato HTTP 200; admin/endpoint privado anônimos HTTP 302 para autenticação. A checagem de publicação não substitui revisão visual na sessão do usuário.
+- Nenhuma mudança no site institucional, VM, certificado fiscal ou integração DRSOFT. Scripts operacionais/documentos locais permaneceram fora dos commits.
+
+O commit posterior desta documentação usa `[skip ci]` para não repetir a publicação já confirmada. O artefato implantado permanece no SHA de código acima.
