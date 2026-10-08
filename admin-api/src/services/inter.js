@@ -205,7 +205,7 @@ function conteudoCobrancas(resposta) {
   if (Array.isArray(resposta)) return resposta;
   if (Array.isArray(resposta.content)) return resposta.content;
   if (Array.isArray(resposta.cobrancas)) return resposta.cobrancas;
-  return [];
+  throw new Error("Consulta de cobranças retornou formato desconhecido.");
 }
 
 function possuiProximaPagina(resposta, quantidade, paginaAtual) {
@@ -269,6 +269,7 @@ export async function listarCobrancasInter({
   empresa,
   dataInicial,
   dataFinal,
+  maxPaginas = 100,
 }) {
   const credenciais = await carregarCredenciais(empresa);
   const dispatcher = agenteMtls(credenciais);
@@ -277,7 +278,7 @@ export async function listarCobrancasInter({
     const token = await obterToken(credenciais, dispatcher);
     const cobrancas = [];
 
-    for (let paginaAtual = 0; paginaAtual < 100; paginaAtual += 1) {
+    for (let paginaAtual = 0; paginaAtual < maxPaginas; paginaAtual += 1) {
       const url = new URL(
         "/cobranca/v3/cobrancas",
         process.env.INTER_API_URL || API_URL_PADRAO
@@ -307,6 +308,7 @@ export async function listarCobrancasInter({
       cobrancas.push(...pagina);
 
       if (!possuiProximaPagina(dados, pagina.length, paginaAtual)) break;
+      if (paginaAtual + 1 === maxPaginas) throw new Error("Consulta bancária excedeu o limite de páginas; não assumir histórico completo.");
     }
 
     return cobrancas;

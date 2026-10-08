@@ -4,7 +4,7 @@ import { TableClient, type TableEntityResult, type TransactionAction } from "@az
 import { createHash } from "node:crypto";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
+import { carteira, dataValida, hojeBrasil, mesValido, pago, prevista, integrarEnvios, integrarPagamentosInter, type Plano, type Cobranca, type Evento } from "@/lib/cobrancas";
 import type { EmailCobranca } from "@/lib/emails-cobranca";
 import { validarPlanejamentoFiscal, validarLoteRegularizacao, simularRegularizacao, type LoteRegularizacao, type RegularizacaoFiscal } from "@/lib/regularizacao-fiscal";
 
@@ -63,7 +63,10 @@ export async function GET(req: NextRequest) {
     ]);
     const ate = mes > hojeBrasil().slice(0, 7) ? mes : hojeBrasil().slice(0, 7);
     const emails = await ler<EmailCobranca>(tabela("AdminDocumentos"), `emails-${empresa(req)}`);
-    return resposta({ planos, cobrancas: integrarEnvios(carteira(planos, salvas, ate), emails, empresa(req)), hoje: hojeBrasil() });
+    const projetadas=integrarEnvios(carteira(planos, salvas, ate), emails, empresa(req));
+    const banco:Parameters<typeof integrarPagamentosInter>[2]=[];
+    if(empresa(req)==="sysney")for await(const row of tabela("AdminDocumentos").listEntities<Registro&{atualizadoEm:string}>({queryOptions:{filter:"PartitionKey eq 'inter-historico-sysney'"}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
+    return resposta({ planos, cobrancas: integrarPagamentosInter(projetadas,planos,banco,emails), hoje: hojeBrasil() });
   } catch (e) { return falha(e); }
 }
 export async function POST(req: NextRequest) {

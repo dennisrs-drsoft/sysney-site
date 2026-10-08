@@ -9,6 +9,7 @@ export type Evento = {
   id: string; tipo: "documentos" | "envio" | "recebimento" | "pagamento" | "estorno" | "alteracao";
   data: string; registradoEm: string; responsavel: string; detalhe: string;
   centavos?: number; referencia?: string;
+  fonte?: "banco";
 };
 export type Cobranca = {
   id: string; planoId: string; competencia: string; clienteNome: string;
@@ -18,6 +19,23 @@ export type Cobranca = {
 };
 export function hojeBrasil() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+}
+
+// Projeção somente leitura: não altera eventos manuais nem cria baixa no Inter.
+export function integrarPagamentosInter(cobrancas:Cobranca[], planos:Plano[], banco:{cobranca:{pagador?:{cpfCnpj?:string};dataVencimento?:string;valorNominal?:number;situacao?:string;dataSituacao?:string;valorTotalRecebido?:number;codigoSolicitacao?:string};boleto?:{nossoNumero?:string};consultadoEm:string}[], emails:{competencia:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string;boleto?:string}}[]) {
+  const numero=(v:string)=>v.replace(/\D/g,"").replace(/^0+/,"");
+  const boleto=(c:Cobranca)=>numero(c.boleto||emails.find(e=>e.fluxo?.cobrancaId===c.id&&e.competencia===c.competencia&&e.centavos===c.centavos&&e.vencimento===c.vencimento)?.fluxo?.boleto||"");
+  return cobrancas.map(c=>{
+    const n=boleto(c), documento=planos.find(p=>p.id===c.planoId)?.documento.replace(/\D/g,"");
+    if(!n||!documento||cobrancas.filter(x=>boleto(x)===n).length!==1||c.eventos.some(e=>["pagamento","estorno"].includes(e.tipo)))return c;
+    const candidatos=banco.filter(b=>numero(b.boleto?.nossoNumero||"")===n);
+    if(candidatos.length!==1)return c;
+    const b=candidatos[0],d=b.cobranca, data=d.dataSituacao?.slice(0,10)||"";
+    if(d.situacao!=="RECEBIDO"||!dataValida(data)||!d.codigoSolicitacao||d.pagador?.cpfCnpj?.replace(/\D/g,"")!==documento||d.dataVencimento?.slice(0,10)!==c.vencimento||Math.round(Number(d.valorNominal)*100)!==c.centavos)return c;
+    const valor=d.valorTotalRecebido===undefined||d.valorTotalRecebido===null?c.centavos:Math.round(Number(d.valorTotalRecebido)*100);
+    if(!Number.isSafeInteger(valor)||valor<=0||!Number.isFinite(Date.parse(b.consultadoEm)))return c;
+    return {...c,eventos:[...c.eventos,{id:`inter-${d.codigoSolicitacao}`,tipo:"pagamento" as const,data,registradoEm:b.consultadoEm,responsavel:"Sistema — Banco Inter",detalhe:"Pagamento confirmado pelo Inter. Data da situação bancária; não é envio de e-mail nem nova cobrança.",centavos:Math.min(valor,c.centavos),fonte:"banco" as const}]};
+  });
 }
 export function mesValido(v: unknown): v is string {
   return typeof v === "string" && /^(20\d{2})-(0[1-9]|1[0-2])$/.test(v);

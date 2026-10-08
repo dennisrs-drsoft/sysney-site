@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { SincronizacaoInter } from "./sincronizacao-inter";
 import { hojeBrasil, dataBr, moeda, type Cobranca, type Plano } from "@/lib/cobrancas";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados, type EmailFinanceiro, type EstadoFinanceiro, type RegistroInter, type NotaFinanceira, type FiltroFinanceiro } from "@/lib/visao-financeira";
@@ -18,6 +19,7 @@ const tons: Record<EstadoFinanceiro, string> = { previsto: "bg-slate-100 text-sl
 export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drsoft"; navegar: (destino: Destino) => void }) {
   const [dados, setDados] = useState<Dados | null>(null);
   const [carga, setCarga] = useState(0);
+  const recarregarBanco=useCallback(()=>setCarga(v=>v+1),[]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [erroPeriodo, setErroPeriodo] = useState("");
@@ -110,6 +112,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
       {por === "pagamento" && <p className="mt-3 text-xs text-amber-800">Este filtro exige uma data de quitação registrada. No Inter é a data da baixa, que pode diferir do dia em que o cliente pagou; parciais sem quitação completa não aparecem.</p>}
     </section>
 
+    <SincronizacaoInter key={empresa} empresa={empresa} aoAtualizar={recarregarBanco}/>
     <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-900">
       {ultimaConsulta ? <>Inter: dados salvos entre {dataConsulta(primeiraConsulta!)} e {dataConsulta(ultimaConsulta)} (horário de Brasília). Situações bancárias podem ter mudado desde a consulta. </> : <>Nenhum histórico do Inter disponível nesta empresa. </>}
       Atualizar o painel relê a base; não consulta o banco nem emite documentos. Recebimentos usam o valor recebido informado pelo Inter quando disponível; na ausência dele, usam o nominal. O painel não substitui o extrato bancário.

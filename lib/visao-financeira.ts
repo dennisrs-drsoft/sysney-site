@@ -71,7 +71,7 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
       competencia: c.competencia, emissao: c.eventos.filter(v => v.tipo === "documentos").map(v => data(v.data)).filter(Boolean).sort()[0] || "",
       vencimento: c.vencimento, centavos: c.centavos, recebido, saldo: emitida ? saldo : 0, estado, origem: "sistema", nota, boleto, envio,
       etapa: envio ? "Aceito pelo provedor; entrega não confirmada" : e?.status === "incerto" ? "Envio incerto: consultar provedor" : e?.status === "enviando" ? "Envio em processamento" : e?.aprovacaoEnvio ? "E-mail aprovado; falta enviar" : e?.fluxo?.documentos ? "Documentos conferidos; revisar e-mail" : emitida ? "Conferir documentos e e-mail" : "Preparar / aprovar documentos", consultadoEm: "",
-      pagamento: saldo === 0 ? pagamentos.at(-1) || "" : "", fontePagamento: pagamentos.length ? "manual" : "", recebidoNominal: false,
+      pagamento: saldo === 0 ? pagamentos.at(-1) || "" : "", fontePagamento: pagamentos.length ? c.eventos.some(v=>v.tipo==="pagamento"&&v.fonte==="banco")?"banco":"manual" : "", recebidoNominal: false,
       emissaoPrevista: c.envioPrevisto, emissaoNota: notaFiscal.length === 1 ? data(notaFiscal[0].emissao) : "" };
     const candidatos = banco.map((b, i) => ({ b, i })).filter(({ b }) => !!numeroBoleto(boleto) && numeroBoleto(b.nossoNumero || "") === numeroBoleto(boleto));
     const exato = candidatos.length === 1 && (contagem.get(numeroBoleto(boleto)) || 0) <= 1 ? candidatos[0] : undefined;
