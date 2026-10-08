@@ -1,9 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { centavosExtrato, validarPlanejamentoFiscal, resumoRegularizacao, simularRegularizacao, validarLoteRegularizacao, textoRegularizacao } from "../lib/regularizacao-fiscal.ts";
+import { centavosExtrato, validarPlanejamentoFiscal, resumoRegularizacao, cronogramaRegularizacao, simularRegularizacao, validarLoteRegularizacao, textoRegularizacao } from "../lib/regularizacao-fiscal.ts";
 const registro={id:"a".repeat(64),empresa:"sysney",centavos:12345,competencia:"",nota:"",notasCandidatas:[],recebimento:"2025-02-11"};
 const b={competencia:"2025-01",evidenciaCompetencia:"Memória de cálculo",emissaoPlanejada:"2026-10-09",nota:""};
+test("cronograma usa mês planejado, preserva referência original e exclui notas vinculadas",()=>{
+ const lista=[{...registro,...b},{...registro,...b,emissaoPlanejada:"2026-11-15"},{...registro,...b,nota:"51"},{...registro,emissaoPlanejada:""}];
+ assert.deepEqual(cronogramaRegularizacao(lista),[
+  {mes:"2026-10",quantidade:1,total:12345},{mes:"2026-11",quantidade:1,total:12345},{mes:"",quantidade:1,total:12345}
+ ]);
+ assert.equal(lista[0].competencia,"2025-01");
+ assert.equal(lista[0].recebimento,"2025-02-11");
+ assert.deepEqual(cronogramaRegularizacao([]),[]);
+});
 test("valores de extrato usam centavos exatos e não aceitam débitos/formatos ambíguos",()=>{
  assert.equal(centavosExtrato("1511.56"),151156);assert.equal(centavosExtrato("125.79"),12579);assert.equal(centavosExtrato("1.5"),150);
  for(const v of ["-1","0","1,5","1.234",1,null,"NaN"])assert.throws(()=>centavosExtrato(v));

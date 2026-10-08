@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { dataBr, moeda, type Empresa } from "@/lib/cobrancas";
-import { resumoRegularizacao, type RegularizacaoFiscal, type LoteRegularizacao } from "@/lib/regularizacao-fiscal";
+import { resumoRegularizacao, cronogramaRegularizacao, type RegularizacaoFiscal, type LoteRegularizacao } from "@/lib/regularizacao-fiscal";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { MensagemAdmin, ModalAdmin, useConfirmarAdmin } from "./dialogos-admin";
 import { LoteRegularizacaoPainel } from "./lote-regularizacao";
@@ -21,6 +21,7 @@ export function RegularizacaoFiscalPainel({empresa}:{empresa:Empresa}) {
   },[empresa]);
   useEffect(()=>{const abort=new AbortController();const id=requestAnimationFrame(()=>void carregar(abort.signal));return()=>{cancelAnimationFrame(id);abort.abort();};},[carregar]);
   const lista=registros.filter(r=>(!inicio||r.recebimento>=inicio)&&(!fim||r.recebimento<=fim)), resumo=resumoRegularizacao(lista);
+  const cronograma=cronogramaRegularizacao(registros.filter(r=>r.empresa===empresa));
   async function salvar(e:FormEvent<HTMLFormElement>){
     e.preventDefault();if(!editando||ocupado)return;const f=new FormData(e.currentTarget);
     const body={acao:"planejar-regularizacao",id:editando.id,atualizadoEm:editando.atualizadoEm,competencia:f.get("competencia"),evidenciaCompetencia:f.get("evidencia"),emissaoPlanejada:f.get("planejada"),nota:f.get("nota")};
@@ -32,6 +33,18 @@ export function RegularizacaoFiscalPainel({empresa}:{empresa:Empresa}) {
   return <section className="space-y-5">
     <header className="rounded-3xl bg-[#071b30] p-7 text-white"><p className="text-xs font-bold uppercase tracking-widest text-cyan-300">{empresa.toUpperCase()} · Regularização fiscal</p><h2 className="mt-2 text-2xl font-black">Valores recebidos, notas a conferir</h2><p className="mt-3 max-w-3xl text-sm text-slate-300">Organize o histórico já pago e planeje a regularização em etapas, preservando as datas reais. Estes valores não são dívidas do cliente.</p></header>
     <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">Não use o mês do PIX como competência automaticamente. Confira o período na memória de cálculo ou contrato e as notas existentes antes de emitir. Planejamento não muda a competência tributária e não agenda emissão automática.</p>
+    <section className="rounded-2xl border border-blue-200 bg-white p-5 space-y-3">
+      <p className="text-xs font-bold uppercase tracking-widest text-blue-700">Orientação da contabilidade pendente</p>
+      <h3 className="text-lg font-bold">Documentação e regularização tributária são etapas separadas</h3>
+      <p className="text-sm text-slate-600">Você pode organizar duas notas em um mês, duas no seguinte e continuar até finalizar. Antes da emissão, confirme com a contabilidade o procedimento de emissão tardia na Prefeitura e as apurações que precisam de correção. Uma nota vinculada comprova apenas o vínculo documental neste controle, não a regularização ou o pagamento do imposto.</p>
+      <p className="text-sm text-slate-600">Para a conferência, informe: competência real do serviço, data e valor do PIX, notas eventualmente existentes e declarações já apresentadas. Registre a orientação recebida nas observações de cada recebimento. Nenhum lote transmite notas, gera guias ou envia e-mails por conta própria.</p>
+    </section>
+    {carregado&&<section className="rounded-2xl border border-slate-200 bg-white p-5 space-y-3">
+      <h3 className="text-lg font-bold">Cronograma documental por mês planejado</h3>
+      <p className="text-sm text-slate-600">Todo o histórico da empresa, independente do filtro de recebimentos. Em “Revisar e planejar”, escolha a data pretendida para cada nota. Não é agendamento automático nem calendário de impostos.</p>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{cronograma.map(c=><article key={c.mes||"sem-data"} className="rounded-xl bg-blue-50 p-4"><p className="font-bold text-blue-950">{c.mes?c.mes.split("-").reverse().join("/"):"Sem data planejada"}</p><p className="mt-2 text-sm">{c.quantidade} recebimento(s) · {moeda(c.total)}</p><p className="mt-2 text-xs text-slate-600">Nota pendente · emissão depende de revisão fiscal</p></article>)}</div>
+      {!cronograma.length&&<p className="text-sm text-slate-500">Nenhum recebimento sem nota vinculada no histórico carregado.</p>}
+    </section>}
     <div className="flex flex-wrap items-end gap-4"><label className="text-sm font-semibold">Recebimentos desde<input type="date" className={input} value={inicio} onChange={e=>setInicio(e.target.value)}/></label><label className="text-sm font-semibold">Até<input type="date" className={input} value={fim} min={inicio||undefined} onChange={e=>setFim(e.target.value)}/></label><button className={botao} disabled={ocupado} onClick={()=>void carregar()}>Atualizar consulta</button><button className={botao} onClick={()=>{setInicio("");setFim("");}}>Todo o histórico</button></div>
     <div className="grid gap-4 md:grid-cols-3">{[{titulo:"Recebido por PIX",valor:moeda(resumo.recebido),detalhe:`${resumo.recebimentos} recebimento(s)`},{titulo:"Sem nota vinculada",valor:moeda(resumo.semNotaVinculada),detalhe:"Não é saldo a cobrar nem imposto calculado"},{titulo:"Notas vinculadas",valor:moeda(resumo.vinculado),detalhe:`${resumo.conferir} registro(s) ainda exigem conferência`}].map(c=><article key={c.titulo} className="rounded-2xl border border-slate-200 bg-white p-5"><h3 className="text-sm text-slate-600">{c.titulo}</h3><p className="mt-2 text-2xl font-black text-slate-950">{carregado?c.valor:"…"}</p><p className="mt-2 text-xs text-slate-500">{carregado?c.detalhe:"Aguardando a consulta"}</p></article>)}</div>
     {ocupado&&<p aria-live="polite" className="text-sm text-slate-600">Consultando o controle…</p>}

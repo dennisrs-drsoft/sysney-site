@@ -34,6 +34,20 @@ export function resumoRegularizacao(lista: RegularizacaoFiscal[]) {
     semNotaVinculada:lista.filter(r=>!r.nota).reduce((s,r)=>s+r.centavos,0) };
 }
 
+// Planejamento documental, independente do mês do serviço e da apuração tributária.
+export function cronogramaRegularizacao(lista: RegularizacaoFiscal[]) {
+  const meses = new Map<string, { mes: string; quantidade: number; total: number }>();
+  for (const r of lista) {
+    if (r.nota) continue;
+    const mes = r.emissaoPlanejada ? r.emissaoPlanejada.slice(0, 7) : "";
+    const grupo = meses.get(mes) || { mes, quantidade: 0, total: 0 };
+    grupo.quantidade++;
+    grupo.total += r.centavos;
+    meses.set(mes, grupo);
+  }
+  return [...meses.values()].sort((a, b) => (a.mes || "9999").localeCompare(b.mes || "9999"));
+}
+
 // Cenário financeiro informado pelo administrador; não é apuração nem dívida.
 export function simularRegularizacao(lista: RegularizacaoFiscal[], percentual: string) {
   const total = lista.reduce((s,r)=>s+r.centavos,0);
