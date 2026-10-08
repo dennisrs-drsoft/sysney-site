@@ -1,6 +1,6 @@
 {
-  "version": "2026.10.08.001",
-  "release": "sysney-site-admin-consolidado",
+  "version": "2026.10.08.002",
+  "release": "regularizacao-fiscal-pix",
   "siteBase": "90cb4c7",
-  "adminBase": "7ad12cc"
+  "adminBase": "a9a4f54"
 }
