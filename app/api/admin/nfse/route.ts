@@ -45,6 +45,22 @@ export async function GET(req:NextRequest){
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
   try{
     const emp=empresa(req),id=req.nextUrl.searchParams.get("id");
+    if(req.nextUrl.searchParams.get("pgdas")==="1"){
+      const mes=req.nextUrl.searchParams.get("mes");
+      if(mes){
+        if(!/^20\d{2}-(0[1-9]|1[0-2])$/.test(mes))throw Error("Mês inválido.");
+        const row=await table().getEntity<{json:string}>(`pgdas-${emp}`,mes),a=JSON.parse(row.json);
+        if(typeof a.blob!=="string"||!a.blob.startsWith(`historico/${emp}/pgdas/`))throw Error("Documento inválido.");
+        const conta=process.env.ADMIN_STORAGE_ACCOUNT||(process.env.NODE_ENV!=="production"?"sysneyadm2602":"");
+        const bytes=await new BlobServiceClient(`https://${conta}.blob.core.windows.net`,cred).getContainerClient("admin-anexos").getBlockBlobClient(a.blob).downloadToBuffer();
+        return new NextResponse(new Uint8Array(bytes),{headers:{"Content-Type":"application/pdf","Content-Disposition":`attachment; filename="PGDAS_${mes}.pdf"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+      }
+      const apuracoes=[];
+      for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'pgdas-${emp}'`}})){
+        const a=JSON.parse(row.json);apuracoes.push({mes:a.mes,declaracao:a.declaracao,receita:a.receita,debito:a.debito,rbt12:a.rbt12,rbt12p:a.rbt12p,regime:a.regime,atividade:a.atividade,importadoEm:a.importadoEm});
+      }
+      return reply({apuracoes:apuracoes.sort((a,b)=>a.mes.localeCompare(b.mes))});
+    }
     if(req.nextUrl.searchParams.get("historico")==="1"){
       const numero=req.nextUrl.searchParams.get("numero"),arquivo=req.nextUrl.searchParams.get("arquivo");
       if(numero && arquivo){

@@ -94,6 +94,21 @@ test("arquivo fiscal histórico exige login, separa empresas e bloqueia blob de 
  assert.equal((await GET(historico("empresa=sysney&numero=52&arquivo=exe"))).status,400);
  assert.equal(state.real,0);assert.equal(state.testes,0);
 });
+test("PGDAS exige administrador, separa empresas e não divulga localização privada",async()=>{
+ setup();
+ const consulta=(query,auth="yes")=>{const r=req(null,{"x-test":auth});r.nextUrl=new URL("http://localhost:3100/api/admin/nfse?pgdas=1&"+query);return r;};
+ const a={mes:"2026-08",declaracao:"sintetica",receita:10000,debito:600,rbt12:120000,rbt12p:null,regime:"Competência",atividade:"teste",blob:"historico/sysney/pgdas/teste.pdf",sha256:"privado"};
+ records.set("AdminDocumentos:pgdas-sysney:2026-08",{partitionKey:"pgdas-sysney",json:JSON.stringify(a)});
+ assert.equal((await GET(consulta("empresa=sysney","no"))).status,401);
+ const r=await GET(consulta("empresa=sysney"));assert.equal(r.status,200);assert.equal(r.headers.get("cache-control"),"no-store");
+ const j=await r.json();assert.equal(j.apuracoes.length,1);assert.equal(j.apuracoes[0].blob,undefined);assert.equal(j.apuracoes[0].sha256,undefined);
+ assert.deepEqual((await (await GET(consulta("empresa=drsoft"))).json()).apuracoes,[]);
+ assert.equal((await GET(consulta("empresa=sysney&mes=../../outro"))).status,400);
+ records.set("AdminDocumentos:pgdas-drsoft:2026-08",{partitionKey:"pgdas-drsoft",json:JSON.stringify(a)});
+ assert.equal((await GET(consulta("empresa=drsoft&mes=2026-08"))).status,400);
+ assert.equal(state.real,0);assert.equal(state.testes,0);
+});
+
 test("fiscal exige autenticação, confirmação de série, teste recente e aprovação separada",async()=>{
  setup();assert.equal((await GET(req(null,{"x-test":"no"}))).status,401);assert.equal((await POST(req(preparar,{origin:"https://outro"}))).status,403);
  assert.equal((await POST(req({...preparar,confirmarSerie:false}))).status,400);
