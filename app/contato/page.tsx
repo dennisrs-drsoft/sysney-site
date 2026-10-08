@@ -14,6 +14,7 @@ type Props = {
   searchParams?: Promise<{
     enviado?: string;
     origem?: string;
+    interesse?: string;
     erro?: string;
   }>;
 };
@@ -22,6 +23,7 @@ export default async function ContatoPage({ searchParams }: Props) {
   const params = await searchParams;
   const enviado = params?.enviado === "1";
   const origem = params?.origem || "site-contato";
+  const avaliacao = params?.interesse === "avaliacao";
   const erro = params?.erro;
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -37,7 +39,7 @@ export default async function ContatoPage({ searchParams }: Props) {
             </Link>
 
             <p className="mt-14 text-sm font-black uppercase tracking-[0.35em] text-sky-300">
-              Demonstração gratuita
+              {avaliacao ? "Avaliação da operação" : "Demonstração gratuita"}
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
@@ -107,9 +109,9 @@ export default async function ContatoPage({ searchParams }: Props) {
               </div>
             )}
 
-            <h2 className="text-3xl font-black">Solicitar demonstração</h2>
+            <h2 className="text-3xl font-black">{avaliacao ? "Conversar sobre meu fluxo de pedidos" : "Solicitar demonstração"}</h2>
             <p className="mt-2 text-slate-600">
-              Quanto mais contexto você enviar, melhor conseguimos preparar a conversa.
+              {avaliacao ? "Conte sua principal dificuldade e qual sistema utiliza. Podemos começar pela avaliação do seu cenário, sem agendar uma demonstração neste primeiro contato." : "Quanto mais contexto você enviar, melhor conseguimos preparar a conversa."}
             </p>
 
             <div className="mt-8 grid gap-5 md:grid-cols-2">

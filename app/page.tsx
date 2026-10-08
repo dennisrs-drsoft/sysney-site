@@ -329,6 +329,21 @@ export default function Home() {
         </div>
       </section>
 
+      <section className="bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-sm font-black uppercase tracking-[0.25em] text-sky-300">Soluções para o dia a dia da moda</p>
+          <h2 className="mt-4 max-w-4xl text-3xl font-black tracking-tight md:text-5xl">Da grade da confecção ao mix da multimarcas.</h2>
+          <p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">Pedidos com cor e tamanho, coleção em pré-venda, pronta entrega e reposição: conheça como o SISBlink apoia cada etapa comercial e avalie o custo-benefício para sua operação.</p>
+          <div className="mt-10 grid gap-6 md:grid-cols-2">
+            {[
+              ["Sistema de pedidos para confecção e moda atacado", "Catálogo digital para representantes, pedidos por grade, cor e tamanho, pré-venda de coleção e pronta entrega. Usa Linx Millennium? Avaliamos a integração ao seu ERP.", "/sistema-pedidos-confeccao-moda"],
+              ["Compras e reposição para lojas multimarcas", "Estoque parado e falta de tamanhos pedem uma compra mais criteriosa. Veja como organizar o mix e os pedidos B2B com apoio dos dados da sua operação.", "/compras-reposicao-multimarcas"],
+            ].map(([title, text, href]) => <Link key={href} href={href} className="group rounded-3xl border border-white/15 bg-white/5 p-7 transition hover:border-sky-400 hover:bg-white/10"><h3 className="text-2xl font-black text-sky-200">{title}</h3><p className="mt-4 leading-7 text-slate-300">{text}</p><span className="mt-6 inline-block font-black text-emerald-300">Conhecer a solução →</span></Link>)}
+          </div>
+          <p className="mt-8 max-w-3xl leading-7 text-slate-300">Qualidade se avalia na prática. Compare catálogo, pedidos, integração, implantação e suporte no mesmo escopo. <Link href="/contato" className="font-bold text-emerald-300 underline underline-offset-4">Solicite uma demonstração e uma proposta da SYSNEY.</Link></p>
+        </div>
+      </section>
+
       <section id="funcionalidades" className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <h2 className="text-center text-3xl font-black tracking-tight md:text-4xl">

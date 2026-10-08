@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CommercialPage, type CommercialPageData } from "../components/commercial-page";
+import { IntegrationGuide } from "../components/integration-guide";
 export const metadata: Metadata = { title: "Integração ERP para Força de Vendas B2B", description: "Integre catálogo, clientes, preços, estoque e pedidos B2B ao ERP com APIs, webservices, arquivos e rotinas adequadas à sua operação.", alternates: { canonical: "/integracoes-erp" } };
 const data: CommercialPageData = {
   eyebrow: "Integrações ERP e ecossistema comercial", title: "Conecte a força de vendas aos dados que sustentam sua operação.", lead: "O SISBlink pode integrar produtos, clientes, tabelas, estoque e pedidos ao ecossistema da empresa. O desenho considera o ERP, as regras comerciais e a qualidade dos dados existentes, em vez de impor uma integração genérica.",
@@ -9,4 +10,4 @@ const data: CommercialPageData = {
   audienceTitle: "Integrações avaliadas conforme cada cenário", audiences: ["Linx e Microvix", "EasyLinx", "Bling", "Outros ERPs de mercado", "APIs e webservices", "Arquivos e rotinas legadas"],
   faq: [{ question: "O SISBlink integra com qualquer ERP?", answer: "A viabilidade depende das interfaces, dados e regras disponíveis no ERP. A SYSNEY avalia cada cenário antes de confirmar o escopo." }, { question: "É necessário trocar o ERP atual?", answer: "Não necessariamente. A proposta é conectar a camada comercial ao ecossistema existente quando houver meios técnicos seguros para isso." }, { question: "A integração acontece em tempo real?", answer: "Pode ser em tempo real ou por sincronizações programadas. A frequência adequada depende do dado, do ERP e dos requisitos da operação." }],
 };
-export default function Page() { return <CommercialPage data={data} />; }
+export default function Page() { return <CommercialPage data={data}><IntegrationGuide /></CommercialPage>; }
