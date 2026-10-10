@@ -1,15 +1,21 @@
-param([Parameter(Mandatory)][ValidatePattern('^[a-f0-9-]{36}$')][string]$IdColeta)
+param([Parameter(Mandatory)][ValidatePattern('^[a-f0-9-]{36}$')][string]$IdColeta,[ValidateSet('sysney','drsoft')][string]$Empresa='sysney',[ValidatePattern('^\d{1,12}$')][string]$InscricaoConsulta='15539300')
 $ErrorActionPreference='Stop'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 Add-Type -AssemblyName System.Security
 $config=Get-Content -Raw -LiteralPath 'C:\ProgramData\SYSNEY\FiscalTeste\config.json'|ConvertFrom-Json
-$emitente=@($config.emitentes|Where-Object {$_.empresa -eq 'sysney' -and $_.cnpj -eq '57767099000179'})
-if($emitente.Count -ne 1 -or $emitente[0].thumbprint -notmatch '^[A-Fa-f0-9]{40}$'){throw 'Vinculo fiscal da SYSNEY indisponivel.'}
+$emitente=@($config.emitentes|Where-Object {$_.empresa -eq $Empresa})
+if($emitente.Count -ne 1 -or $emitente[0].thumbprint -notmatch '^[A-Fa-f0-9]{40}$' -or $emitente[0].cnpj -notmatch '^\d{14}$'){throw 'Vinculo fiscal indisponivel.'}
+$cnpj=[string]$emitente[0].cnpj
+$inscricao=[string]$emitente[0].inscricao
+if(-not $inscricao){$inscricao=[string]$emitente[0].ccm}
+if(-not $inscricao){$inscricao=$InscricaoConsulta}
+if($inscricao -ne $InscricaoConsulta){throw 'Inscricao informada diverge da configuracao.'}
+if($inscricao -notmatch '^\d{1,12}$'){throw 'Inscricao municipal privada indisponivel.'}
 $certs=@(Get-ChildItem Cert:\LocalMachine\My|Where-Object {$_.Thumbprint -eq $emitente[0].thumbprint -and $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date)})
 if($certs.Count -ne 1){throw 'Certificado fiscal valido nao localizado.'}
 $cert=$certs[0]
 $token=(Invoke-RestMethod -Uri 'http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https%3A%2F%2Fstorage.azure.com%2F' -Headers @{Metadata='true'} -TimeoutSec 15).access_token
-$part='historico-nfse-sysney-'+$IdColeta
+$part='historico-nfse-'+$Empresa+'-'+$IdColeta
 $salvos=[Collections.Generic.HashSet[string]]::new()
 function Guardar([string]$id,$dados){
   $ent=@{PartitionKey=$part;RowKey=$id;json=($dados|ConvertTo-Json -Depth 5 -Compress)}
@@ -54,7 +60,7 @@ $total=0;$paginas=0
 Guardar 'status' @{estado='consultando';inicio='2006-06-01';fim=$hoje;notas=0;paginas=0}
 try{
   # Apenas ConsultaNFeEmitidas. Nao utiliza nenhum metodo de emissao/cancelamento.
-  $primeira=Consultar (LerXml "<p:PedidoConsultaNFe xmlns:p='http://www.prefeitura.sp.gov.br/nfe'><Cabecalho Versao='2'><CPFCNPJRemetente><CNPJ>57767099000179</CNPJ></CPFCNPJRemetente></Cabecalho><Detalhe><ChaveNFe><InscricaoPrestador>15539300</InscricaoPrestador><NumeroNFe>1</NumeroNFe></ChaveNFe></Detalhe></p:PedidoConsultaNFe>") 2 'ConsultaNFeRequest' 'consultaNFe'
+  $primeira=Consultar (LerXml "<p:PedidoConsultaNFe xmlns:p='http://www.prefeitura.sp.gov.br/nfe'><Cabecalho Versao='2'><CPFCNPJRemetente><CNPJ>$cnpj</CNPJ></CPFCNPJRemetente></Cabecalho><Detalhe><ChaveNFe><InscricaoPrestador>$inscricao</InscricaoPrestador><NumeroNFe>1</NumeroNFe></ChaveNFe></Detalhe></p:PedidoConsultaNFe>") 2 'ConsultaNFeRequest' 'consultaNFe'
   $primeiraData=Texto $primeira "//*[local-name()='NFe']/*[local-name()='DataEmissaoNFe']"
   if($primeiraData -notmatch '^\d{4}-\d{2}-\d{2}'){throw 'Data da primeira nota nao confirmada; nao presumir cobertura completa.'}
   $inicioHistorico=$primeiraData.Substring(0,7)+'-01'
@@ -65,7 +71,7 @@ try{
     if($fimMes -gt $limite){$fimMes=$limite}
     $periodo=@{inicio=$inicio.ToString('yyyy-MM-dd');fim=$fimMes.ToString('yyyy-MM-dd');versao=if($inicio.Year -ge 2026){2}else{1}}
     for($pagina=1;$pagina -le 100;$pagina++){
-      $xml=LerXml "<p:PedidoConsultaNFePeriodo xmlns:p='http://www.prefeitura.sp.gov.br/nfe'><Cabecalho Versao='$($periodo.versao)'><CPFCNPJRemetente><CNPJ>57767099000179</CNPJ></CPFCNPJRemetente><CPFCNPJ><CNPJ>57767099000179</CNPJ></CPFCNPJ><Inscricao>15539300</Inscricao><dtInicio>$($periodo.inicio)</dtInicio><dtFim>$($periodo.fim)</dtFim><NumeroPagina>$pagina</NumeroPagina></Cabecalho></p:PedidoConsultaNFePeriodo>"
+      $xml=LerXml "<p:PedidoConsultaNFePeriodo xmlns:p='http://www.prefeitura.sp.gov.br/nfe'><Cabecalho Versao='$($periodo.versao)'><CPFCNPJRemetente><CNPJ>$cnpj</CNPJ></CPFCNPJRemetente><CPFCNPJ><CNPJ>$cnpj</CNPJ></CPFCNPJ><Inscricao>$inscricao</Inscricao><dtInicio>$($periodo.inicio)</dtInicio><dtFim>$($periodo.fim)</dtFim><NumeroPagina>$pagina</NumeroPagina></Cabecalho></p:PedidoConsultaNFePeriodo>"
       $dados=Consultar $xml $periodo.versao 'ConsultaNFeEmitidasRequest' 'consultaNFeEmitidas'
       $notas=@($dados.SelectNodes("//*[local-name()='NFe']"));$paginas++
       # Preserva tambem a resposta oficial completa, em fragmentos abaixo do limite da tabela.
@@ -73,8 +79,8 @@ try{
       for($f=0;$f -lt $fragmentos;$f++){Guardar "pagina-$($periodo.inicio)-$pagina-$f" @{tipo='pagina';versao=$periodo.versao;inicio=$periodo.inicio;pagina=$pagina;fragmento=$f;total=$fragmentos;base64=$raw.Substring($f*28000,[Math]::Min(28000,$raw.Length-$f*28000))}}
       foreach($nota in $notas){
         $numero=Texto $nota "*[local-name()='ChaveNFe']/*[local-name()='NumeroNFe']"
-        $inscricao=Texto $nota "*[local-name()='ChaveNFe']/*[local-name()='InscricaoPrestador']"
-        if($numero -notmatch '^\d+$' -or $inscricao -ne '15539300'){throw 'Nota com identificacao divergente.'}
+        $inscricaoNota=Texto $nota "*[local-name()='ChaveNFe']/*[local-name()='InscricaoPrestador']"
+        if($numero -notmatch '^\d+$' -or $inscricaoNota -ne $inscricao){throw 'Nota com identificacao divergente.'}
         $valor=Texto $nota "*[local-name()='ValorFinalCobrado']";if(-not $valor){$valor=Texto $nota "*[local-name()='ValorServicos']"}
         $centavos=[long][Math]::Round(([decimal]::Parse($valor,[Globalization.CultureInfo]::InvariantCulture)*100),0)
         $arquivo=[Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($nota.OuterXml))

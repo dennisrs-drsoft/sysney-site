@@ -8,14 +8,18 @@ import { resolve, sep } from "node:path";
 import { consultarCobrancaInter, listarCobrancasInter } from "../src/services/inter.js";
 import { extrairTributosXml } from "../../lib/extrato-fiscal-xml.ts";
 
-const [modo, coleta] = process.argv.slice(2);
+const [modo, coleta, empresa = 'sysney'] = process.argv.slice(2);
+if (!['sysney','drsoft'].includes(empresa) || (modo === 'boletos' && empresa !== 'sysney')) throw Error('Empresa inválida ou integração bancária indisponível.');
 if (!['notas', 'boletos'].includes(modo) || (modo === 'notas' && !/^[a-f0-9-]{36}$/.test(coleta || ''))) throw Error('Informe notas + ID da coleta, ou boletos.');
 process.env.KEY_VAULT_URI ||= 'https://sysney-admin-kv-2602.vault.azure.net/';
 const cred = new DefaultAzureCredential(), storage = 'sysneyadm2602';
 const doc = new TableClient(`https://${storage}.table.core.windows.net`, 'AdminDocumentos', cred);
 const fila = new TableClient(`https://${storage}.table.core.windows.net`, 'FiscalFila', cred);
 const blob = new BlobServiceClient(`https://${storage}.blob.core.windows.net`, cred).getContainerClient('admin-anexos');
-const raiz = resolve('C:/Dados/Documentos/SYSNEY/Historico-Financeiro');
+const emitente = await new TableClient(`https://${storage}.table.core.windows.net`, 'AdminConfiguracoes', cred).getEntity('nfse-emitentes', empresa);
+const inscricao = String((emitente.json ? JSON.parse(emitente.json) : emitente).inscricao);
+if (!/^\d{1,12}$/.test(inscricao)) throw Error('Inscrição municipal inválida.');
+const raiz = resolve(`C:/Dados/Documentos/${empresa.toUpperCase()}/Historico-Financeiro`);
 const sha = b => createHash('sha256').update(b).digest('hex');
 async function arquivar(bytes, categoria, nome, mime) {
   if (!/^[a-z0-9-]+$/.test(categoria) || !/^[A-Za-z0-9_.-]+$/.test(nome)) throw Error('Nome de arquivo inválido.');
@@ -25,7 +29,7 @@ async function arquivar(bytes, categoria, nome, mime) {
   try { await writeFile(arquivo, bytes, { flag: 'wx' }); } catch (e) {
     if (e.code !== 'EEXIST' || sha(await readFile(arquivo)) !== sha(bytes)) throw e;
   }
-  const remoto = `historico/sysney/${categoria}/${nome}`;
+  const remoto = `historico/${empresa}/${categoria}/${nome}`;
   try { await blob.getBlockBlobClient(remoto).uploadData(bytes, { conditions: { ifNoneMatch: '*' }, blobHTTPHeaders: { blobContentType: mime } }); }
   catch (e) { if (![409, 412].includes(e.statusCode)) throw e; }
   return remoto;
@@ -35,7 +39,7 @@ function validarPdf(bytes) {
   return bytes;
 }
 async function baixarNota(n) {
-  if(!/^\d{1,12}$/.test(String(n.numero)) || !/^[A-Z0-9]{8}$/.test(n.verificacao) || n.inscricao !== '15539300') throw Error('Identificação fiscal divergente.');
+  if(!/^\d{1,12}$/.test(String(n.numero)) || !/^[A-Z0-9]{8}$/.test(n.verificacao) || n.inscricao !== inscricao) throw Error('Identificação fiscal divergente.');
   const url=new URL('https://nfe.prefeitura.sp.gov.br/contribuinte/notaprintpdf.aspx');
   url.search=new URLSearchParams({ nf:String(n.numero), inscricao:n.inscricao, verificacao:n.verificacao }).toString();
   const r=await fetch(url,{signal:AbortSignal.timeout(30000),redirect:'error',headers:{Accept:'application/pdf'}});
@@ -46,7 +50,7 @@ async function baixarNota(n) {
 }
 const pendencias=[];
 if(modo === 'notas') {
-  const part='historico-nfse-sysney-'+coleta;
+  const part=`historico-nfse-${empresa}-${coleta}`;
   const status=JSON.parse((await fila.getEntity(part,'status')).json);
   if(status.estado!=='concluido')throw Error('Consulta fiscal não concluída. Nenhuma cobertura completa será presumida.');
   const notas=[],paginas=new Map();
@@ -66,25 +70,30 @@ if(modo === 'notas') {
     await arquivar(bytes,'nfse',`consulta-${id}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
   }
   for(const n of notas) {
-    if(!/^\d+$/.test(n.numero)||n.inscricao!=='15539300'||!Number.isSafeInteger(n.centavos)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}/.test(n.emissao))throw Error('Metadados fiscais inválidos.');
+    if(!/^\d+$/.test(n.numero)||n.inscricao!==inscricao||!Number.isSafeInteger(n.centavos)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}/.test(n.emissao))throw Error('Metadados fiscais inválidos.');
     const bytes=Buffer.from(n.xmlBase64,'base64');
-    const xmlBlob=await arquivar(bytes,'nfse',`NFSe_15539300_${n.numero}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
+    const xmlBlob=await arquivar(bytes,'nfse',`NFSe_${inscricao}_${n.numero}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
     const {xmlBase64,...metadados}=n;
     metadados.tributos = extrairTributosXml(bytes.toString('utf8'), String(n.numero), n.inscricao);
-    let anterior={};try{anterior=JSON.parse((await doc.getEntity('nfse-historico-sysney',String(Number(n.numero)))).json);}catch(e){if(e.statusCode!==404)throw e;}
-    await doc.upsertEntity({partitionKey:'nfse-historico-sysney',rowKey:String(Number(n.numero)),json:JSON.stringify({...anterior,...metadados,xmlBlob,consultadoEm:status.em,coleta})},'Replace');
+    let anterior={};try{anterior=JSON.parse((await doc.getEntity(`nfse-historico-${empresa}`,String(Number(n.numero)))).json);}catch(e){if(e.statusCode!==404)throw e;}
+    await doc.upsertEntity({partitionKey:`nfse-historico-${empresa}`,rowKey:String(Number(n.numero)),json:JSON.stringify({...anterior,...metadados,xmlBlob,consultadoEm:status.em,coleta})},'Replace');
   }
   console.log(JSON.stringify({ etapa:'XML e índice fiscal importados', notas:notas.length, inicio:status.inicio, fim:status.fim }));
-  let pdfs=0;
-  for(const n of notas) {
+  let pdfs=0, indice=0;
+  async function recuperarPdfs() { while(indice < notas.length) {
+    const n=notas[indice++];
     try {
+      const existente=await doc.getEntity(`nfse-historico-${empresa}`,String(Number(n.numero)));
+      if(JSON.parse(existente.json).pdfBlob){pdfs++;continue;}
       const bytes=await baixarNota(n);
-      const pdfBlob=await arquivar(bytes,'nfse',`NFSe_15539300_${n.numero}-${sha(bytes).slice(0,12)}.pdf`,'application/pdf');
-      const row=await doc.getEntity('nfse-historico-sysney',String(Number(n.numero)));
+      const pdfBlob=await arquivar(bytes,'nfse',`NFSe_${inscricao}_${n.numero}-${sha(bytes).slice(0,12)}.pdf`,'application/pdf');
+      const row=await doc.getEntity(`nfse-historico-${empresa}`,String(Number(n.numero)));
       await doc.updateEntity({...row,json:JSON.stringify({...JSON.parse(row.json),pdfBlob})},'Replace',{etag:row.etag});pdfs++;
     } catch { pendencias.push({tipo:'nfse-pdf',numero:n.numero,motivo:'Download não confirmado; preservar XML e tentar consultar o PDF depois, sem reemitir.'}); }
     if((pdfs+pendencias.length)%10===0)console.log(JSON.stringify({etapa:'PDFs fiscais',pdfs,pendencias:pendencias.length}));
-  }
+  } }
+  // Duas consultas de PDF no máximo; não paraleliza emissão nem assinatura fiscal.
+  await Promise.all([recuperarPdfs(), recuperarPdfs()]);
   console.log(JSON.stringify({concluido:true,notas:notas.length,pdfs,pendencias:pendencias.length}));
 } else {
   // Retoma os registros já importados e acrescenta consultas até hoje, em janelas de 90 dias.
