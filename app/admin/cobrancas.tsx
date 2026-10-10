@@ -5,6 +5,8 @@ import { dataBr, hojeBrasil, moeda, pago, situacao, type Cobranca, type Empresa,
 import {MensagemAdmin} from "./dialogos-admin";
 import { ConciliacaoPix } from "./conciliacao-pix";
 
+import { useOrdenacaoTabela } from "./ordenacao-tabela";
+
 type Cliente = { id: string; nome: string; email: string; origem?: string };
 type Dados = { planos: Plano[]; cobrancas: Cobranca[]; hoje: string };
 const input = "mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950";
@@ -70,9 +72,14 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
   const atrasadas = todas.filter(c => situacao(c, hoje) === "Atrasado");
   const enviar = todas.filter(c => c.envioPrevisto <= hoje && pago(c) < c.centavos && !primeiroEvento(c, "envio"));
   const confirmar = todas.filter(c => primeiroEvento(c, "envio") && !primeiroEvento(c, "recebimento") && pago(c) < c.centavos);
-  const visiveis = filtro === "atraso" ? atrasadas : filtro === "envio" ? enviar : filtro === "recebimento" ? confirmar : todas.filter(c => c.competencia === mes);
+  const filtradas = filtro === "atraso" ? atrasadas : filtro === "envio" ? enviar : filtro === "recebimento" ? confirmar : todas.filter(c => c.competencia === mes);
   const selecionado = todas.find(c => c.id === selecionada);
   const remotos = clientes.filter(c => c.origem === "inter-cobrancas" || c.origem === "azure");
+  const { ordenadas: visiveis, cabecalhos } = useOrdenacaoTabela(filtradas, [
+    { titulo: "Cliente / competência", valor: c => c.clienteNome }, { titulo: "Envio previsto / realizado", valor: c => c.envioPrevisto },
+    { titulo: "Vencimento", valor: c => c.vencimento }, { titulo: "Saldo", valor: c => c.centavos - pago(c) },
+    { titulo: "Situação", valor: c => situacao(c, hoje) }, { titulo: "" },
+  ], "Vencimento", undefined, c => c.competencia + " " + c.nota);
   const planos = dados?.planos || [];
 
   return <div className="space-y-5">
@@ -115,7 +122,7 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
         <div><h3 className="text-xl font-black">Agenda de cobranças</h3><p className="mt-1 text-sm text-slate-500">{planos.length} mensalidade(s) cadastrada(s) · alertas atualizados a cada minuto enquanto o painel está aberto.</p></div>
         <div className="flex flex-wrap items-end gap-2"><label className={label}>Competência<input type="month" className={input} value={mes} onChange={e => { if (e.target.value) { setMes(e.target.value); setFiltro("mes"); } }}/></label><button className={secondary} onClick={() => setFiltro("mes")}>Ver mês</button><button className={secondary} disabled={loading} onClick={() => void carregar()}>{loading ? "Carregando..." : "Atualizar"}</button></div>
       </div>
-      {visiveis.length === 0 ? <p className="my-8 rounded-xl bg-slate-50 p-6 text-center text-slate-600">{loading ? "Carregando cobranças..." : planos.length ? "Nenhuma cobrança neste filtro." : "Cadastre a primeira mensalidade para gerar a agenda por competência."}</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b text-xs uppercase text-slate-500"><tr>{["Cliente / competência", "Envio previsto / realizado", "Vencimento", "Saldo", "Situação", ""].map((h,i) => <th key={i} className="px-3 py-3">{h}</th>)}</tr></thead><tbody>{visiveis.map(c => <tr key={c.id} className="border-b border-slate-100"><td className="px-3 py-4"><strong>{c.clienteNome}</strong><p className="mt-1 text-slate-500">{c.competencia.split("-").reverse().join("/")}</p></td><td className="px-3 py-4">{dataBr(c.envioPrevisto)}<p className="mt-1 text-xs text-slate-500">{primeiroEvento(c, "envio") ? `Enviado: ${dataBr(primeiroEvento(c, "envio")!.data)}` : "Envio não registrado"}</p></td><td className="px-3 py-4">{dataBr(c.vencimento)}</td><td className="px-3 py-4 font-bold">{moeda(c.centavos - pago(c))}<p className="mt-1 text-xs font-normal text-slate-500">Total: {moeda(c.centavos)}</p></td><td className="px-3 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${situacao(c,hoje) === "Atrasado" ? "bg-red-50 text-red-700" : situacao(c,hoje) === "Pago" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{situacao(c,hoje)}</span></td><td className="px-3 py-4"><button className={secondary} onClick={() => { setSelecionada(c.id); setAviso(""); }}>Acompanhar</button></td></tr>)}</tbody></table></div>}
+      {visiveis.length === 0 ? <p className="my-8 rounded-xl bg-slate-50 p-6 text-center text-slate-600">{loading ? "Carregando cobranças..." : planos.length ? "Nenhuma cobrança neste filtro." : "Cadastre a primeira mensalidade para gerar a agenda por competência."}</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b text-xs uppercase text-slate-500"><tr>{cabecalhos}</tr></thead><tbody>{visiveis.map(c => <tr key={c.id} className="border-b border-slate-100"><td className="px-3 py-4"><strong>{c.clienteNome}</strong><p className="mt-1 text-slate-500">{c.competencia.split("-").reverse().join("/")}</p></td><td className="px-3 py-4">{dataBr(c.envioPrevisto)}<p className="mt-1 text-xs text-slate-500">{primeiroEvento(c, "envio") ? `Enviado: ${dataBr(primeiroEvento(c, "envio")!.data)}` : "Envio não registrado"}</p></td><td className="px-3 py-4">{dataBr(c.vencimento)}</td><td className="px-3 py-4 font-bold">{moeda(c.centavos - pago(c))}<p className="mt-1 text-xs font-normal text-slate-500">Total: {moeda(c.centavos)}</p></td><td className="px-3 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${situacao(c,hoje) === "Atrasado" ? "bg-red-50 text-red-700" : situacao(c,hoje) === "Pago" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{situacao(c,hoje)}</span></td><td className="px-3 py-4"><button className={secondary} onClick={() => { setSelecionada(c.id); setAviso(""); }}>Acompanhar</button></td></tr>)}</tbody></table></div>}
     </section>
     {selecionado && <Detalhe key={selecionado.id} c={selecionado} ocupado={ocupado || loading} hoje={hoje} salvar={salvar} fechar={() => setSelecionada(null)}/>}
     {selecionado && empresa==="sysney" && !selecionado.boleto && selecionado.persistida && <ConciliacaoPix key={`pix-${selecionado.id}`} c={selecionado} aoAtualizar={()=>void carregar()}/>}

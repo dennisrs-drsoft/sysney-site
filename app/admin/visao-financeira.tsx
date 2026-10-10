@@ -8,6 +8,7 @@ import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados
 import { MensagemAdmin, useConfirmarAdmin } from "./dialogos-admin";
 import { RelatoriosFinanceiros } from "./relatorios-financeiros";
 import { FaturamentoFiscal } from "./faturamento-fiscal";
+import { useOrdenacaoTabela } from "./ordenacao-tabela";
 
 type Destino = "cobrancas" | "acompanhamento" | "historico-inter" | "historico-fiscal";
 type Dados = { cobrancas: Cobranca[]; planos: Plano[]; banco: RegistroInter[]; emails: EmailFinanceiro[]; notas: NotaFinanceira[] };
@@ -74,9 +75,14 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const filtro = { inicio, fim, por, estado, busca };
   const filtradas = filtrarFinanceiro(linhas, filtro);
   const resumo = resumoFinanceiro(filtradas, hoje);
+  const { ordenadas, cabecalhos, restaurar } = useOrdenacaoTabela(filtradas, [
+    { titulo: "Cliente / origem", valor: r => r.cliente }, { titulo: "Competência", valor: r => r.competencia },
+    { titulo: "Vencimento", valor: r => r.vencimento }, { titulo: "Documentos", valor: r => r.nota || r.boleto },
+    { titulo: "Valor / saldo", valor: r => r.centavos }, { titulo: "Situação / envio", valor: r => nomesEstados[r.estado] },
+  ], "Vencimento", () => setPagina(1), r => `${r.emissaoNota || r.emissao} ${r.nota}`);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / 12));
   const paginaAtual = Math.min(pagina, totalPaginas);
-  const visiveis = filtradas.slice((paginaAtual - 1) * 12, paginaAtual * 12);
+  const visiveis = ordenadas.slice((paginaAtual - 1) * 12, paginaAtual * 12);
   const consultas = dados?.banco.map(b => b.consultadoEm).filter(Boolean).sort() || [];
   const ultimaConsulta = consultas.at(-1);
   const primeiraConsulta = consultas[0];
@@ -156,7 +162,8 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
 
     <section className={`${painel} overflow-hidden`}>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><div><h3 className="text-lg font-bold text-slate-900">Carteira de cobranças</h3><p className="mt-1 text-xs text-slate-500">{filtradas.length} registro(s) · Sistema + histórico do Inter · Competência bancária não é presumida</p></div><button className={botao} onClick={() => navegar("historico-inter")}>Histórico do Inter</button></div>
-      <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr>{["Cliente / origem", "Competência", "Vencimento", "Documentos", "Valor / saldo", "Situação / envio"].map(v => <th key={v} className="px-3 py-3 font-semibold">{v}</th>)}</tr></thead><tbody>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500"><p>Clique nos títulos para ordenar · Valores não informados ficam ao final · Valor / saldo ordena pelo valor total.</p><button type="button" className="font-semibold text-blue-700 hover:underline" onClick={restaurar}>Restaurar vencimento decrescente</button></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[960px] text-left text-sm"><thead className="bg-slate-50 text-xs text-slate-500"><tr>{cabecalhos}</tr></thead><tbody>
         {!carregando && visiveis.map(r => <tr key={r.id} className="border-b border-slate-100 align-top last:border-0"><td className="max-w-[270px] px-3 py-4"><p className="font-semibold text-slate-900">{r.cliente}</p><p className="mt-1 text-xs text-slate-500">{r.origem === "inter" ? "Histórico Inter" : r.origem === "integrado" ? "Sistema + Inter · vínculo confirmado" : "Sistema"}</p>{r.consultadoEm && <p className="mt-1 text-xs text-slate-400">Banco consultado: {dataConsulta(r.consultadoEm)}</p>}</td><td className="px-3 py-4">{r.competencia ? r.competencia.split("-").reverse().join("/") : <span className="text-xs text-slate-400">Não informada pelo banco</span>}</td><td className="whitespace-nowrap px-3 py-4">{r.vencimento ? dataBr(r.vencimento) : "Não informado"}</td><td className="px-3 py-4 text-xs leading-5">{r.nota ? `NFS-e ${r.nota}` : "NFS-e não vinculada"}<br />{r.boleto ? `Boleto / referência ${r.boleto}` : "Sem boleto registrado"}</td><td className="whitespace-nowrap px-3 py-4"><p className="font-semibold">{moeda(r.centavos)}</p><p className="mt-1 text-xs text-slate-500">{r.estado === "conferir" ? "Fora dos totais" : r.estado === "previsto" ? "Ainda não emitida" : `Saldo: ${moeda(r.saldo)}`}</p></td><td className="max-w-[280px] px-3 py-4"><span className={`inline-block rounded-lg px-2 py-1 text-xs font-semibold ${tons[r.estado]}`}>{nomesEstados[r.estado]}</span><p className="mt-2 text-xs leading-5 text-slate-500">{r.etapa}</p><button className="mt-2 text-xs font-semibold text-blue-700 hover:underline" onClick={() => navegar(r.origem === "inter" ? "historico-inter" : "cobrancas")}>{r.origem === "inter" ? "Ver histórico →" : "Abrir fila →"}</button></td></tr>)}
         {(carregando || !visiveis.length) && <tr><td colSpan={6} className="py-12 text-center text-sm text-slate-500">{carregando ? "Reunindo cobranças e pagamentos…" : !dados ? "Dados indisponíveis. Atualize o painel para tentar novamente." : "Nenhuma cobrança neste filtro. Experimente limpar os filtros."}</td></tr>}
       </tbody></table></div>
