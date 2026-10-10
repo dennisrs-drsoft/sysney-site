@@ -24,3 +24,9 @@ Consultar todo o histórico disponível de notas municipais da DRSOFT, arquivar 
 `tests/historico-fiscal-recebido.test.mjs` verifica exceção atual, cancelamento, reexecução, datas desconhecidas, ausência de recorrência futura, divergência e estorno. Nenhum teste acessa banco, transmite nota ou envia e-mail.
 
 Publicação de código depende de autorização própria. Importação autorizada no armazenamento privado aparece nas telas já publicadas, sem alterar componentes do site institucional.
+
+## Execução confirmada em 10/10/2026
+
+A Prefeitura concluiu 204 páginas de consulta, cobrindo novembro/2009 até 10/10/2026. Foram arquivados 927 XMLs e 927 PDFs oficiais, sem pendência de download. As 57 notas canceladas permanecem apenas no histórico fiscal. Foram criadas 869 cobranças históricas com confirmação do titular; a nota operacional atual foi excluída e preservada em aberto. Snapshot e auditoria permanecem no armazenamento privado.
+
+Validação: 109 testes aprovados, sintaxe JavaScript/PowerShell conferida e lint dos scripts sem erros. `verificar-historico-drsoft.mjs` confere arquivos, ausência de datas de pagamento inventadas, exceção em aberto e idempotência, sem executar nova gravação. Não houve publicação do Next.js, API externa ou serviço fiscal, nem emissão/envio/operação bancária real.

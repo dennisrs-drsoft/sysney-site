@@ -69,15 +69,20 @@ if(modo === 'notas') {
     const bytes=Buffer.from(itens.map(r=>r.base64).join(''),'base64');
     await arquivar(bytes,'nfse',`consulta-${id}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
   }
-  for(const n of notas) {
+  let xmls=0,proximoXml=0;
+  async function importarXmls() { while(proximoXml < notas.length) {
+    const n=notas[proximoXml++];
     if(!/^\d+$/.test(n.numero)||n.inscricao!==inscricao||!Number.isSafeInteger(n.centavos)||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}/.test(n.emissao))throw Error('Metadados fiscais inválidos.');
     const bytes=Buffer.from(n.xmlBase64,'base64');
     const xmlBlob=await arquivar(bytes,'nfse',`NFSe_${inscricao}_${n.numero}-${sha(bytes).slice(0,12)}.xml`,'application/xml; charset=utf-8');
-    const {xmlBase64,...metadados}=n;
+    const metadados={...n};delete metadados.xmlBase64;
     metadados.tributos = extrairTributosXml(bytes.toString('utf8'), String(n.numero), n.inscricao);
     let anterior={};try{anterior=JSON.parse((await doc.getEntity(`nfse-historico-${empresa}`,String(Number(n.numero)))).json);}catch(e){if(e.statusCode!==404)throw e;}
     await doc.upsertEntity({partitionKey:`nfse-historico-${empresa}`,rowKey:String(Number(n.numero)),json:JSON.stringify({...anterior,...metadados,xmlBlob,consultadoEm:status.em,coleta})},'Replace');
-  }
+    xmls++;if(xmls%100===0)console.log(JSON.stringify({etapa:'XMLs fiscais',importados:xmls,total:notas.length}));
+  } }
+  // Registros e arquivos independentes; não há chamadas de emissão neste lote.
+  await Promise.all(Array.from({length:5},()=>importarXmls()));
   console.log(JSON.stringify({ etapa:'XML e índice fiscal importados', notas:notas.length, inicio:status.inicio, fim:status.fim }));
   let pdfs=0, indice=0;
   async function recuperarPdfs() { while(indice < notas.length) {
