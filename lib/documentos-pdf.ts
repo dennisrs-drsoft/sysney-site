@@ -37,7 +37,7 @@ export async function recuperarPdfNotaSP(empresa:"sysney"|"drsoft",id:string,atu
   const cr=await table().getEntity<{json:string}>(`cobrancas-${empresa}`,email.fluxo.cobrancaId),c:Cobranca=JSON.parse(cr.json);
   const plano:Plano=JSON.parse((await table("AdminConfiguracoes").getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
   const {createHash}=await import("node:crypto");
-  const chave=createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${email.competencia}`).digest("hex");
+  const chave=createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${email.competencia}${plano.avulsa===true?`:${c.id}`:""}`).digest("hex");
   const trabalho:TrabalhoSP=JSON.parse((await table().getEntity<{json:string}>(`nfse-sp-${empresa}`,chave)).json);
   const nota=conferirNotaParaPdf(email,trabalho);
   if(c.nota!==nota.numero||c.centavos!==email.centavos||c.competencia!==email.competencia)throw Error("Nota diferente da cobrança registrada.");

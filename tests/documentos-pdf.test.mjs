@@ -38,12 +38,12 @@ test('anexação exige resultado fiscal real correspondente à cobrança',()=>{
  assert.throws(()=>conferirNotaParaPdf({...email,po:'456'},job),/não correspondem/);
  assert.throws(()=>conferirNotaParaPdf(email,{...job,status:'incerta'}),/não correspondem/);
 });
-test('recuperação anexa uma única vez, revoga aprovação e preserva emissão/envio',async()=>{
+for(const avulsa of [false,true])test(`recuperação ${avulsa?'avulsa':'mensal'} anexa uma única vez, revoga aprovação e preserva emissão/envio`,async()=>{
  const original=globalThis.fetch;
  const email={id:'e',empresa:'sysney',competencia:'2026-10',centavos:10000,descricao:'Serviço',po:'123',fluxo:{nota:'1',cobrancaId:'c',documentos:{por:'teste'}},anexos:[],status:'revisado',atualizadoEm:'v1',aprovacaoEnvio:{por:'teste'},tentativas:[]};
  const job={id:'job',emailId:'e',status:'emitida',dados:{empresa:'sysney',centavos:10000,competencia:'2026-10',descricao:'Serviço',po:'123',inscricao:'12345678',clienteDocumento:'12345678000199'},resultado:{sucesso:true,teste:false,numero:'1',verificacao:'ABCD1234',inscricao:'12345678',tomador:'12345678000199',valorFinal:'100.00',descricao:'Serviço\nPO 123'}};
- const chave=createHash('sha256').update('12345678000199:2026-10').digest('hex');
- const setup=()=>{globalThis.pdfDB={records:new Map(),writes:0,uploads:0};for(const [k,v] of Object.entries({'AdminDocumentos:emails-sysney:e':email,'AdminDocumentos:cobrancas-sysney:c':{id:'c',planoId:'p',nota:'1',centavos:10000,competencia:'2026-10',eventos:[]},'AdminConfiguracoes:cobrancas-sysney:p':{documento:'12345678000199'},['AdminDocumentos:nfse-sp-sysney:'+chave]:job}))globalThis.pdfDB.records.set(k,{json:JSON.stringify(v),etag:'1'});};
+ const chave=createHash('sha256').update('12345678000199:2026-10'+(avulsa?':c':'')).digest('hex');
+const setup=()=>{globalThis.pdfDB={records:new Map(),writes:0,uploads:0};for(const [k,v] of Object.entries({'AdminDocumentos:emails-sysney:e':email,'AdminDocumentos:cobrancas-sysney:c':{id:'c',planoId:'p',nota:'1',centavos:10000,competencia:'2026-10',eventos:[]},'AdminConfiguracoes:cobrancas-sysney:p':{documento:'12345678000199',avulsa},['AdminDocumentos:nfse-sp-sysney:'+chave]:job}))globalThis.pdfDB.records.set(k,{json:JSON.stringify(v),etag:'1'});};
  try {
   setup();globalThis.fetch=async()=>new Response('<html>erro</html>',{headers:{'Content-Type':'text/html'}});
   await assert.rejects(recuperarPdfNotaSP('sysney','e','v1'));assert.equal(globalThis.pdfDB.writes,0);
