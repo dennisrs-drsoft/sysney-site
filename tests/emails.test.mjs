@@ -41,6 +41,14 @@ test("resumo financeiro exige administrador e não expõe HTML, destinatários o
   assert.equal((await GET(anon)).status, 401);
 });
 process.env.ADMIN_STORAGE_ACCOUNT="test";
+test("desconto é validado no servidor antes de salvar",async()=>{
+ const base={...novoEmail("drsoft","Teste"),centavos:350000,descontoCentavos:25000,descontoMotivo:"Condição comercial aprovada"};
+ const ok=await POST(request({acao:"salvar",email:base},"drsoft"));
+ assert.equal(ok.status,200);const salvo=(await ok.json()).email;
+ assert.equal(salvo.centavos,350000);assert.equal(salvo.descontoCentavos,25000);
+ for(const patch of [{descontoCentavos:-1},{descontoCentavos:0.5},{descontoMotivo:""}])assert.equal((await POST(request({acao:"salvar",email:{...base,...patch}},"drsoft"))).status,400);
+ records.delete(`AdminDocumentos:emails-drsoft:${salvo.id}`);
+});
 process.env.SENDGRID_API_KEY="test-key";
 process.env.SENDGRID_FROM_EMAIL="sender@example.com";
 process.env.SENDGRID_FROM_EMAIL_SYSNEY="sender@example.com";

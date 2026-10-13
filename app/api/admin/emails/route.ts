@@ -193,6 +193,7 @@ export async function POST(req: NextRequest) {
         e[key]=e[key].trim();
       }
       validarModeloEmail(e);
+      if(e.fluxo && ((e.descontoCentavos||0)!==(anterior?.email.descontoCentavos||0)||(e.descontoMotivo||"")!==(anterior?.email.descontoMotivo||"")))delete e.fluxo.documentos;
       if(e.fluxo && (e.po || "") !== (anterior?.email.po || "")) delete e.fluxo.documentos;
       if (e.fluxo && anterior && ["cliente","competencia","centavos","vencimento"].some(k=>body.email[k] !== anterior.email[k as keyof EmailCobranca])) throw new Error("Os dados da cobrança vinculada não podem ser alterados pelo editor de e-mail.");
       delete e.aprovacaoEnvio; // Nunca aceitar aprovação enviada pelo cliente.
