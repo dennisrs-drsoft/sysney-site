@@ -1,5 +1,6 @@
 export type Empresa = "drsoft" | "sysney";
 export type Plano = {
+  avulsa?: boolean;
   id: string; clienteId: string; clienteNome: string; documento: string;
   email: string; descricao: string; centavos: number; inicio: string;
   fim: string; diaEnvio: number; mesEnvio: number; diaVencimento: number;

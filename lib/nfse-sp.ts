@@ -26,6 +26,10 @@ export type TrabalhoSP = {
   aprovacao?:{por:string; em:string; hash:string; xmlHash?:string; cadeiaHash?:string};
 };
 const esc=(v:string)=>v.replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&apos;");
+export function chaveTrabalhoFiscalSP(documento:string,competencia:string,cobrancaId:string,avulsa=false){
+  if(!/^\d{14}$/.test(documento)||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(competencia)||! /^[a-f0-9]{64}_20\d{2}-(0[1-9]|1[0-2])$/.test(cobrancaId)||!cobrancaId.endsWith(`_${competencia}`))throw Error("Identificação fiscal inválida.");
+  return createHash("sha256").update(`${documento}:${competencia}${avulsa?`:${cobrancaId}`:""}`).digest("hex");
+}
 export function normalizarFiscalSP(raw:unknown,centavos?:number):FiscalSP {
   if(!raw || typeof raw!=="object")throw Error("Preencha os dados fiscais para testar a nota.");
   const r={...raw} as Record<string,unknown>;

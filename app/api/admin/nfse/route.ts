@@ -7,7 +7,7 @@ import {usuarioAdministrador} from "../_auth";
 import {encaminharAdmin} from "../_remote";
 import {hojeBrasil,prevista,type Plano,type Cobranca} from "@/lib/cobrancas";
 import type {EmailCobranca} from "@/lib/emails-cobranca";
-import {hashNotaSP,normalizarFiscalSP,montarXmlSP,cadeiaAssinaturaSP,type DadosNotaSP,type TrabalhoSP} from "@/lib/nfse-sp";
+import {chaveTrabalhoFiscalSP,hashNotaSP,normalizarFiscalSP,montarXmlSP,cadeiaAssinaturaSP,type DadosNotaSP,type TrabalhoSP} from "@/lib/nfse-sp";
 import {executarNotaSP,executorMunicipalDisponivel} from "@/lib/nfse-sp-executor";
 import {recuperarPdfNotaSP} from "@/lib/documentos-pdf";
 export const runtime="nodejs";
@@ -28,7 +28,9 @@ async function contexto(emp:"sysney"|"drsoft",id:unknown){
   const cobranca:Cobranca=cr?JSON.parse(cr.json):prevista(plano,competencia);
   const documento=plano.documento.replace(/\D/g,"");
   if(email.competencia!==cobranca.competencia||email.centavos!==cobranca.centavos||email.vencimento!==cobranca.vencimento)throw Error("Dados do e-mail diferentes da cobrança. Confira antes de emitir.");
-  const idNota=createHash("sha256").update(`${documento}:${competencia}`).digest("hex");
+  // Planos avulsos são identificados pela cobrança, sem colidir com a mensalidade.
+  // Planos legados preservam a chave anterior e suas travas de transmissão.
+  const idNota=chaveTrabalhoFiscalSP(documento,competencia,cobranca.id,plano.avulsa===true);
   return {row,email,cobranca,cr,documento,idNota};
 }
 function falha(e:unknown){const code=(e as {statusCode?:number}).statusCode;return reply({erro:code===409||code===412?"A versão mudou ou a operação já está em andamento. Atualize e consulte antes de repetir.":code?"Não foi possível acessar o registro fiscal.":e instanceof Error?e.message:"Falha fiscal."},code===409||code===412?409:code?503:400);}
