@@ -7,6 +7,7 @@ const compile = p => ts.transpileModule(readFileSync(new URL(p,import.meta.url),
 const model=uri(compile("../lib/cobrancas.ts"));
 const emailModel=uri(compile("../lib/emails-cobranca.ts").replaceAll('"./cobrancas"',JSON.stringify(model)));
 const approvalModel=uri(compile("../lib/aprovacao-envio.ts").replaceAll('"./emails-cobranca"',JSON.stringify(emailModel)));
+const avisoModel=uri(compile("../lib/avisos-cobranca.ts").replaceAll('"./cobrancas"',JSON.stringify(model)));
 const {novoEmail,htmlEmail,validarDocumentosEmail}=await import(emailModel);
 const db=uri(`export const records=new Map(); export class TableClient {
 constructor(url,name){this.name=name} key(p,r){return this.name+':'+p+':'+r}
@@ -26,6 +27,7 @@ for(const [name,target] of Object.entries({
   "@/lib/emails-cobranca":emailModel,
   "@/lib/cobrancas":model,
   "@/lib/aprovacao-envio":approvalModel,
+  "@/lib/avisos-cobranca":avisoModel,
 }))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source)); const {records}=await import(db);
 
@@ -54,6 +56,29 @@ process.env.SENDGRID_FROM_EMAIL="sender@example.com";
 process.env.SENDGRID_FROM_EMAIL_SYSNEY="sender@example.com";
 process.env.SENDGRID_FROM_EMAIL_DRSOFT="drsoft@example.com";
 function request(body,empresa="sysney",headers={}){const url=new URL(`http://localhost:3100/api/admin/emails?empresa=${empresa}`);const r=new Request(url,{method:body?"POST":"GET",headers:{origin:url.origin,"x-test-auth":"yes",...headers},body:body?JSON.stringify(body):undefined});r.nextUrl=url;return r;}
+
+test("aviso reutiliza documentos, bloqueia quitação e repetição, envia somente com BCC de auditoria",async()=>{
+ const planoId="9".repeat(64),cobrancaId=`${planoId}_2026-01`,origemId="99999999-9999-4999-8999-999999999999";
+ const c={id:cobrancaId,planoId,competencia:"2026-01",vencimento:"2026-02-10",centavos:350000,clienteNome:"Cliente aviso",email:"cliente@example.com",descricao:"Suporte",nota:"99",boleto:"999",eventos:[{id:"p1",tipo:"pagamento",centavos:210000}],persistida:true};
+ const origem={...novoEmail("drsoft",c.clienteNome),id:origemId,para:c.email,responderPara:"financeiro@example.com",competencia:c.competencia,centavos:c.centavos,vencimento:c.vencimento,status:"aceito",fluxo:{cobrancaId,nota:c.nota,boleto:c.boleto},tentativas:[{status:"aceito",em:new Date().toISOString()}],anexos:[{tipo:"nota",nome:"nota.pdf",blob:"test/nota",tamanho:10},{tipo:"boleto",nome:"boleto.pdf",blob:"test/boleto",tamanho:10}]};
+ const ck=`AdminDocumentos:cobrancas-drsoft:${cobrancaId}`,ok=`AdminDocumentos:emails-drsoft:${origemId}`;
+ records.set(ck,{json:JSON.stringify(c),etag:"1"});records.set(ok,{json:JSON.stringify(origem),etag:"1"});
+ let e;const originalFetch=globalThis.fetch;let sends=0;
+ const prepare=()=>POST(request({acao:"preparar-aviso",cobrancaId,origemId,tipo:"atraso"},"drsoft"));
+ try{
+  const prepared=await prepare();assert.equal(prepared.status,200);e=(await prepared.json()).email;
+  assert.equal(e.aviso.saldoCentavos,140000);assert.equal(e.fluxo,undefined);assert.deepEqual(e.anexos,origem.anexos);
+  assert.equal((await (await prepare()).json()).email.id,e.id);
+  const reviewed=await POST(request({acao:"revisar",id:e.id,atualizadoEm:e.atualizadoEm,remetente:"drsoft@example.com",auditoria:"drsoft.log@gmail.com"},"drsoft"));
+  assert.equal(reviewed.status,200);e=(await reviewed.json()).email;
+  globalThis.fetch=async(url,options)=>{assert.equal(url,"https://api.sendgrid.com/v3/mail/send");const mail=JSON.parse(options.body);assert.deepEqual(mail.personalizations[0].bcc,[{email:"drsoft.log@gmail.com"}]);assert.equal(mail.attachments.length,3);sends++;return new Response(null,{status:202});};
+  records.get(ck).json=JSON.stringify({...c,eventos:[...c.eventos,{id:"p2",tipo:"pagamento",centavos:140000}]});
+  assert.equal((await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm},"drsoft"))).status,400);assert.equal(sends,0);
+  records.get(ck).json=JSON.stringify(c);
+  assert.equal((await POST(request({acao:"enviar",id:e.id,atualizadoEm:e.atualizadoEm},"drsoft"))).status,200);assert.equal(sends,1);
+  assert.equal((await prepare()).status,400);assert.equal(records.get(ok).json,JSON.stringify(origem));assert.equal(records.get(ck).json,JSON.stringify(c));
+ }finally{globalThis.fetch=originalFetch;records.delete(ck);records.delete(ok);if(e)records.delete(`AdminDocumentos:emails-drsoft:${e.id}`);}
+});
 
 test("remetente financeiro é segregado por empresa",async()=>{
   assert.equal((await (await GET(request(null,"sysney"))).json()).remetente,"sender@example.com");

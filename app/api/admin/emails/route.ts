@@ -10,7 +10,8 @@ import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
-import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, type Cobranca, type Plano } from "@/lib/cobrancas";
+import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, integrarPagamentosInter, integrarPagamentosPix, type VinculoPix, type Cobranca, type Plano } from "@/lib/cobrancas";
+import {AUDITORIA_AVISOS,prepararAviso,conferirAviso,type TipoAviso} from "@/lib/avisos-cobranca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,7 @@ function responsavel(req: NextRequest) {
 }
 async function pacote(e: EmailCobranca) {
   const config = await mailConfig(e.empresa);
+  if(e.aviso)config.auditoria=AUDITORIA_AVISOS;
   const buffers = await Promise.all(e.anexos.map(a => container().getBlockBlobClient(a.blob).downloadToBuffer()));
   const logo = await readFile(join(process.cwd(), "public", "logo.png"));
   const hash = (b: Buffer) => createHash("sha256").update(b).digest("hex");
@@ -71,6 +73,12 @@ async function hashDocumentos(e: EmailCobranca) {
   return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:{})})).digest("hex");
 }
 async function conferirFluxo(e: EmailCobranca) {
+  if(e.aviso) {
+    const c=await cobrancaParaAviso(e.empresa,e.aviso.cobrancaId);
+    conferirAviso(e,c,hojeBrasil());
+    const origem=(await ler(e.empresa,e.aviso.origemId)).email;
+    if(origem.fluxo?.cobrancaId!==c.id||origem.status!=="aceito")throw new Error("O envio original não está confirmado. Confira antes de reenviar.");
+  }
   if (e.fluxo && (!e.fluxo.documentos || e.fluxo.documentos.hash !== await hashDocumentos(e))) throw new Error("Confira e aprove primeiro os documentos existentes desta cobrança. Nenhuma nova emissão será realizada.");
   if (e.fluxo) {
     const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${e.empresa}`,e.fluxo.cobrancaId)).json);
@@ -90,6 +98,24 @@ async function buscarCobranca(empresa: string, id: string) {
     if (competencia < p.inicio || (p.fim && competencia > p.fim)) throw new Error("Competência fora da recorrência.");
     return {c:prevista(p,competencia),etag:undefined};
   }
+}
+async function cobrancaParaAviso(empresa:"sysney"|"drsoft",id:string) {
+  const {c}=await buscarCobranca(empresa,id);
+  if(empresa!=="sysney")return c;
+  const configs=new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred);
+  const plano:Plano=JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
+  const emails:EmailCobranca[]=[],banco:Parameters<typeof integrarPagamentosInter>[2]=[],vinculos:VinculoPix[]=[];
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'emails-${empresa}'`}}))emails.push(JSON.parse(row.json));
+  for await(const row of table().listEntities<{json:string;atualizadoEm:string}>({queryOptions:{filter:"PartitionKey eq 'inter-historico-sysney'"}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'pix-conciliacao-sysney'"}})){const v=JSON.parse(row.json);if(v.tipo==="vinculo")vinculos.push(v);}
+  // Todas as cobranças entram na unicidade: um boleto não pode quitar dois registros.
+  const todas:Cobranca[]=[];
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'cobrancas-sysney'"}}))todas.push(JSON.parse(row.json));
+  if(!todas.some(x=>x.id===c.id))todas.push(c);
+  const planos:Plano[]=[];
+  for await(const row of configs.listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'cobrancas-sysney'"}}))planos.push(JSON.parse(row.json));
+  if(!planos.some(p=>p.id===plano.id))planos.push(plano);
+  return integrarPagamentosPix(integrarPagamentosInter(todas,planos,banco,emails),planos,vinculos,emails).find(x=>x.id===c.id)!;
 }
 function erro(e: unknown) {
   const code = (e as { statusCode?: number }).statusCode;
@@ -150,6 +176,19 @@ export async function POST(req: NextRequest) {
     }
     const raw = await req.text(); if (raw.length > 15000) throw new Error("Mensagem muito longa.");
     const body = JSON.parse(raw);
+    if(body.acao==="preparar-aviso") {
+      const c=await cobrancaParaAviso(empresa,body.cobrancaId),origem=(await ler(empresa,body.origemId)).email;
+      const hoje=hojeBrasil(),hash=createHash("sha256").update(`${empresa}:${c.id}:${body.tipo}:${hoje}:aviso`).digest("hex").slice(0,32);
+      const id=`${hash.slice(0,8)}-${hash.slice(8,12)}-${hash.slice(12,16)}-${hash.slice(16,20)}-${hash.slice(20)}`;
+      const email=prepararAviso(origem,c,body.tipo as TipoAviso,hoje,id,new Date().toISOString());
+      let atual:Awaited<ReturnType<typeof ler>>|undefined;
+      try{atual=await ler(empresa,id);}catch(e){if((e as {statusCode?:number}).statusCode!==404)throw e;}
+      if(atual){
+        if(!["rascunho","revisado"].includes(atual.email.status))throw new Error("Já há aviso deste tipo processado hoje. Confira seu histórico; não repetir envio.");
+        try{conferirAviso(atual.email,c,hoje);return reply({email:atual.email,mensagem:"Rascunho existente aberto. Nenhum envio realizado."});}catch{await guardar(email,atual.etag);}
+      }else await guardar(email);
+      return reply({email,mensagem:"Aviso preparado com saldo atualizado e PDFs existentes. Revise e aprove antes de enviar; nenhum documento foi emitido."});
+    }
     if (body.acao === "preparar-cobranca") {
       const {c} = await buscarCobranca(empresa,body.cobrancaId);
       // One durable link per billing cycle; never create another draft on a retry.
@@ -164,7 +203,7 @@ export async function POST(req: NextRequest) {
       if (body.emailId && !atual) throw new Error("Rascunho não encontrado.");
       if (atual?.email.fluxo?.cobrancaId === c.id) return reply({email:atual.email});
       const email = atual?.email || {...novoEmail(empresa,c.clienteNome),id,para:c.email,responderPara:empresa === "sysney" ? "financeiro@sysney.com" : "financeiro@drsoftinformatica.com",competencia:c.competencia,vencimento:c.vencimento,centavos:c.centavos,descricao:c.descricao};
-      if (email.fluxo || !["rascunho","revisado"].includes(email.status) || email.competencia !== c.competencia || email.vencimento !== c.vencimento || email.centavos !== c.centavos) throw new Error("O rascunho não corresponde à cobrança ou já foi processado. Confira cliente, referência, valor e vencimento.");
+      if (email.aviso || email.fluxo || !["rascunho","revisado"].includes(email.status) || email.competencia !== c.competencia || email.vencimento !== c.vencimento || email.centavos !== c.centavos) throw new Error("O rascunho não corresponde à cobrança ou já foi processado. Confira cliente, referência, valor e vencimento.");
       if (!link) await table().createEntity({partitionKey:`fila-${empresa}`,rowKey:linkKey,emailId:id});
       email.fluxo = {cobrancaId:c.id,nota:c.nota,boleto:c.boleto};
       delete email.aprovacaoEnvio;
@@ -178,6 +217,8 @@ export async function POST(req: NextRequest) {
       if (anterior && body.email.atualizadoEm !== anterior.email.atualizadoEm) throw new Error("A mensagem mudou. Atualize antes de salvar.");
       const e = { ...body.email, id: anterior?.email.id || randomUUID(), empresa, anexos: anterior?.email.anexos || [], tentativas: anterior?.email.tentativas || [], status: "rascunho", atualizadoEm: new Date().toISOString() } as EmailCobranca;
       e.fluxo = anterior?.email.fluxo;
+      e.aviso = anterior?.email.aviso;
+      if(e.aviso && anterior && ["cliente","competencia","centavos","vencimento","formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior.email[k as keyof EmailCobranca]))throw new Error("Os dados financeiros do aviso são vinculados à cobrança original. Prepare um aviso atualizado para refletir mudanças.");
       validarPagamento(e);
       if(e.fluxo && e.formaPagamento==="pix") {
         const {c}=await buscarCobranca(empresa,e.fluxo.cobrancaId);
@@ -286,6 +327,7 @@ export async function POST(req: NextRequest) {
       return reply({ email, mensagem: "Anexo removido desta mensagem. Inclua o PDF correto e aprove novamente antes de enviar." });
     }
     if (body.acao === "duplicar") {
+      if(email.aviso)throw new Error("Use Preparar aviso na fila para conferir o saldo atual e evitar reenvio duplicado.");
       if (email.status === "enviando" || email.status === "incerto") throw new Error("Confira o resultado do envio anterior no provedor antes de preparar um reenvio.");
       const copia: EmailCobranca = { ...email, id: randomUUID(), status: "rascunho", tentativas: [], atualizadoEm: new Date().toISOString() };
       if (email.fluxo) throw new Error("A cobrança já possui uma mensagem vinculada. Reenvio pela fila ainda não disponível.");
@@ -307,6 +349,8 @@ export async function POST(req: NextRequest) {
     await conferirFluxo(email);
     const material = await pacote(email);
     if (!email.aprovacaoEnvio || email.aprovacaoEnvio.hash !== material.hash) throw new Error("A aprovação não corresponde ao conteúdo, remetente ou PDFs atuais. Revise e aprove novamente.");
+    // Download dos anexos pode levar tempo: conferir o saldo novamente antes da trava de envio.
+    if(email.aviso)await conferirFluxo(email);
     const { config, logo } = material;
     const anexos = email.anexos.map((a,i) => ({ content:material.buffers[i].toString("base64"), filename:a.nome, type:"application/pdf", disposition:"attachment" }));
     const html = htmlEmail(email, "cid:logo-sysney");
