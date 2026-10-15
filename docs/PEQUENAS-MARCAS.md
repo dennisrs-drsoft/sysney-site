@@ -55,3 +55,4 @@ Antes de qualquer publicação, atualizar a base oficial e seguir a coordenaçã
 
 Usuário autorizou a publicação em 15/10/2026. Release 2026.10.15.001, implementação 82ba991 sobre origin/main 905af2c. Somente Next.js no Azure Static Web Apps; sem publicação da API financeira ou serviço fiscal. Validações locais acima permanecem válidas. Resultado do workflow e conferência pública serão registrados após o deploy.
 
+Confirmação: workflow 38758994953 concluído com sucesso; SHA publicado cf9cd76; versão pública 2026.10.15.001 conferida. Home, página nova, links, contato contextual e sitemap: HTTP 200 com conteúdo esperado. Rotas administrativas protegidas direcionam visitante anônimo para autenticação; nenhuma operação financeira executada. Não houve homologação de sessão administrativa autenticada.
