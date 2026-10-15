@@ -50,3 +50,8 @@ As imagens são capturas já aprovadas e publicadas do ambiente de demonstraçã
 Prévia: `http://localhost:3115/sistema-vendas-pequenas-marcas` e `http://localhost:3115/#pequenas-marcas`.
 
 Antes de qualquer publicação, atualizar a base oficial e seguir a coordenação entre site e financeiro. Autorizações de releases anteriores não se aplicam a esta frente.
+
+## Publicação autorizada
+
+Usuário autorizou a publicação em 15/10/2026. Release 2026.10.15.001, implementação 82ba991 sobre origin/main 905af2c. Somente Next.js no Azure Static Web Apps; sem publicação da API financeira ou serviço fiscal. Validações locais acima permanecem válidas. Resultado do workflow e conferência pública serão registrados após o deploy.
+
