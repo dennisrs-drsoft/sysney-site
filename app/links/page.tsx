@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 const title = "Links oficiais da SYSNEY e do SISBlink";
-const description = "Encontre as telas do SISBlink, soluções para moda e multimarcas, integrações ERP, demonstração e orientação para representantes nos links oficiais da SYSNEY.";
+const description = "Encontre as telas do SISBlink, soluções para pequenas marcas, moda e multimarcas, integrações ERP, demonstração e orientação nos links oficiais da SYSNEY.";
 export const metadata: Metadata = {
   title, description, alternates: { canonical: "/links" },
   openGraph: { title, description, url: "/links", type: "website", locale: "pt_BR", siteName: "SISBlink", images: [{ url: "/sisblink/telas/catalogo.webp", width: 1920, height: 1080, alt: "Catálogo digital e pedidos por grade no SISBlink" }] },
@@ -51,6 +51,8 @@ export default function LinksPage() {
           <Link href="/contato?origem=instagram-links" className={`group flex flex-col justify-between gap-6 rounded-3xl border border-white/15 bg-white/[0.04] p-6 transition hover:border-emerald-300/40 hover:bg-white/[0.07] sm:p-7 ${cardFocus}`}><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Contato comercial</p><h2 className="mt-3 text-xl font-black">Falar com a SYSNEY</h2><p className="mt-3 text-sm leading-6 text-slate-300">Converse sobre funcionalidades, integração, implantação e as necessidades da sua equipe.</p></div><span className="flex items-center justify-between text-sm font-bold text-emerald-200">Conte o que sua empresa precisa<Arrow className="transition group-hover:translate-x-1" /></span></Link>
         </div>
       </section>
+
+      <Link href="/sistema-vendas-pequenas-marcas" className={`group mt-6 flex flex-col justify-between gap-5 rounded-3xl border border-emerald-300/25 bg-emerald-300/5 p-6 transition hover:border-emerald-300/50 hover:bg-emerald-300/10 sm:flex-row sm:items-center sm:p-7 ${cardFocus}`}><span><span className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300">Pequenas marcas · Equipes enxutas</span><span className="mt-2 block text-xl font-black">Sua marca não precisa ser grande para vender de forma organizada.</span><span className="mt-3 block max-w-3xl text-sm leading-6 text-slate-300">Catálogo, pedidos e acompanhamento comercial para quem tem poucas pessoas nas vendas ou atende os clientes pessoalmente.</span></span><span className="flex shrink-0 items-center gap-3 text-sm font-bold text-emerald-200">Conheça a solução<Arrow className="transition group-hover:translate-x-1" /></span></Link>
 
       <section aria-labelledby="links-solucoes" className="mt-12 sm:mt-16">
         <p className="text-[10px] font-black uppercase tracking-[0.22em] text-sky-300">Encontre sua solução</p><h2 id="links-solucoes" className="mt-3 text-2xl font-black tracking-tight sm:text-3xl">Qual é o desafio da sua operação?</h2>

@@ -23,7 +23,8 @@ export default async function ContatoPage({ searchParams }: Props) {
   const params = await searchParams;
   const enviado = params?.enviado === "1";
   const origem = params?.origem || "site-contato";
-  const avaliacao = params?.interesse === "avaliacao";
+  const pequenasMarcas = params?.interesse === "pequenas-marcas";
+  const avaliacao = params?.interesse === "avaliacao" || pequenasMarcas;
   const erro = params?.erro;
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
@@ -43,13 +44,13 @@ export default async function ContatoPage({ searchParams }: Props) {
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
-              Vamos entender sua operação B2B?
+              {pequenasMarcas ? "Vamos organizar a venda da sua marca?" : "Vamos entender sua operação B2B?"}
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
+              {pequenasMarcas ? "Conte como você vende hoje, mesmo que seja o próprio dono atendendo os clientes. Na demonstração gratuita, vamos avaliar catálogo, pedidos, acompanhamento comercial e o investimento para a sua operação." : <>Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
               sua marca, representantes, franquias, multimarcas e integrações
-              comerciais.
+              comerciais.</>}
             </p>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2">
@@ -182,7 +183,7 @@ export default async function ContatoPage({ searchParams }: Props) {
                 defaultValue=""
               >
                 <option value="" disabled>
-                  Quantidade de representantes
+                  {pequenasMarcas ? "Quantidade de pessoas nas vendas" : "Quantidade de representantes"}
                 </option>
                 <option value="Até 5">Até 5</option>
                 <option value="6 a 20">6 a 20</option>

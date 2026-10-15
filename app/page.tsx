@@ -2,10 +2,11 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SisblinkLiveHighlight } from "./components/sisblink-live-highlight";
+import { SmallBrandsHighlight } from "./components/small-brands-highlight";
 
 export const metadata: Metadata = {
   title: "Sistema de Força de Vendas B2B para Moda",
-  description: "O SISBlink é um sistema de força de vendas B2B com catálogo digital, pedidos e integrações ERP para indústrias, representantes, franquias e multimarcas.",
+  description: "O SISBlink reúne catálogo digital, pedidos e gestão comercial para pequenas marcas, indústrias, representantes, franquias e multimarcas de moda. Conheça a plataforma.",
   alternates: { canonical: "/" },
 };
 
@@ -155,6 +156,8 @@ export default function Home() {
                 <span className="text-emerald-300">✓</span> Gratuita, personalizada e sem compromisso.
               </p>
 
+              <Link href="/sistema-vendas-pequenas-marcas" className="mt-5 inline-flex text-sm font-bold leading-6 text-sky-200 underline underline-offset-4 hover:text-white">Sua equipe de vendas é enxuta? Conheça o SISBlink para sua marca →</Link>
+
               <a
                 href="#seguranca"
                 aria-label="Conheça os recursos de segurança do SISBlink"
@@ -203,6 +206,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <SmallBrandsHighlight />
 
       <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-12 sm:py-16 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
@@ -635,6 +640,7 @@ export default function Home() {
           <div>
             <p className="font-black text-white">SYSNEY Informática</p>
             <p className="text-sm">SISBlink - Plataforma B2B para moda.</p>
+            <Link href="/sistema-vendas-pequenas-marcas" className="mt-3 inline-flex text-sm font-bold text-sky-300 hover:text-white">SISBlink para pequenas marcas →</Link>
           </div>
           <p className="text-sm">
             © {new Date().getFullYear()} SYSNEY. Todos os direitos reservados.
