@@ -109,7 +109,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
         <button className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white hover:bg-blue-500" onClick={() => navegar("cobrancas")}>Abrir fila de cobranças →</button>
         <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("acompanhamento")}>Gerenciar recorrências</button>
         <button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15" onClick={() => navegar("historico-fiscal")}>Notas antigas / XML</button>
-        {empresa==="sysney"&&<button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15 disabled:opacity-50" disabled={cruzando} onClick={()=>void cruzarNotas()}>{cruzando?"Cruzando documentos…":"Vincular notas ao histórico"}</button>}
+        {<button className="rounded-xl bg-white/10 px-5 py-3 text-sm font-semibold hover:bg-white/15 disabled:opacity-50" disabled={cruzando} onClick={()=>void cruzarNotas()}>{cruzando?"Cruzando documentos…":"Vincular notas ao histórico"}</button>}
       </div>
     </section>
 

@@ -6,16 +6,16 @@ import { MensagemAdmin, useConfirmarAdmin } from "./dialogos-admin";
 type Dados={documento:string;consulta:string;regra:{inicio:string;fim:string;automatica:boolean}|null;vinculo:{data:string;pixId:string;modo:string}|null;recebimentos:{id:string;data:string;horario:string;cliente:string;centavos:number;compativel:boolean}[]};
 const campo="w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm";
 const botao="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-800 disabled:opacity-50";
-export function ConciliacaoPix({c,aoAtualizar}:{c:Cobranca;aoAtualizar:()=>void}){
+export function ConciliacaoPix({c,empresa,aoAtualizar}:{empresa:"sysney"|"drsoft";c:Cobranca;aoAtualizar:()=>void}){
   const [dados,setDados]=useState<Dados|null>(null),[inicio,setInicio]=useState(`${c.vencimento.slice(0,7)}-01`),[fim,setFim]=useState(()=>new Date(Date.UTC(Number(c.vencimento.slice(0,4)),Number(c.vencimento.slice(5,7)),0)).toISOString().slice(0,10)),[automatica,setAutomatica]=useState(false),[ocupado,setOcupado]=useState(false),[erro,setErro]=useState(""),[aviso,setAviso]=useState("");
   const confirmar=useConfirmarAdmin();
   const carregar=useCallback(async()=>{
     try{
-      const r=await fetch(`/api/admin/historico-inter?empresa=sysney&pix=1&id=${encodeURIComponent(c.id)}`,{cache:"no-store",signal:AbortSignal.timeout(45000)});
+      const r=await fetch(`/api/admin/historico-inter?empresa=${empresa}&pix=1&id=${encodeURIComponent(c.id)}`,{cache:"no-store",signal:AbortSignal.timeout(45000)});
       const d=await lerRespostaAdmin<Dados&{erro?:string}>(r);if(!r.ok||!Array.isArray(d.recebimentos)||typeof d.documento!=="string")throw Error(d.erro||"A conciliação PIX ainda não está disponível nesta versão do servidor. Atualize após a publicação.");
       setDados(d);if(d.regra){setInicio(d.regra.inicio);setFim(d.regra.fim);setAutomatica(d.regra.automatica);}
     }catch(e){setErro(e instanceof Error?e.message:"Consulta indisponível.");}
-  },[c.id]);
+  },[c.id,empresa]);
   useEffect(()=>{const id=requestAnimationFrame(()=>void carregar());return()=>cancelAnimationFrame(id);},[carregar]);
   async function executar(acao:string,pixId?:string){
     if(ocupado)return;
@@ -23,7 +23,7 @@ export function ConciliacaoPix({c,aoAtualizar}:{c:Cobranca;aoAtualizar:()=>void}
     if(!ok)return;
     setOcupado(true);setErro("");
     try{
-      const r=await fetch("/api/admin/historico-inter?empresa=sysney",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,id:c.id,inicio,fim,automatica,pixId}),signal:AbortSignal.timeout(45000)});
+      const r=await fetch(`/api/admin/historico-inter?empresa=${empresa}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao,id:c.id,inicio,fim,automatica,pixId}),signal:AbortSignal.timeout(45000)});
       const d=await lerRespostaAdmin<{erro?:string}>(r);if(!r.ok)throw Error(d.erro||"Não foi possível salvar a conciliação.");
       setAviso(acao==="regra-pix"?"Regra salva. A próxima consulta automática ao Inter tentará conciliar os PIX recebidos, sem emitir ou enviar documentos.":"Recebimento vinculado. Atualize o acompanhamento para conferir a baixa.");await carregar();aoAtualizar();
     }catch(e){setErro(e instanceof Error?e.message:"Conciliação não concluída. Consulte antes de repetir.");}finally{setOcupado(false);}

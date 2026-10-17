@@ -44,3 +44,15 @@ test("rotina automática apenas consulta Inter e escreve snapshots; não emite/c
  assert.doesNotMatch(s,/emitirCobranca|cancelarCobranca|sendgrid|mail.send/);
  const f=readFileSync(new URL("../admin-api/src/functions/inter-sync.js",import.meta.url),"utf8");assert.match(f,/useMonitor: true/);assert.match(f,/runOnStartup: false/);
 });
+
+test("DRSOFT usa controle e snapshots próprios, sem tocar SYSNEY",async()=>{
+ process.env.INTER_SYNC_DRSOFT_ENABLED="true";
+ const table=storage(),r=normalizarSnapshot(item);await table.upsertEntity({...r,pdfBlob:"sysney-original"});
+ const original=structuredClone(table.rows.get(`${r.partitionKey}/${r.rowKey}`));
+ await executarSync({empresa:"drsoft",table,listar:async o=>{assert.equal(o.empresa,"drsoft");return [item];}});
+ const dr=normalizarSnapshot(item,"drsoft");assert.ok(table.rows.has(`${dr.partitionKey}/${dr.rowKey}`));
+ assert.ok(table.rows.has("inter-sync-drsoft/controle"));assert.deepEqual(table.rows.get(`${r.partitionKey}/${r.rowKey}`),original);
+ delete process.env.INTER_SYNC_DRSOFT_ENABLED;
+ assert.equal((await executarSync({empresa:"drsoft",table,listar:async()=>{throw Error("não consultar desativada");}})).desativada,true);
+ assert.throws(()=>normalizarSnapshot(item,"outra"));
+});

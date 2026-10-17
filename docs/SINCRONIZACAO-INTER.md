@@ -1,4 +1,4 @@
-# Sincronização bancária SYSNEY
+# Sincronização bancária SYSNEY e DRSOFT
 
 ## Operação
 
@@ -14,7 +14,25 @@
 
 Somente a API externa deve receber `INTER_SYNC_SYSNEY_ENABLED=true`. O padrão desativado impede consultas em builds/testes. São usados os certificados e credenciais da SYSNEY já no cofre; nenhuma chave vai ao navegador ou Git. O timer depende do AzureWebJobsStorage da Function App e da permissão existente da identidade gerenciada no armazenamento administrativo/cofre.
 
-DRSOFT permanece indisponível. Não habilitar sua integração por esta release. Não alterar a VM ou os certificados fiscais.
+Na release original de 08/10/2026, DRSOFT permanecia indisponível. A preparação de 17/10/2026 estende as mesmas rotinas por empresa: `INTER_DRSOFT_ENABLED=true` habilita o cliente da DRSOFT após validar suas credenciais, e `INTER_SYNC_DRSOFT_ENABLED=true` habilita seu timer separado. Essas flags não são ativadas por build/testes. Não alterar a VM ou os certificados fiscais.
+
+## Preparação DRSOFT — 17/10/2026
+
+- Credenciais individuais no Key Vault com prefixo `inter-drsoft`; certificado/chave conferidos e autenticação real de leitura e permissão `boleto-cobranca.write` validadas, sem emissão.
+- Histórico, PDFs privados, controle/lease, conciliação PIX, regras e vínculos fiscais usam partições próprias por empresa. Eventos manuais nunca são somados novamente à confirmação bancária.
+- Consulta de geração considera somente boletos da empresa selecionada; configuração privada `emissao-boleto/drsoft` e aprovação explícita são necessárias. Nenhuma autorização automática de envio de e-mail.
+- `POST /api/admin/historico-inter?empresa=sysney|drsoft` aceita `sincronizar`, `cruzar-notas`, `regra-pix`, `vincular-pix` e `recuperar-pdf`. Exige administrador e mesma origem. Recuperar PDF é exclusivamente GET no banco, inclusive para boletos pagos; falha não reemite nem substitui arquivo por HTML.
+- O botão “Tentar baixar PDF” recupera documentos pendentes no histórico. Repetições de recuperação com arquivo existente não emitem nem duplicam documentos.
+- Importação operacional: `admin-api/scripts/importar-inter-empresa.mjs empresa inicio fim`; percorre janelas de até 90 dias, preserva partições financeiras manuais e registra PDFs indisponíveis para nova tentativa. Não infere competência a partir do pagamento.
+- Teste opcional do cliente HTTP real com dados fictícios: iniciar `postman simulation run postman/simulations/inter-read.sim.yaml --port 4900 --no-history --output ndjson` e executar `node tests/inter-http-simulacao.mjs`. O cofre é substituído no teste, mas o cliente HTTP, paginação e leitura de PDF são reais contra o simulador. Sem login Postman, não houve busca de mock do proprietário; o recorte foi baseado no contrato público Inter v3 e nas chamadas já existentes. Nenhuma simulação foi publicada.
+
+As evidências locais e bancárias não significam publicação concluída: confirmar deploy da API e Next.js, ativação das flags e teste autenticado antes de declarar a rotina automática disponível on-line.
+
+### Evidências da preparação
+
+Em 17/10/2026, a importação autorizada consultou janelas de 01/01/2020 a 17/10/2026 e armazenou 316 snapshots e 316 PDFs oficiais, sem pendência de download; 215 vínculos com notas fiscais existentes. Uma execução manual da rotina atualizou 14 snapshots e identificou três recebimentos PIX, sem criar vínculo automático não autorizado. Foram preservadas 870 baixas manuais; não houve pagamento bancário somado novamente a essas baixas. “Marcado recebido”, cancelado e expirado não foram tratados como confirmação de liquidação.
+
+126 testes automatizados aprovados; TypeScript, lint das alterações, bundle administrativo e build Next.js concluídos. A base institucional posterior de pequenas marcas foi incorporada por fast-forward, sem alterações nas páginas públicas. A simulação Postman local exerceu o cliente HTTP real para listagem/PDF nas duas empresas com dados fictícios e cinco requisições registradas no simulador (autenticação e consultas). Testes de geração foram simulados; no banco real apenas autenticação/permissão e GETs foram executados. Nenhum boleto, nota ou e-mail real emitido/cancelado nesta preparação. Nenhuma publicação efetuada por esta etapa.
 
 ## Fontes oficiais
 

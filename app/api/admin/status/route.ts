@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
+import {verificarConfiguracaoInter} from "@/admin-api/src/services/inter.js";
 
 function todasDefinidas(nomes: string[]) {
   return nomes.every((nome) => Boolean(process.env[nome]?.trim()));
@@ -12,16 +13,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ erro: "Não autorizado." }, { status: 401 });
   }
 
+  const [interDrsoft,interSysney]=await Promise.all([verificarConfiguracaoInter("drsoft"),verificarConfiguracaoInter("sysney")]);
   return NextResponse.json(
     {
       empresas: {
         drsoft: {
-          inter: todasDefinidas([
-            "INTER_DRSOFT_CLIENT_ID",
-            "INTER_DRSOFT_CLIENT_SECRET",
-            "INTER_DRSOFT_CERTIFICATE_BASE64",
-            "INTER_DRSOFT_CERTIFICATE_PASSWORD",
-          ]),
+          inter: interDrsoft.configurada,
           nfse: todasDefinidas([
             "NFSE_DRSOFT_CNPJ",
             "NFSE_DRSOFT_CCM",
@@ -30,12 +27,7 @@ export async function GET(request: NextRequest) {
           ]),
         },
         sysney: {
-          inter: todasDefinidas([
-            "INTER_SYSNEY_CLIENT_ID",
-            "INTER_SYSNEY_CLIENT_SECRET",
-            "INTER_SYSNEY_CERTIFICATE_BASE64",
-            "INTER_SYSNEY_CERTIFICATE_PASSWORD",
-          ]),
+          inter: interSysney.configurada,
           nfse: todasDefinidas([
             "NFSE_SYSNEY_CNPJ",
             "NFSE_SYSNEY_CCM",

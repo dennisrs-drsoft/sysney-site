@@ -4,12 +4,12 @@ import type {EmailCobranca} from "./emails-cobranca";
 
 export type PagadorBoleto = Record<string,string>;
 export type PayloadBoleto = {seuNumero:string;valorNominal:number;dataVencimento:string;numDiasAgenda:number;pagador:PagadorBoleto;multa:{codigo:string;taxa:number};mora:{codigo:string;taxa:number};mensagem:Record<string,string>};
-export type PreviaBoleto = {id:string;emailId:string;empresa:"sysney";cobrancaId:string;documento:string;competencia:string;po:string;descricao:string;hash:string;criadoEm:string;payload:PayloadBoleto};
+export type PreviaBoleto = {id:string;emailId:string;empresa:"sysney"|"drsoft";cobrancaId:string;documento:string;competencia:string;po:string;descricao:string;hash:string;criadoEm:string;payload:PayloadBoleto};
 export function hashDadosBoleto(e:EmailCobranca,c:Cobranca,documento:string) {
   return createHash("sha256").update(JSON.stringify({id:e.id,empresa:e.empresa,cobrancaId:c.id,documento,competencia:c.competencia,centavos:c.centavos,vencimento:c.vencimento,descricao:e.descricao,po:e.po || ""})).digest("hex");
 }
 export function conferirDadosBoleto(e:EmailCobranca,c:Cobranca) {
-  if(e.empresa!=="sysney" || e.fluxo?.cobrancaId!==c.id || e.centavos!==c.centavos || e.competencia!==c.competencia || e.vencimento!==c.vencimento) throw new Error("Cobrança divergente. Atualize antes de emitir.");
+  if(!["sysney","drsoft"].includes(e.empresa) || e.fluxo?.cobrancaId!==c.id || e.centavos!==c.centavos || e.competencia!==c.competencia || e.vencimento!==c.vencimento) throw new Error("Cobrança divergente. Atualize antes de emitir.");
   if(!Number.isSafeInteger(c.centavos) || c.centavos<250 || c.centavos>100000000 || !dataValida(c.vencimento) || c.vencimento<hojeBrasil()) throw new Error("Confira valor e vencimento do boleto.");
 }
 export function montarPayloadBoleto(e:EmailCobranca,c:Cobranca,documento:string,pessoa:PagadorBoleto,termos:{multa?:{codigo:string;taxa:number};mora?:{codigo:string;taxa:number};descontos?:unknown[]}) : PayloadBoleto {

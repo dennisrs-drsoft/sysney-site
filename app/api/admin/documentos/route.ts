@@ -20,7 +20,7 @@ function empresa(req:NextRequest) {const e=req.nextUrl.searchParams.get("empresa
 async function opcional<T extends object>(part:string,id:string,nome="AdminDocumentos") {
   try{return await tabela(nome).getEntity<T>(part,id);}catch(e){if((e as {statusCode?:number}).statusCode!==404)throw e;return null;}
 }
-async function habilitada(emp:string) {return emp==="sysney" && (await opcional<{ativo:boolean}>("emissao-boleto","sysney","AdminConfiguracoes"))?.ativo===true;}
+async function habilitada(emp:string) {return (await opcional<{ativo:boolean}>("emissao-boleto",emp,"AdminConfiguracoes"))?.ativo===true;}
 function falha(e:unknown) {const code=(e as {statusCode?:number}).statusCode;return reply({erro:code===409||code===412?"A operação já existe ou a versão mudou. Consulte o resultado; não repita a emissão.":code?"Não foi possível consultar os dados. Atualize o resultado antes de repetir.":e instanceof Error?e.message:"Operação inválida."},code===409||code===412?409:code?503:400);}
 async function contexto(emp:string,id:string) {
   if(!/^[a-f0-9-]{36}$/.test(id))throw new Error("Mensagem inválida.");
@@ -36,9 +36,9 @@ async function contexto(emp:string,id:string) {
   return {row,e,p,cr,c,documento};
 }
 type DetalheInter={cobranca:{codigoSolicitacao:string;pagador:PagadorBoleto;dataEmissao:string;dataVencimento:string;valorNominal:number;seuNumero:string;situacao:string;multa:{codigo:string;taxa:number};mora:{codigo:string;taxa:number};descontos?:unknown[]};boleto?:{nossoNumero:string}};
-async function recentes(documento:string,vencimento:string) {
+async function recentes(emp:"sysney"|"drsoft",documento:string,vencimento:string) {
   const inicio=new Date();inicio.setUTCDate(inicio.getUTCDate()-89);
-  const lista=await listarCobrancasInter({empresa:"sysney",dataInicial:inicio.toISOString().slice(0,10),dataFinal:hojeBrasil()}) as DetalheInter[];
+  const lista=await listarCobrancasInter({empresa:emp,dataInicial:inicio.toISOString().slice(0,10),dataFinal:hojeBrasil()}) as DetalheInter[];
   const clientes=lista.filter(x=>x.cobranca?.pagador?.cpfCnpj?.replace(/\D/g,"")===documento);
   if(clientes.some(x=>x.cobranca.dataVencimento===vencimento && x.cobranca.situacao!=="CANCELADO"))throw new Error("Já existe cobrança deste cliente com esse vencimento no banco. Confira e registre o documento existente, sem emitir outro.");
   return clientes.sort((a,b)=>(b.cobranca.dataEmissao||"").localeCompare(a.cobranca.dataEmissao||""));
@@ -46,7 +46,7 @@ async function recentes(documento:string,vencimento:string) {
 export async function GET(req:NextRequest) {
   const remote=await encaminharAdmin(req);if(remote)return remote;
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
-  try {const emp=empresa(req);return reply({boletoDisponivel:await habilitada(emp),motivoNfse:"Consulte a integração fiscal e o registro da nota nesta cobrança. Recuperar PDF não emite outra nota.",motivoBoleto:emp==="drsoft"?"Inter da DRSOFT ainda em validação. Emita no banco e registre o boleto abaixo.":"Emissão exige revisão e aprovação específica. Nenhum e-mail será enviado."});}catch(e){return falha(e);}
+  try {const emp=empresa(req);return reply({boletoDisponivel:await habilitada(emp),motivoNfse:"Consulte a integração fiscal e o registro da nota nesta cobrança. Recuperar PDF não emite outra nota.",motivoBoleto:"Emissão exige revisão e aprovação específica. Nenhum e-mail será enviado."});}catch(e){return falha(e);}
 }
 export async function POST(req:NextRequest) {
   const remote=await encaminharAdmin(req);if(remote)return remote;
@@ -60,7 +60,6 @@ export async function POST(req:NextRequest) {
       if(typeof b.id!=="string"||!/^[a-f0-9-]{36}$/.test(b.id))throw Error("Mensagem inválida.");
       return reply(await recuperarPdfNotaSP(emp,b.id,b.atualizadoEm));
     }
-    if(emp!=="sysney")throw new Error("Integração bancária da DRSOFT ainda não habilitada. Use o registro manual.");
     const {row,e,c,cr,documento}=await contexto(emp,b.id);
     if(e.formaPagamento==="pix")throw new Error("Esta cobrança usa PIX e não exige boleto. Não há emissão bancária neste fluxo.");
     const part=`boleto-painel-${emp}`,bankKey=createHash("sha256").update(`${documento}:${c.competencia}`).digest("hex");
@@ -73,7 +72,7 @@ export async function POST(req:NextRequest) {
       if(b.atualizadoEm!==e.atualizadoEm)throw new Error("O rascunho mudou. Salve e atualize antes de emitir.");
       conferirDadosBoleto(e,c);
       if(banco)throw new Error("Já existe tentativa bancária desta competência. Use Consultar resultado; não gere outra.");
-      const clientes=await recentes(documento,c.vencimento);
+      const clientes=await recentes(emp,documento,c.vencimento);
       if(!clientes.length)throw new Error("Não há cadastro bancário recente para preparar o pagador. Emita manualmente e importe o cadastro.");
       const detalhe=await consultarCobrancaInter(emp,clientes[0].cobranca.codigoSolicitacao) as DetalheInter;
       const payload=montarPayloadBoleto(e,c,documento,detalhe.cobranca.pagador,detalhe.cobranca);
@@ -88,7 +87,7 @@ export async function POST(req:NextRequest) {
       if(b.aprovado!==true || b.previaId!==previa.id || b.atualizadoEm!==e.atualizadoEm || Date.now()-Date.parse(previa.criadoEm)>1800000)throw new Error("Revise e aprove novamente os dados do boleto.");
       if(!["rascunho","revisado"].includes(e.status) || c.boleto || e.anexos.some(a=>a.tipo==="boleto") || banco)throw new Error("Emissão já iniciada ou documento existente. Consulte o resultado, sem emitir novamente.");
       conferirDadosBoleto(e,c);
-      await recentes(documento,c.vencimento); // Conferência imediatamente antes da trava e do POST.
+      await recentes(emp,documento,c.vencimento); // Conferência imediatamente antes da trava e do POST.
       e.status="emitindo_documento";delete e.aprovacaoEnvio;if(e.fluxo)delete e.fluxo.documentos;e.atualizadoEm=new Date().toISOString();
       await tabela().updateEntity({partitionKey:`emails-${emp}`,rowKey:e.id,json:JSON.stringify(e)},"Replace",{etag:row.etag});
       let por="Administrador local";const principal=req.headers.get("x-ms-client-principal");if(principal){const u=JSON.parse(Buffer.from(principal,"base64").toString("utf8"));por=String(u.userDetails||u.userId||"Administrador").slice(0,254);}

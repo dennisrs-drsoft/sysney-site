@@ -65,8 +65,8 @@ export async function GET(req: NextRequest) {
     const emails = await ler<EmailCobranca>(tabela("AdminDocumentos"), `emails-${empresa(req)}`);
     const projetadas=integrarEnvios(carteira(planos, salvas, ate), emails, empresa(req));
     const banco:Parameters<typeof integrarPagamentosInter>[2]=[];
-    if(empresa(req)==="sysney")for await(const row of tabela("AdminDocumentos").listEntities<Registro&{atualizadoEm:string}>({queryOptions:{filter:"PartitionKey eq 'inter-historico-sysney'"}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
-    const vs=empresa(req)==="sysney"?(await ler<VinculoPix>(tabela("AdminDocumentos"),"pix-conciliacao-sysney")).filter(v=>v.tipo==="vinculo"):[];
+    for await(const row of tabela("AdminDocumentos").listEntities<Registro&{atualizadoEm:string}>({queryOptions:{filter:`PartitionKey eq 'inter-historico-${empresa(req)}'`}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
+    const vs=(await ler<VinculoPix>(tabela("AdminDocumentos"),`pix-conciliacao-${empresa(req)}`)).filter(v=>v.tipo==="vinculo");
     return resposta({ planos, cobrancas: integrarPagamentosPix(integrarPagamentosInter(projetadas,planos,banco,emails),planos,vs,emails), hoje: hojeBrasil() });
   } catch (e) { return falha(e); }
 }
@@ -182,9 +182,9 @@ export async function POST(req: NextRequest) {
     }
     const mensagens=await ler<EmailCobranca>(table, `emails-${emp}`);
     c = integrarEnvios([c], mensagens, emp)[0];
-    if(emp==="sysney"&&["pagamento","estorno"].includes(body.acao)){
+    if(["pagamento","estorno"].includes(body.acao)){
       const planos=await ler<Plano>(planosTable,part);
-      const vinculos=(await ler<VinculoPix>(table,"pix-conciliacao-sysney")).filter(v=>v.tipo==="vinculo");
+      const vinculos=(await ler<VinculoPix>(table,`pix-conciliacao-${emp}`)).filter(v=>v.tipo==="vinculo");
       c=integrarPagamentosPix([c],planos,vinculos,mensagens)[0];
     }
     const operacaoId = texto(body.operacaoId, 36);

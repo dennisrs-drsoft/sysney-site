@@ -4,9 +4,10 @@ import { BlobServiceClient } from "@azure/storage-blob";
 import { NextRequest, NextResponse } from "next/server";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { tabelaSync, lerSync, statusSync, solicitarSync } from "@/admin-api/src/services/inter-sync.js";
-import { registros, partPix, chavePix, vincularPix, cruzarNotas } from "@/admin-api/src/services/conciliacao-inter.js";
+import { tabelaSync, lerSync, statusSync, solicitarSync, syncAtiva } from "@/admin-api/src/services/inter-sync.js";
+import { registros, partPixEmpresa, chavePix, vincularPix, cruzarNotas } from "@/admin-api/src/services/conciliacao-inter.js";
 import { compativelPix } from "@/admin-api/src/services/conciliacao-regras.mjs";
+import {recuperarPdfHistoricoInter} from "@/admin-api/src/services/inter-pdf.js";
 import { dataValida, pago, type Cobranca, type Plano } from "@/lib/cobrancas";
 import type { EmailCobranca } from "@/lib/emails-cobranca";
 
@@ -22,19 +23,20 @@ export async function GET(req: NextRequest) {
   const conta = process.env.ADMIN_STORAGE_ACCOUNT || (process.env.NODE_ENV !== "production" ? "sysneyadm2602" : "");
   if (!conta) return reply({ erro: "Armazenamento não configurado." }, 503);
   try {
+    const partPix=partPixEmpresa(empresa);
     const table = new TableClient(`https://${conta}.table.core.windows.net`, "AdminDocumentos", new DefaultAzureCredential());
     if(req.nextUrl.searchParams.get("pix")==="1"){
-      if(empresa!=="sysney")return reply({erro:"PIX disponível somente para SYSNEY."},400);
+
       const id=req.nextUrl.searchParams.get("id")||"";
       if(!/^[a-zA-Z0-9_-]{1,140}$/.test(id))return reply({erro:"Cobrança inválida."},400);
-      const c=JSON.parse((await table.getEntity<{json:string}>("cobrancas-sysney",id)).json) as Cobranca;
-      const plano=JSON.parse((await new TableClient(`https://${conta}.table.core.windows.net`,"AdminConfiguracoes",new DefaultAzureCredential()).getEntity<{json:string}>("cobrancas-sysney",c.planoId)).json) as Plano;
-      const [controles,pixs]=await Promise.all([registros(table,partPix),registros(table,"inter-pix-sysney")]);
+      const c=JSON.parse((await table.getEntity<{json:string}>(`cobrancas-${empresa}`,id)).json) as Cobranca;
+      const plano=JSON.parse((await new TableClient(`https://${conta}.table.core.windows.net`,"AdminConfiguracoes",new DefaultAzureCredential()).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json) as Plano;
+      const [controles,pixs]=await Promise.all([registros(table,partPix),registros(table,`inter-pix-${empresa}`)]);
       const regra=controles.find(r=>r.tipo==="regra"&&r.cobrancaId===id);
       const recebimentos=pixs.filter(p=>p.documento===plano.documento.replace(/\D/g,"")&&p.centavos===c.centavos&&!controles.some(v=>v.tipo==="reserva"&&v.pixId===p.id)).map(p=>({id:p.id,data:p.data,horario:p.horario,cliente:p.cliente,documento:p.documento,centavos:p.centavos,compativel:compativelPix(c,regra,p)}));
       return reply({regra:regra?{inicio:regra.inicio,fim:regra.fim,automatica:regra.automatica}:null,vinculo:controles.find(v=>v.tipo==="vinculo"&&v.cobrancaId===id)||null,consulta:controles.find(v=>v.tipo==="consulta")?.em||"",documento:plano.documento,recebimentos});
     }
-    if(req.nextUrl.searchParams.get("sync")==="1")return reply({sincronizacao:empresa==="sysney"?statusSync(await lerSync(table)):{ativa:false,estado:"indisponivel",erro:"Integração DRSOFT ainda em validação."}});
+    if(req.nextUrl.searchParams.get("sync")==="1")return reply({sincronizacao:statusSync(await lerSync(table,empresa),syncAtiva(empresa))});
     if(req.nextUrl.searchParams.get("arquivo")==="pdf"){
       const id=req.nextUrl.searchParams.get("id")||"";
       if(!/^[a-f0-9]{64}$/.test(id))return reply({erro:"Boleto inválido."},400);
@@ -53,7 +55,7 @@ export async function GET(req: NextRequest) {
       cobrancas.push({ id: entity.rowKey, nota:n?.numero||"",emissaoNota:n?.emissao||"",cliente: c.pagador?.nome || "Não informado", documento: c.pagador?.cpfCnpj || "", numero: c.seuNumero || "", nossoNumero: boleto?.nossoNumero || c.nossoNumero || "", emissao: c.dataEmissao || "", vencimento: c.dataVencimento || "", valor: Number(c.valorNominal), valorRecebido: Number.isFinite(Number(c.valorTotalRecebido)) && c.valorTotalRecebido !== null && c.valorTotalRecebido !== undefined ? Number(c.valorTotalRecebido) : undefined, situacao: c.situacao || "Não informada", dataSituacao: c.dataSituacao || "", consultadoEm: entity.atualizadoEm, pdf:!!entity.pdfBlob });
     }
     cobrancas.sort((a, b) => b.vencimento.localeCompare(a.vencimento));
-    const sincronizacao = empresa === "sysney" ? statusSync(await lerSync(table)) : { ativa:false, estado:"indisponivel", erro:"Integração DRSOFT ainda em validação." };
+    const sincronizacao = statusSync(await lerSync(table,empresa),syncAtiva(empresa));
     return reply({ cobrancas, sincronizacao });
   } catch {
     return reply({ erro: "Não foi possível consultar o histórico importado." }, 503);
@@ -65,7 +67,9 @@ export async function POST(req: NextRequest) {
   const reply = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
   if (!usuarioAdministrador(req)) return reply({ erro:"Não autorizado." },401);
   if (req.headers.get("origin") !== req.nextUrl.origin) return reply({erro:"Origem inválida."},403);
-  if (req.nextUrl.searchParams.get("empresa") !== "sysney") return reply({erro:"Sincronização disponível apenas para SYSNEY."},400);
+  const empresa=req.nextUrl.searchParams.get("empresa");
+  if(empresa!=="sysney" && empresa!=="drsoft")return reply({erro:"Empresa inválida."},400);
+  const partPix=partPixEmpresa(empresa);
   try {
     const raw = await req.text();
     if (raw.length > 1500) return reply({erro:"Operação inválida."},400);
@@ -73,12 +77,16 @@ export async function POST(req: NextRequest) {
     const principal = req.headers.get("x-ms-client-principal");
     const responsavel = principal ? JSON.parse(Buffer.from(principal,"base64").toString("utf8")).userDetails : "Administrador local";
     const table=tabelaSync();
-    if(body.acao==="cruzar-notas")return reply(await cruzarNotas(table,responsavel));
+    if(body.acao==="recuperar-pdf") {
+      const container=new BlobServiceClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT}.blob.core.windows.net`,new DefaultAzureCredential()).getContainerClient("admin-anexos");
+      return reply(await recuperarPdfHistoricoInter(table,container,empresa,body.id));
+    }
+    if(body.acao==="cruzar-notas")return reply(await cruzarNotas(table,responsavel,empresa));
     if(["regra-pix","vincular-pix"].includes(body.acao)){
       if(!/^[a-zA-Z0-9_-]{1,140}$/.test(body.id||""))return reply({erro:"Cobrança inválida."},400);
-      const row=await table.getEntity<{json:string}>("cobrancas-sysney",body.id),c=JSON.parse(row.json) as Cobranca;
-      const plano=JSON.parse((await new TableClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT}.table.core.windows.net`,"AdminConfiguracoes",new DefaultAzureCredential()).getEntity<{json:string}>("cobrancas-sysney",c.planoId)).json) as Plano;
-      const emails=await registros(table,"emails-sysney") as EmailCobranca[];
+      const row=await table.getEntity<{json:string}>(`cobrancas-${empresa}`,body.id),c=JSON.parse(row.json) as Cobranca;
+      const plano=JSON.parse((await new TableClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT}.table.core.windows.net`,"AdminConfiguracoes",new DefaultAzureCredential()).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json) as Plano;
+      const emails=await registros(table,`emails-${empresa}`) as EmailCobranca[];
       if(c.boleto||pago(c)>0||c.eventos.some(e=>e.tipo==="estorno")||!emails.some(e=>e.formaPagamento==="pix"&&e.fluxo?.cobrancaId===c.id&&e.centavos===c.centavos&&e.vencimento===c.vencimento))return reply({erro:"A cobrança deve estar configurada como PIX, sem boleto nem pagamento manual."},400);
       const rk=`regra-${chavePix(c.id)}`,doc=plano.documento.replace(/\D/g,"");
       if(body.acao==="regra-pix"){
@@ -91,14 +99,14 @@ export async function POST(req: NextRequest) {
       if(typeof body.pixId!=="string"||body.pixId.length>100)return reply({erro:"Identificador PIX inválido."},400);
       const regraRow=await table.getEntity<{json:string}>(partPix,rk),regra=JSON.parse(regraRow.json);
       if(regra.documento!==doc)return reply({erro:"Documento do cliente mudou; revise a regra."},409);
-      const p=JSON.parse((await table.getEntity<{json:string}>("inter-pix-sysney",chavePix(body.pixId))).json);
-      const v=await vincularPix(table,c,{...regra,_rowKey:rk,_etag:regraRow.etag},p,responsavel,"confirmado pelo administrador");
+      const p=JSON.parse((await table.getEntity<{json:string}>(`inter-pix-${empresa}`,chavePix(body.pixId))).json);
+      const v=await vincularPix(table,c,{...regra,_rowKey:rk,_etag:regraRow.etag},p,responsavel,"confirmado pelo administrador",empresa);
       return reply({sucesso:true,vinculo:v});
     }
     if(body.acao!=="sincronizar")return reply({erro:"Operação inválida."},400);
-    return reply({sincronizacao:await solicitarSync(tabelaSync(),responsavel)},202);
+    return reply({sincronizacao:await solicitarSync(tabelaSync(),responsavel,empresa)},202);
   } catch (e) {
     const code=(e as {statusCode?:number}).statusCode;
-    return reply({erro:[409,412].includes(code||0)?"Outra consulta foi solicitada. Atualize o estado antes de repetir.":"Não foi possível solicitar a sincronização. Confira se ela está ativa no servidor."},[409,412].includes(code||0)?409:503);
+    return reply({erro:[409,412].includes(code||0)?"Outra operação foi registrada. Atualize o estado antes de repetir.":"Não foi possível concluir a operação bancária. Confira a integração e tente novamente. Nenhum boleto foi reemitido."},[409,412].includes(code||0)?409:503);
   }
 }

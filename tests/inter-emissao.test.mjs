@@ -8,7 +8,8 @@ test("Inter: emissão permanece desabilitada por padrão e rejeita entrada invá
     delete process.env.INTER_WRITE_OPERATIONS_ENABLED;
     await assert.rejects(emitirCobrancaInter({ empresa:"sysney", competencia:"2026-10", payload:{} }), /não habilitada/);
     process.env.INTER_WRITE_OPERATIONS_ENABLED = "true";
-    await assert.rejects(emitirCobrancaInter({ empresa:"drsoft", competencia:"2026-10", payload:{} }), /inválida/);
+    await assert.rejects(emitirCobrancaInter({ empresa:"outra", competencia:"2026-10", payload:{} }), /inválida/);
+    await assert.rejects(emitirCobrancaInter({ empresa:"drsoft", competencia:"2026-10", payload:{} }), /incompleta/);
     await assert.rejects(emitirCobrancaInter({ empresa:"sysney", competencia:"2026-99", payload:{} }), /inválida/);
     await assert.rejects(emitirCobrancaInter({ empresa:"sysney", competencia:"2026-10", payload:{} }), /incompleta/);
     await assert.rejects(consultarCobrancaInter("sysney", "../outro"), /inválido/);

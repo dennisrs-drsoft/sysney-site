@@ -101,19 +101,21 @@ async function buscarCobranca(empresa: string, id: string) {
 }
 async function cobrancaParaAviso(empresa:"sysney"|"drsoft",id:string) {
   const {c}=await buscarCobranca(empresa,id);
-  if(empresa!=="sysney")return c;
+  // Baixas manuais e estornos prevalecem; não somar confirmação bancária novamente.
+  if(c.eventos.some(e=>e.tipo==="pagamento"||e.tipo==="estorno"))return c;
+
   const configs=new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred);
   const plano:Plano=JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
   const emails:EmailCobranca[]=[],banco:Parameters<typeof integrarPagamentosInter>[2]=[],vinculos:VinculoPix[]=[];
   for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'emails-${empresa}'`}}))emails.push(JSON.parse(row.json));
-  for await(const row of table().listEntities<{json:string;atualizadoEm:string}>({queryOptions:{filter:"PartitionKey eq 'inter-historico-sysney'"}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
-  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'pix-conciliacao-sysney'"}})){const v=JSON.parse(row.json);if(v.tipo==="vinculo")vinculos.push(v);}
+  for await(const row of table().listEntities<{json:string;atualizadoEm:string}>({queryOptions:{filter:`PartitionKey eq 'inter-historico-${empresa}'`}}))banco.push({...JSON.parse(row.json),consultadoEm:row.atualizadoEm});
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'pix-conciliacao-${empresa}'`}})){const v=JSON.parse(row.json);if(v.tipo==="vinculo")vinculos.push(v);}
   // Todas as cobranças entram na unicidade: um boleto não pode quitar dois registros.
   const todas:Cobranca[]=[];
-  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'cobrancas-sysney'"}}))todas.push(JSON.parse(row.json));
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'cobrancas-${empresa}'`}}))todas.push(JSON.parse(row.json));
   if(!todas.some(x=>x.id===c.id))todas.push(c);
   const planos:Plano[]=[];
-  for await(const row of configs.listEntities<{json:string}>({queryOptions:{filter:"PartitionKey eq 'cobrancas-sysney'"}}))planos.push(JSON.parse(row.json));
+  for await(const row of configs.listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'cobrancas-${empresa}'`}}))planos.push(JSON.parse(row.json));
   if(!planos.some(p=>p.id===plano.id))planos.push(plano);
   return integrarPagamentosPix(integrarPagamentosInter(todas,planos,banco,emails),planos,vinculos,emails).find(x=>x.id===c.id)!;
 }

@@ -1,0 +1,5 @@
+simulation: inter-read
+routing: path
+mocks:
+  - routeKey: cobranca
+    path: ../mocks/inter-read/default.js

@@ -15,7 +15,7 @@ const configuracoes = {
     prefixo: "inter-sysney",
   },
   drsoft: {
-    situacao: "em_validacao",
+    situacao: "ativa",
     prefixo: "inter-drsoft",
   },
 };
@@ -60,7 +60,7 @@ async function segredoOpcional(nome) {
 
 async function carregarCredenciais(empresa) {
   const configuracao = configuracaoEmpresa(empresa);
-  if (configuracao.situacao !== "ativa") {
+  if (configuracao.situacao !== "ativa" || (empresa==="drsoft" && process.env.INTER_DRSOFT_ENABLED!=="true")) {
     throw new Error("Integração ainda em validação no Banco Inter.");
   }
 
@@ -139,7 +139,7 @@ export async function consultarCobrancaInter(empresa, codigo, pdf = false) {
   const dispatcher = agenteMtls(credenciais);
   try {
     const token = await obterToken(credenciais, dispatcher);
-    const resposta = await request(new URL(`/cobranca/v3/cobrancas/${codigo}${pdf ? "/pdf" : ""}`, API_URL_PADRAO), {
+    const resposta = await request(new URL(`/cobranca/v3/cobrancas/${codigo}${pdf ? "/pdf" : ""}`, process.env.INTER_API_URL || API_URL_PADRAO), {
       method: "GET", dispatcher,
       headers: { Accept: "application/json", Authorization: `Bearer ${token}`, ...(credenciais.contaCorrente ? { "x-conta-corrente": credenciais.contaCorrente } : {}) },
       signal: AbortSignal.timeout(30000),
@@ -151,7 +151,7 @@ export async function consultarCobrancaInter(empresa, codigo, pdf = false) {
 export async function emitirCobrancaInter({ empresa, competencia, payload, autorizacaoPainel = false }) {
   // O painel valida configuração privada, revisão explícita e trava da cobrança antes desta chamada.
   if (process.env.INTER_WRITE_OPERATIONS_ENABLED !== "true" && autorizacaoPainel !== true) throw new Error("Emissão bancária não habilitada.");
-  if (empresa !== "sysney" || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new Error("Empresa ou competência inválida.");
+  if (!["sysney","drsoft"].includes(empresa) || !/^\d{4}-(0[1-9]|1[0-2])$/.test(competencia)) throw new Error("Empresa ou competência inválida.");
   if (!payload?.pagador?.cpfCnpj || !Number.isFinite(payload.valorNominal) || payload.valorNominal <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.dataVencimento)) throw new Error("Cobrança incompleta.");
   const table = new TableClient(`https://${process.env.ADMIN_STORAGE_ACCOUNT || "sysneyadm2602"}.table.core.windows.net`, "AdminDocumentos", obterCredential());
   const rowKey = createHash("sha256").update(`${payload.pagador.cpfCnpj.replace(/\D/g, "")}:${competencia}`).digest("hex");
@@ -219,13 +219,12 @@ function possuiProximaPagina(resposta, quantidade, paginaAtual) {
 }
 
 export function situacaoInter(empresa) {
-  return configuracaoEmpresa(empresa).situacao;
+  return empresa==="drsoft" && process.env.INTER_DRSOFT_ENABLED!=="true" ? "em_validacao" : configuracaoEmpresa(empresa).situacao;
 }
 
 export async function verificarConfiguracaoInter(empresa) {
-  const configuracao = configuracaoEmpresa(empresa);
-  if (configuracao.situacao !== "ativa") {
-    return { configurada: false, situacao: configuracao.situacao };
+  if (situacaoInter(empresa) !== "ativa") {
+    return { configurada: false, situacao: situacaoInter(empresa) };
   }
 
   try {
@@ -236,12 +235,12 @@ export async function verificarConfiguracaoInter(empresa) {
   }
 }
 
-export async function validarAutenticacaoInter(empresa) {
+export async function validarAutenticacaoInter(empresa, scope = ESCOPO_LEITURA) {
   const credenciais = await carregarCredenciais(empresa);
   const dispatcher = agenteMtls(credenciais);
 
   try {
-    await obterToken(credenciais, dispatcher);
+    await obterToken(credenciais, dispatcher, scope);
     return { autenticada: true };
   } finally {
     await dispatcher.close();
@@ -257,7 +256,7 @@ export async function consultarPaginaExtratoInter({ empresa, dataInicial, dataFi
   const dispatcher = agenteMtls(credenciais);
   try {
     const token = await obterToken(credenciais, dispatcher, "extrato.read");
-    const url = new URL("/banking/v2/extrato/completo", API_URL_PADRAO);
+    const url = new URL("/banking/v2/extrato/completo", process.env.INTER_API_URL || API_URL_PADRAO);
     for (const [k, v] of Object.entries({ dataInicio: dataInicial, dataFim: dataFinal, pagina, tamanhoPagina: 100 })) url.searchParams.set(k, String(v));
     const resposta = await request(url, { method: "GET", dispatcher,
       headers: { Accept: "application/json", Authorization: `Bearer ${token}`, ...(credenciais.contaCorrente ? { "x-conta-corrente": credenciais.contaCorrente } : {}) }, signal: AbortSignal.timeout(30000) });

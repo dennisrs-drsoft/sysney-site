@@ -59,7 +59,7 @@ test("boleto revisado exige autorização, trava concorrência e recupera PDF se
  const e=setup();assert.equal((await GET(req(null,"sysney",{"x-test":"no"}))).status,401);
  assert.equal((await POST(req({acao:"preparar-boleto",id},"sysney",{origin:"https://outro"}))).status,403);
  assert.match((await (await GET(req(null))).json()).motivoNfse,/registro da nota/);
- assert.equal((await POST(req({acao:"preparar-boleto",id},"drsoft"))).status,400);
+ assert.equal((await POST(req({acao:"preparar-boleto",id},"drsoft"))).status,503);
  const p=await preparar(e);assert.equal(state.posts,0);assert.ok(Object.values(p.payload.mensagem).join('').includes('PO 069825'));
  assert.equal((await POST(req({...emitir(e,p),aprovado:false}))).status,400);
  state.pdf=false;const resultados=await Promise.all([POST(req(emitir(e,p))),POST(req(emitir(e,p)))]);
@@ -74,6 +74,24 @@ test("boleto revisado exige autorização, trava concorrência e recupera PDF se
 test("emissão bancária concluída recupera e anexa PDF automaticamente, sem enviar",async()=>{
  const e=setup(),p=await preparar(e),r=await POST(req(emitir(e,p)));
  assert.equal(r.status,200);const d=await r.json();assert.equal(d.email.anexos.length,1);assert.equal(d.email.fluxo.boleto,"123456");assert.equal(d.email.tentativas.length,0);assert.equal(state.posts,1);
+});
+
+test("DRSOFT prepara, aprova e recupera boleto na sua partição, preservando SYSNEY",async()=>{
+ const origem=setup();
+ for(const [key,row] of [...records])if(key.includes("sysney")){
+  const copy=structuredClone(row);
+  if(copy.json){const v=JSON.parse(copy.json);if(v.empresa)v.empresa="drsoft";copy.json=JSON.stringify(v);}
+  records.set(key.replace("sysney","drsoft"),copy);
+ }
+ const sysneyAntes=records.get(`AdminDocumentos:emails-sysney:${id}`).json;
+ const e={...origem,empresa:"drsoft"};
+ const preview=await POST(req({acao:"preparar-boleto",id,atualizadoEm:e.atualizadoEm},"drsoft"));assert.equal(preview.status,200);
+ const p=(await preview.json()).previa;assert.equal(p.empresa,"drsoft");
+ assert.equal((await POST(req({...emitir(e,p),aprovado:false},"drsoft"))).status,400);
+ const r=await POST(req(emitir(e,p),"drsoft"));assert.equal(r.status,200);const d=await r.json();
+ assert.equal(d.email.empresa,"drsoft");assert.equal(d.email.anexos.length,1);assert.equal(d.email.tentativas.length,0);assert.equal(state.posts,1);
+ assert.equal(records.get(`AdminDocumentos:emails-sysney:${id}`).json,sysneyAntes);
+ assert.equal((await POST(req(emitir(e,p),"drsoft"))).status,400);assert.equal(state.posts,1);
 });
 test("falhas pré-transmissão permitem revisão; resultado incerto nunca repete POST",async()=>{
  let e=setup(),p=await preparar(e);state.fail="before";

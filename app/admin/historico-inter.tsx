@@ -10,6 +10,15 @@ export function HistoricoInter({ empresa }: { empresa: "sysney" | "drsoft" }) {
   const [busca, setBusca] = useState("");
   const [aviso, setAviso] = useState("Carregando histórico…");
   const [carga,setCarga]=useState(0);
+  const [recuperando,setRecuperando]=useState("");
+  async function recuperar(id:string){
+    setRecuperando(id);
+    try{
+      const r=await fetch(`/api/admin/historico-inter?empresa=${empresa}`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({acao:"recuperar-pdf",id})});
+      const d=await r.json();if(!r.ok)throw Error(d.erro||"PDF não recuperado. Tente novamente mais tarde; nenhum boleto foi reemitido.");
+      setCarga(v=>v+1);
+    }catch(e){setAviso(e instanceof Error?e.message:"Não foi possível recuperar o PDF.");}finally{setRecuperando("");}
+  }
   const recarregar=useCallback(()=>setCarga(v=>v+1),[]);
   useEffect(() => {
     const abort = new AbortController();
@@ -33,7 +42,7 @@ export function HistoricoInter({ empresa }: { empresa: "sysney" | "drsoft" }) {
     <label className="block text-sm font-semibold">Buscar cliente, documento, número ou situação<input className="mt-2 w-full rounded-xl border border-slate-300 bg-white p-3" value={busca} onChange={e => setBusca(e.target.value)}/></label>
     {aviso==="Carregando histórico…"?<p aria-live="polite" className="text-sm text-slate-600">Carregando histórico…</p>:aviso?<MensagemAdmin mensagem={aviso} aoFechar={()=>setAviso("")} titulo="Histórico bancário indisponível" subtitulo="A consulta ao histórico não foi concluída" tom="erro" observacao="Nenhum boleto foi emitido, cancelado ou baixado por esta consulta."/>:<p className="text-sm text-slate-600">{lista.length} de {registros.length} cobranças importadas.</p>}
     <p className="text-xs text-slate-500">Clique nos títulos para ordenar. <button type="button" className="font-semibold text-blue-700" onClick={restaurar}>Restaurar vencimento decrescente</button></p>
-    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr>{cabecalhos}</tr></thead><tbody>{lista.map(r => <tr key={r.id} className="border-t border-slate-100"><td className="min-w-64 p-4"><strong>{r.cliente}</strong><span className="block text-xs text-slate-500">{r.documento}</span></td><td className="p-4">{r.numero || "—"}</td><td className="p-4">{data(r.emissao)}</td><td className="p-4">{data(r.vencimento)}</td><td className="whitespace-nowrap p-4">{r.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td><td className="p-4"><strong>{r.situacao}</strong><span className="block text-xs text-slate-500">{data(r.dataSituacao)}</span></td><td className="p-4">{data(r.consultadoEm)}</td><td className="whitespace-nowrap p-4">{r.pdf ? <a className="font-semibold text-blue-700 hover:underline" href={`/api/admin/historico-inter?empresa=${empresa}&id=${encodeURIComponent(r.id)}&arquivo=pdf`}>Baixar PDF</a> : <span className="text-xs text-slate-400">Não disponível</span>}</td></tr>)}</tbody></table></div>
+    <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white"><table className="w-full text-left text-sm"><thead className="bg-slate-50"><tr>{cabecalhos}</tr></thead><tbody>{lista.map(r => <tr key={r.id} className="border-t border-slate-100"><td className="min-w-64 p-4"><strong>{r.cliente}</strong><span className="block text-xs text-slate-500">{r.documento}</span></td><td className="p-4">{r.numero || "—"}</td><td className="p-4">{data(r.emissao)}</td><td className="p-4">{data(r.vencimento)}</td><td className="whitespace-nowrap p-4">{r.valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</td><td className="p-4"><strong>{r.situacao}</strong><span className="block text-xs text-slate-500">{data(r.dataSituacao)}</span></td><td className="p-4">{data(r.consultadoEm)}</td><td className="whitespace-nowrap p-4">{r.pdf ? <a className="font-semibold text-blue-700 hover:underline" href={`/api/admin/historico-inter?empresa=${empresa}&id=${encodeURIComponent(r.id)}&arquivo=pdf`}>Baixar PDF</a> : <button type="button" disabled={!!recuperando} className="font-semibold text-blue-700 disabled:opacity-50" onClick={()=>void recuperar(r.id)}>{recuperando===r.id?"Recuperando…":"Tentar baixar PDF"}</button>}</td></tr>)}</tbody></table></div>
     {!aviso && lista.length === 0 && <p className="text-sm text-slate-500">Nenhuma cobrança importada encontrada para este filtro e empresa.</p>}
   </section>;
 }
