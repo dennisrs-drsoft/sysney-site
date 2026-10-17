@@ -11,7 +11,25 @@ export type Evento = {
   data: string; registradoEm: string; responsavel: string; detalhe: string;
   centavos?: number; referencia?: string;
   fonte?: "banco";
+  recebidoCentavos?: number; // Valor efetivamente creditado; não altera o principal da cobrança.
 };
+
+export type IdentidadeBoleto = {nossoNumero:string;referencia:string;nota?:string;notaValidada?:boolean;documento:string;centavos:number;vencimento:string;situacao:string};
+/** Identidade explícita, nunca nome/valor isolados. O chamador exige unicidade nos dois sentidos. */
+export function candidatosBoletos(cobrancas:Cobranca[],planos:Plano[],banco:IdentidadeBoleto[],emails:{competencia:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string;boleto?:string;nota?:string}}[]) {
+  const n=(v:string)=>v.replace(/\D/g,"").replace(/^0+/,"");
+  return cobrancas.map(c=>{
+    const e=emails.find(e=>e.fluxo?.cobrancaId===c.id&&e.competencia===c.competencia&&e.centavos===c.centavos&&e.vencimento===c.vencimento);
+    const ref=n(c.boleto||e?.fluxo?.boleto||""),nota=n(c.nota||e?.fluxo?.nota||""),doc=planos.find(p=>p.id===c.planoId)?.documento.replace(/\D/g,"")||"";
+    return banco.flatMap((b,i)=>{
+      if(!doc||doc!==b.documento.replace(/\D/g,"")||b.centavos!==c.centavos||(c.vencimento&&c.vencimento!==b.vencimento)||!n(b.nossoNumero))return [];
+      const direto=!!ref&&ref===n(b.nossoNumero);
+      const referencia=/^\d+$/.test(b.referencia)&&!!ref&&ref===n(b.referencia)&&!!nota&&nota===n(b.referencia);
+      const fiscal=b.notaValidada===true&&!!nota&&nota===n(b.nota||"")&&(!ref||ref===nota||ref===n(b.referencia));
+      return direto||(!["CANCELADO","EXPIRADO"].includes(b.situacao)&&(referencia||fiscal))?[i]:[];
+    });
+  });
+}
 export type Cobranca = {
   id: string; planoId: string; competencia: string; clienteNome: string;
   email: string; descricao: string; centavos: number; envioPrevisto: string;
@@ -36,15 +54,15 @@ export function integrarPagamentosPix(cobrancas: Cobranca[], planos: Plano[], vi
 }
 
 // Projeção somente leitura: não altera eventos manuais nem cria baixa no Inter.
-export function integrarPagamentosInter(cobrancas:Cobranca[], planos:Plano[], banco:{cobranca:{pagador?:{cpfCnpj?:string};dataVencimento?:string;valorNominal?:number;situacao?:string;dataSituacao?:string;valorTotalRecebido?:number;codigoSolicitacao?:string};boleto?:{nossoNumero?:string};consultadoEm:string}[], emails:{competencia:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string;boleto?:string}}[]) {
+export function integrarPagamentosInter(cobrancas:Cobranca[], planos:Plano[], banco:{cobranca:{pagador?:{cpfCnpj?:string};seuNumero?:string;dataVencimento?:string;valorNominal?:number;situacao?:string;dataSituacao?:string;valorTotalRecebido?:number;codigoSolicitacao?:string};boleto?:{nossoNumero?:string};consultadoEm:string}[], emails:{competencia:string;centavos:number;vencimento:string;fluxo?:{cobrancaId:string;boleto?:string}}[]) {
   const numero=(v:string)=>v.replace(/\D/g,"").replace(/^0+/,"");
   const boleto=(c:Cobranca)=>numero(c.boleto||emails.find(e=>e.fluxo?.cobrancaId===c.id&&e.competencia===c.competencia&&e.centavos===c.centavos&&e.vencimento===c.vencimento)?.fluxo?.boleto||"");
-  return cobrancas.map(c=>{
+  const associacoes=candidatosBoletos(cobrancas,planos,banco.map(b=>({nossoNumero:b.boleto?.nossoNumero||"",referencia:b.cobranca.seuNumero||"",documento:b.cobranca.pagador?.cpfCnpj||"",centavos:Math.round(Number(b.cobranca.valorNominal)*100),vencimento:b.cobranca.dataVencimento?.slice(0,10)||"",situacao:b.cobranca.situacao||""})),emails);
+  return cobrancas.map((c,ci)=>{
     const n=boleto(c), documento=planos.find(p=>p.id===c.planoId)?.documento.replace(/\D/g,"");
     if(!n||!documento||cobrancas.filter(x=>boleto(x)===n).length!==1||c.eventos.some(e=>["pagamento","estorno"].includes(e.tipo)))return c;
-    const candidatos=banco.filter(b=>numero(b.boleto?.nossoNumero||"")===n);
-    if(candidatos.length!==1)return c;
-    const b=candidatos[0],d=b.cobranca, data=d.dataSituacao?.slice(0,10)||"";
+    const ids=associacoes[ci];if(ids.length!==1||associacoes.filter(a=>a.includes(ids[0])).length!==1)return c;
+    const b=banco[ids[0]],d=b.cobranca, data=d.dataSituacao?.slice(0,10)||"";
     if(d.situacao!=="RECEBIDO"||!dataValida(data)||!d.codigoSolicitacao||d.pagador?.cpfCnpj?.replace(/\D/g,"")!==documento||d.dataVencimento?.slice(0,10)!==c.vencimento||Math.round(Number(d.valorNominal)*100)!==c.centavos)return c;
     const valor=d.valorTotalRecebido===undefined||d.valorTotalRecebido===null?c.centavos:Math.round(Number(d.valorTotalRecebido)*100);
     if(!Number.isSafeInteger(valor)||valor<=0||!Number.isFinite(Date.parse(b.consultadoEm)))return c;

@@ -1,4 +1,4 @@
-import { pago, type Cobranca, type Plano } from "./cobrancas";
+import { pago, candidatosBoletos, type Cobranca, type Plano } from "./cobrancas";
 import type { EmailCobranca } from "./emails-cobranca";
 
 export type EmailFinanceiro = Pick<EmailCobranca, "id" | "competencia" | "centavos" | "vencimento" | "fluxo" | "status"> & { aprovacaoEnvio?: { em: string }; tentativas: { status: string }[] };
@@ -32,6 +32,7 @@ function estadoBanco(r: RegistroInter, hoje: string): EstadoFinanceiro {
   if (r.situacao === "RECEBIDO") return "pago";
   if (r.situacao === "CANCELADO") return "cancelado";
   if (r.situacao === "EXPIRADO") return "expirado";
+  if (r.situacao === "ATRASADO" && data(r.vencimento) && data(r.vencimento) < hoje) return "atrasado";
   if (r.situacao === "A_RECEBER" && data(r.vencimento)) return data(r.vencimento) < hoje ? "atrasado" : "aberto";
   return "conferir";
 }
@@ -50,6 +51,7 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
       recebidoNominal: estado === "pago" && b.valorRecebido === undefined, emissaoPrevista: "", emissaoNota: b.emissaoNota || "" };
   });
   const usadas = new Set<number>();
+  const associacoes=candidatosBoletos(cobrancas,planos,banco.map(b=>({nossoNumero:b.nossoNumero||"",referencia:b.numero,nota:b.nota,notaValidada:!!b.nota&&notas.filter(n=>n.situacao==="N"&&numeroBoleto(n.numero)===numeroBoleto(b.nota||"")&&digitos(n.documento)===digitos(b.documento)&&n.centavos===Math.round(b.valor*100)).length===1,documento:b.documento,centavos:Math.round(b.valor*100),vencimento:data(b.vencimento),situacao:b.situacao})),emails);
   // Uma identificação repetida no sistema também exige conferência, nunca fusão arbitrária.
   const contagem = new Map<string, number>();
   for (const c of cobrancas) {
@@ -57,7 +59,7 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
     const numero = numeroBoleto(c.boleto || e?.fluxo?.boleto || "");
     if (numero) contagem.set(numero, (contagem.get(numero) || 0) + 1);
   }
-  const locais = cobrancas.map(c => {
+  const locais = cobrancas.map((c,ci) => {
     const e = emails.find(e => e.fluxo?.cobrancaId === c.id && e.competencia === c.competencia && e.centavos === c.centavos && e.vencimento === c.vencimento);
     const nota = c.nota || e?.fluxo?.nota || "", boleto = c.boleto || e?.fluxo?.boleto || "";
     const recebido = Math.max(0, pago(c)), saldo = Math.max(0, c.centavos - recebido);
@@ -68,27 +70,29 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
     const notaFiscal = notas.filter(n => n.situacao !== "C" && numeroBoleto(n.numero) === numeroBoleto(nota) && digitos(n.documento) === digitos(documento) && n.centavos === c.centavos);
     const estornados = new Set(c.eventos.filter(v => v.tipo === "estorno").map(v => v.referencia));
     const pagamentos = c.eventos.filter(v => v.tipo === "pagamento" && !estornados.has(v.id)).map(v => data(v.data)).filter(Boolean).sort();
+    const recebidoReal=c.eventos.filter(v=>v.tipo==="pagamento"&&!estornados.has(v.id)).reduce((s,v)=>s+(v.recebidoCentavos??v.centavos??0),0);
     const linha: LinhaFinanceira = { id: c.id, cliente: c.clienteNome, documento,
       competencia: c.competencia, emissao: c.eventos.filter(v => v.tipo === "documentos").map(v => data(v.data)).filter(Boolean).sort()[0] || "",
-      vencimento: c.vencimento, centavos: c.centavos, recebido, saldo: emitida ? saldo : 0, estado, origem: "sistema", nota, boleto, envio,
+      vencimento: c.vencimento, centavos: c.centavos, recebido:recebidoReal, saldo: emitida ? saldo : 0, estado, origem: "sistema", nota, boleto, envio,
       etapa: envio ? "Aceito pelo provedor; entrega não confirmada" : e?.status === "incerto" ? "Envio incerto: consultar provedor" : e?.status === "enviando" ? "Envio em processamento" : e?.aprovacaoEnvio ? "E-mail aprovado; falta enviar" : e?.fluxo?.documentos ? "Documentos conferidos; revisar e-mail" : emitida ? "Conferir documentos e e-mail" : "Preparar / aprovar documentos", consultadoEm: "",
       pagamento: saldo === 0 ? pagamentos.at(-1) || "" : "", fontePagamento: pagamentos.length ? c.eventos.some(v=>v.tipo==="pagamento"&&v.fonte==="banco")?"banco":"manual" : "", recebidoNominal: false,
       emissaoPrevista: c.envioPrevisto, emissaoNota: notaFiscal.length === 1 ? data(notaFiscal[0].emissao) : "" };
     const candidatos = banco.map((b, i) => ({ b, i })).filter(({ b }) => !!numeroBoleto(boleto) && numeroBoleto(b.nossoNumero || "") === numeroBoleto(boleto));
-    const exato = candidatos.length === 1 && (contagem.get(numeroBoleto(boleto)) || 0) <= 1 ? candidatos[0] : undefined;
-    if (exato && !usadas.has(exato.i) && Math.round(exato.b.valor * 100) === c.centavos && data(exato.b.vencimento) === c.vencimento && (!linha.documento || digitos(exato.b.documento) === digitos(linha.documento))) {
+    const ids=associacoes[ci],i=ids[0];
+    const exato = ids.length===1&&associacoes.filter(a=>a.includes(i)).length===1&&(contagem.get(numeroBoleto(boleto))||0)<=1 ? {b:banco[i],i} : undefined;
+    if (exato && !usadas.has(exato.i)) {
       usadas.add(exato.i);
       const b = bancarias[exato.i];
       // Snapshot antigo não apaga um pagamento/estorno registrado depois no sistema.
-      const movimentoPosterior = c.eventos.some(v => ["pagamento", "estorno"].includes(v.tipo) && v.registradoEm > b.consultadoEm);
-      return { ...linha, origem: "integrado" as const, consultadoEm: b.consultadoEm,
+      const movimentoPosterior = c.eventos.some(v => ["pagamento", "estorno"].includes(v.tipo) && (v.fonte!=="banco"||v.recebidoCentavos!==undefined||v.registradoEm > b.consultadoEm));
+      return { ...linha, boleto:exato.b.nossoNumero||linha.boleto,vencimento:linha.vencimento||b.vencimento,origem: "integrado" as const, consultadoEm: b.consultadoEm,
         ...(movimentoPosterior ? {} : { estado: b.estado, recebido: b.recebido, saldo: b.saldo, pagamento: b.pagamento, fontePagamento: b.fontePagamento, recebidoNominal: b.recebidoNominal }) };
     }
     const suspeitos = emitida ? banco.map((b, i) => ({ b, i })).filter(({ b, i }) => !usadas.has(i) && !["CANCELADO", "EXPIRADO"].includes(b.situacao) && digitos(linha.documento) && digitos(b.documento) === digitos(linha.documento) && Math.round(b.valor * 100) === c.centavos && data(b.vencimento) === c.vencimento) : [];
-    if (candidatos.length || suspeitos.length) {
+    if (candidatos.length || suspeitos.length || ids.length) {
       linha.estado = "conferir";
       linha.etapa = "Possível duplicidade: validar identificação do boleto";
-      for (const { i } of [...candidatos, ...suspeitos]) bancarias[i].estado = "conferir";
+      for (const { i } of [...candidatos, ...suspeitos,...ids.map(i=>({i}))]) bancarias[i].estado = "conferir";
     }
     return linha;
   });

@@ -56,3 +56,11 @@ test("DRSOFT usa controle e snapshots próprios, sem tocar SYSNEY",async()=>{
  assert.equal((await executarSync({empresa:"drsoft",table,listar:async()=>{throw Error("não consultar desativada");}})).desativada,true);
  assert.throws(()=>normalizarSnapshot(item,"outra"));
 });
+
+test("baixa reconhece referência manual explícita da nota sem confundir com Nosso Número",()=>{
+ const c={id:"c",planoId:"p",nota:"927",centavos:10000,boleto:"000927",vencimento:"2026-10-09",eventos:[]};
+ const p=[{id:"p",documento:"123"}],b=[{...item,cobranca:{...item.cobranca,seuNumero:"000927"},boleto:{nossoNumero:"90878155376"},consultadoEm:new Date().toISOString()}];
+ assert.equal(integrarPagamentosInter([c],p,b,[])[0].eventos.length,1);
+ assert.equal(integrarPagamentosInter([c],p,[...b,{...b[0]}],[])[0].eventos.length,0);
+ assert.equal(integrarPagamentosInter([c,{...c,id:"outro",boleto:"90878155376"}],p,b,[])[0].eventos.length,0);
+});

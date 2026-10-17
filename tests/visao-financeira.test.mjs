@@ -55,3 +55,30 @@ test("envio aceito gera pendência financeira, nunca pagamento", () => {
   const linhas = montar([c({ eventos: [{ tipo: "envio" }] })]);
   assert.equal(linhas[0].envio, true); assert.equal(resumoFinanceiro(linhas, hoje).recebido, 0); assert.equal(resumoFinanceiro(linhas, hoje).receber, 10000);
 });
+
+test("referência manual da nota e Nosso Número bancário identificam uma cobrança só",()=>{
+ const linhas=montar([c({nota:"927",boleto:"000927"})],[b({numero:"000927",nossoNumero:"90878155376",nota:"927",situacao:"RECEBIDO"})]);
+ assert.equal(linhas.length,1);assert.equal(linhas[0].origem,"integrado");assert.equal(linhas[0].boleto,"90878155376");assert.equal(linhas[0].competencia,"2026-09");assert.equal(resumoFinanceiro(linhas,hoje).recebido,10000);
+});
+
+test("mesma referência em vários boletos ou várias cobranças permanece em conferência",()=>{
+ const local=c({nota:"927",boleto:"000927"}),bank=b({numero:"000927",nossoNumero:"90878155376",nota:"927",situacao:"RECEBIDO"});
+ for(const [cs,bs] of [[[local],[bank,{...bank,id:"b2",nossoNumero:"888"}]],[[local,{...local,id:"c2",boleto:"90878155376"}],[bank]]]){
+  const linhas=montar(cs,bs);assert.ok(linhas.every(r=>r.estado==="conferir"));assert.equal(resumoFinanceiro(linhas,hoje).recebido,0);
+ }
+ for(const extra of [{documento:"999"},{valor:200},{vencimento:"2026-11-09"},{situacao:"CANCELADO"}])assert.equal(montar([local],[{...bank,...extra}]).filter(r=>r.origem==="integrado").length,0);
+});
+
+test("nota fiscal validada permite unir histórico sem inventar a competência ou o vencimento",()=>{
+ const local=c({nota:"51",boleto:"",vencimento:""}),bank=b({nota:"51"});
+ const n={numero:"51",documento:plano.documento,centavos:10000,emissao:"2026-09-01",situacao:"N"};
+ assert.equal(consolidarFinanceiro([local],[plano],[bank],[],hoje,[n]).length,1);
+ const row=consolidarFinanceiro([local],[plano],[bank],[],hoje,[n])[0];assert.equal(row.vencimento,bank.vencimento);assert.equal(row.competencia,local.competencia);
+ assert.equal(consolidarFinanceiro([local],[plano],[bank],[],hoje,[{...n,situacao:"C"}]).length,2);
+});
+
+test("crédito confirmado no extrato preserva principal e valor real mesmo se API de boletos atrasar",()=>{
+ const local=c({nota:"927",boleto:"000927",eventos:[{id:"p",tipo:"pagamento",centavos:10000,recebidoCentavos:10200,fonte:"banco",data:"2026-10-16",registradoEm:"2026-10-17T12:00:00Z"}]});
+ const linhas=montar([local],[b({numero:"000927",nossoNumero:"90878155376",situacao:"ATRASADO",consultadoEm:"2026-10-18T12:00:00Z"})]);
+ assert.equal(linhas.length,1);assert.equal(linhas[0].centavos,10000);assert.equal(linhas[0].recebido,10200);assert.equal(linhas[0].saldo,0);assert.equal(linhas[0].estado,"pago");assert.equal(resumoFinanceiro(linhas,hoje).recebido,10200);
+});
