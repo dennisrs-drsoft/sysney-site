@@ -34,6 +34,10 @@ Em 17/10/2026, a importação autorizada consultou janelas de 01/01/2020 a 17/10
 
 126 testes automatizados aprovados; TypeScript, lint das alterações, bundle administrativo e build Next.js concluídos. A base institucional posterior de pequenas marcas foi incorporada por fast-forward, sem alterações nas páginas públicas. A simulação Postman local exerceu o cliente HTTP real para listagem/PDF nas duas empresas com dados fictícios e cinco requisições registradas no simulador (autenticação e consultas). Testes de geração foram simulados; no banco real apenas autenticação/permissão e GETs foram executados. Nenhum boleto, nota ou e-mail real emitido/cancelado nesta preparação. Nenhuma publicação efetuada por esta etapa.
 
+## Publicação autorizada — 17/10/2026
+
+Usuário autorizou publicação e ativação automática da DRSOFT. Release preparada `2026.10.17.001`, código `908ec75`, preservando a base institucional `906d415` e a página para pequenas marcas. Reserva confirmada pela frente institucional. Publicar somente Next.js/SWA e API externa; não alterar a VM fiscal. Habilitar no servidor as flags DRSOFT e a configuração privada de emissão, sem liberar emissão sem revisão/aprovação. Resultado e evidências on-line serão registrados após conclusão.
+
 ## Fontes oficiais
 
 - [Timer trigger Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-timer)
