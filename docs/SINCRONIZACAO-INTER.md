@@ -38,6 +38,12 @@ Em 17/10/2026, a importação autorizada consultou janelas de 01/01/2020 a 17/10
 
 Usuário autorizou publicação e ativação automática da DRSOFT. Release preparada `2026.10.17.001`, código `908ec75`, preservando a base institucional `906d415` e a página para pequenas marcas. Reserva confirmada pela frente institucional. Publicar somente Next.js/SWA e API externa; não alterar a VM fiscal. Habilitar no servidor as flags DRSOFT e a configuração privada de emissão, sem liberar emissão sem revisão/aprovação. Resultado e evidências on-line serão registrados após conclusão.
 
+Publicação confirmada: SHA `4a21cf65c59c77a0c5cde4584df2afe29cc64c28`, workflow `39045558424` concluído com sucesso; versão pública `2026.10.17.001`. API externa publicada, flags DRSOFT ativadas e configuração privada de emissão habilitada com aprovação específica obrigatória. Metadados dos timers SYSNEY/DRSOFT sincronizados no Azure. VM fiscal não alterada.
+
+Teste autenticado pelo canal de servidor: histórico e 316 PDFs acessíveis, PDF de boleto recebido válido, geração disponível, pedido de sincronização aceito às `2026-10-17T15:38:47.366Z`. O timer da Azure iniciou às `15:39:30Z` e concluiu às `15:39:38Z` (12h39 de Brasília), atualizando 14 snapshots e consultando três PIX; nenhuma nova baixa PIX sem regra, emissão ou cancelamento. Isso comprova execução no servidor, não uma execução local. Home, contato, links, pequenas marcas, robots e sitemap HTTP 200; admin/endpoints privados redirecionam visitante anônimo ao login. Sessão visual do navegador do usuário não foi simulada.
+
+Após a publicação, o usuário identificou duas linhas para uma cobrança com referência manual diferente do Nosso Número bancário. Diagnóstico somente leitura confirmou origem sistema + Inter, sem nova emissão; a consolidação existente sinaliza possível duplicidade e exclui ambas dos totais. Tratamento dessa associação permanece pendente; a publicação não deve ser descrita como ausência completa de pendências de conciliação.
+
 ## Fontes oficiais
 
 - [Timer trigger Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-timer)
