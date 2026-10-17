@@ -44,6 +44,16 @@ Teste autenticado pelo canal de servidor: histórico e 316 PDFs acessíveis, PDF
 
 Após a publicação, o usuário identificou duas linhas para uma cobrança com referência manual diferente do Nosso Número bancário. Diagnóstico somente leitura confirmou origem sistema + Inter, sem nova emissão; a consolidação existente sinaliza possível duplicidade e exclui ambas dos totais. Tratamento dessa associação permanece pendente; a publicação não deve ser descrita como ausência completa de pendências de conciliação.
 
+## Unificação e créditos confirmados — 17/10/2026
+
+Correção autorizada da consolidação: referência manual da nota e Nosso Número são associados apenas com identidade explícita, CNPJ, valor nominal e vencimento compatíveis e unicidade nos dois sentidos. A associação fiscal também exige nota válida; coincidência de nome/valor não basta. Não exclui cobranças, não altera PDFs ou histórico de e-mails e não emite/cancela documentos.
+
+Auditoria dos dados reais: DRSOFT passou de 1.187 para 972 linhas, com 215 associações banco/sistema; SYSNEY permanece com 59 linhas e duas associações existentes. Um registro bancário DRSOFT com situação não conclusiva permanece para conferência, sem baixa presumida.
+
+Extrato de 16/10/2026 confirmou o boleto da nota 927 (principal R$ 3.242,58, crédito R$ 3.314,99) e o PIX de R$ 1.400,00 da parcela restante da nota 928. Baixas gravadas de forma idempotente, com reserva de transação, preservando o pagamento anterior de R$ 2.100,00. Ambos os saldos são zero. A diferença de R$ 72,41 fica separada e a classificar, sem presumir multa ou juros. Snapshot de cobrança ainda atrasado não reabre pagamento comprovado pelo extrato. O principal fiscal não foi alterado.
+
+131 testes automatizados aprovados. Publicação da release `2026.10.17.002` em preparação; registrar confirmação após implantação. Nenhuma nota, boleto ou mensagem nova gerada nesta correção.
+
 ## Fontes oficiais
 
 - [Timer trigger Azure Functions](https://learn.microsoft.com/en-us/azure/azure-functions/functions-bindings-timer)
