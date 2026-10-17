@@ -52,7 +52,7 @@ Auditoria dos dados reais: DRSOFT passou de 1.187 para 972 linhas, com 215 assoc
 
 Extrato de 16/10/2026 confirmou o boleto da nota 927 (principal R$ 3.242,58, crédito R$ 3.314,99) e o PIX de R$ 1.400,00 da parcela restante da nota 928. Baixas gravadas de forma idempotente, com reserva de transação, preservando o pagamento anterior de R$ 2.100,00. Ambos os saldos são zero. A diferença de R$ 72,41 fica separada e a classificar, sem presumir multa ou juros. Snapshot de cobrança ainda atrasado não reabre pagamento comprovado pelo extrato. O principal fiscal não foi alterado.
 
-131 testes automatizados aprovados. Publicação da release `2026.10.17.002` em preparação; registrar confirmação após implantação. Nenhuma nota, boleto ou mensagem nova gerada nesta correção.
+131 testes automatizados aprovados; TypeScript, lint, build Next.js e bundle administrativo aprovados. Release `2026.10.17.002` confirmada no site, SHA `a71d74e8f802b979633ea665ab4e96064672b21b`, workflow `39047514689` concluído com sucesso. API externa publicada; VM fiscal não alterada. GET autenticado no servidor confirmou os valores recebidos e saldo zero das notas 927/928. Auditoria repetida após publicação manteve 215 vínculos DRSOFT, sem novas duplicações. Home, contato, links, pequenas marcas, robots, sitemap e saúde da API retornaram HTTP 200. Teste por canal de servidor não substitui revisão visual no navegador do usuário. Nenhuma nota, boleto ou mensagem nova gerada nesta correção.
 
 ## Fontes oficiais
 
