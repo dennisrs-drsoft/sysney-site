@@ -57,3 +57,13 @@ test("headers preservam prévia, Turnstile e desenvolvimento, sem CSP permissiva
  const dev=Object.fromEntries(headersNavegador(false).map(h=>[h.key,h.value]));assert.equal(dev["Strict-Transport-Security"],undefined);
  assert.match(dev["Content-Security-Policy"],/unsafe-eval/);
 });
+
+test("wrapper normaliza headers sem duplicar diretivas por diferenças de maiúsculas",async()=>{
+ process.env.ADMIN_BACKEND_EXECUTION="true";
+ const principal=Buffer.from(JSON.stringify({...p,userRoles:["administrador"]})).toString("base64");
+ const req={url:"https://backend/api/financeiro/painel/emails",params:{recurso:"emails"},method:"GET",headers:new Headers({"x-admin-site-origin":"https://www.sysney.com","x-ms-client-principal":principal})};
+ const handler=criarHandlerPainel({emails:{GET:async()=>new Response("pdf",{headers:{"cache-control":"private","X-Content-Type-Options":"nosniff"}})}},{limitar:async()=>({permitido:true})});
+ const r=await handler(req),h=new Headers(r.headers);
+ assert.equal(h.get("cache-control"),"no-store");assert.equal(h.get("x-content-type-options"),"nosniff");
+ assert.equal(Object.keys(r.headers).filter(n=>n.toLowerCase()==="cache-control").length,1);
+});

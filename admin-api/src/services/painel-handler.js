@@ -42,7 +42,10 @@ export function criarHandlerPainel(rotas,{limitar=limitarAcesso}={}) {
       for (const name of ["content-type","origin"]) { const value=request.headers.get(name); if(value)headers.set(name,value); }
       const req = new NextRequest(`${origem}/api/admin/${rota}${new URL(request.url).search}`,{method:request.method,headers,body});
       const response = await handler(req);
-      return {status:response.status,headers:{...Object.fromEntries(response.headers),...headersPrivados,"X-Request-Id":requestId},body:Buffer.from(await response.arrayBuffer())};
+      const safeHeaders=new Headers(response.headers);
+      for(const [nome,valor] of Object.entries(headersPrivados))safeHeaders.set(nome,valor);
+      safeHeaders.set("X-Request-Id",requestId);
+      return {status:response.status,headers:Object.fromEntries(safeHeaders),body:Buffer.from(await response.arrayBuffer())};
     } catch(e) {
       if(e instanceof ErroRequisicao)return resposta(e.status,e.message);
       console.warn(JSON.stringify({evento:"falha-painel",requestId,rota,metodo:request.method}));
