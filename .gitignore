@@ -13,6 +13,8 @@
 
 # testing
 /coverage
+/output/
+/backups/
 
 # next.js
 /.next/

@@ -6,6 +6,7 @@ import {criarHandlerPainel} from "../admin-api/src/services/painel-handler.js";
 const uri=s=>`data:text/javascript;base64,${Buffer.from(s).toString("base64")}`;
 let source=ts.transpileModule(readFileSync(new URL("../app/api/admin/_remote.ts",import.meta.url),"utf8"),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
 source=source.replaceAll('"next/server"',JSON.stringify(uri('export const NextResponse=Response'))).replaceAll('"./_auth"',JSON.stringify(uri('export const usuarioAdministrador=r=>r.headers.get("x-test-admin")==="yes"')));
+source=source.replaceAll('"@/admin-api/src/services/seguranca-http.mjs"',JSON.stringify(new URL("../admin-api/src/services/seguranca-http.mjs",import.meta.url).href));
 const {encaminharAdmin}=await import(uri(source));
 const principal=Buffer.from(JSON.stringify({userRoles:["administrador"],userDetails:"teste"})).toString("base64");
 function request(method="GET",headers={},body){
@@ -44,7 +45,7 @@ test("ponte reconhece host público do proxy sem liberar origem externa ou sess�
 test("API isolada exige canal de servidor, perfil administrador e origem; mantém query e resposta PDF",async()=>{
  process.env.ADMIN_BACKEND_EXECUTION="true";
  let calls=0;
- const handler=criarHandlerPainel({emails:{GET:async req=>{calls++;assert.equal(req.nextUrl.origin,"https://www.sysney.com");assert.equal(req.nextUrl.searchParams.get("empresa"),"sysney");return new Response("%PDF-test",{headers:{"content-type":"application/pdf"}});}}});
+ const handler=criarHandlerPainel({emails:{GET:async req=>{calls++;assert.equal(req.nextUrl.origin,"https://www.sysney.com");assert.equal(req.nextUrl.searchParams.get("empresa"),"sysney");return new Response("%PDF-test",{headers:{"content-type":"application/pdf"}});}}},{limitar:async()=>({permitido:true})});
  const req={url:"https://backend.test/api/financeiro/painel/emails?empresa=sysney",method:"GET",params:{recurso:"emails"},headers:new Headers({"x-admin-site-origin":"https://www.sysney.com"})};
  assert.equal((await handler(req)).status,401);
  req.headers.set("x-ms-client-principal",Buffer.from(JSON.stringify({userRoles:["anonymous"]})).toString("base64"));assert.equal((await handler(req)).status,401);

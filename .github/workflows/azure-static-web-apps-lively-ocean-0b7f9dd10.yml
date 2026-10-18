@@ -1,5 +1,8 @@
 name: Azure Static Web Apps CI/CD
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -10,10 +13,35 @@ on:
       - main
 
 jobs:
+  security_checks:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm ci --prefix admin-api --ignore-scripts
+      - name: Dependências de produção sem alertas altos ou críticos
+        run: |
+          npm audit --omit=dev --audit-level=high
+          npm audit --prefix admin-api --omit=dev --audit-level=high
+      - name: Segredos e limites de segurança
+        run: |
+          node deploy/verificar-segredos.mjs
+          node --test tests/admin-bridge.test.mjs tests/seguranca-http.test.mjs tests/backup-seguranca.test.mjs
   build_and_deploy_job:
+    needs: security_checks
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Build and Deploy Job
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v4
         with:

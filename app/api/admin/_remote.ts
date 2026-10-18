@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { usuarioAdministrador } from "./_auth";
+import { lerCorpoLimitado, ErroRequisicao } from "@/admin-api/src/services/seguranca-http.mjs";
 
 const rotas = new Set(["clientes", "cobrancas", "emails", "aprovacoes", "historico-inter", "status", "documentos", "nfse"]);
 const destino = "https://sysney-admin-api-2602.azurewebsites.net";
@@ -27,9 +28,9 @@ export async function encaminharAdmin(req: NextRequest): Promise<Response | null
   if (req.method === "POST" && req.headers.get("origin") !== origem) return erro("Origem inválida.",403);
   const key = process.env.ADMIN_BACKEND_KEY;
   if (!key) return erro("Serviço administrativo ainda não configurado.",503);
-  if (Number(req.headers.get("content-length") || 0) > 5_500_000) return erro("Arquivo muito grande.",413);
-  const body = req.method === "POST" ? await req.arrayBuffer() : undefined;
-  if (body && body.byteLength > 5_500_000) return erro("Arquivo muito grande.",413);
+  let body;
+  try {body = req.method === "POST" ? await lerCorpoLimitado(req) : undefined;}
+  catch(e) {return erro(e instanceof ErroRequisicao ? e.message : "Solicitação inválida.",e instanceof ErroRequisicao ? e.status : 400);}
   const headers = new Headers({
     "x-functions-key":key,
     "x-ms-client-principal":req.headers.get("x-ms-client-principal") || "",
@@ -43,7 +44,7 @@ export async function encaminharAdmin(req: NextRequest): Promise<Response | null
       method:req.method,headers,body,cache:"no-store",redirect:"error",signal:AbortSignal.timeout(90000),
     });
     const safe = new Headers({"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"});
-    for (const name of ["content-type","content-disposition"]) {
+    for (const name of ["content-type","content-disposition","retry-after","x-request-id"]) {
       const value=response.headers.get(name); if(value)safe.set(name,value);
     }
     return new Response(response.body,{status:response.status,headers:safe});
