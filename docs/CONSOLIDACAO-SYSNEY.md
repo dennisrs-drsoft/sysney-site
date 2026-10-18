@@ -44,7 +44,7 @@ Scripts operacionais ainda não revisados, `output/`, documentos financeiros e s
 
 Resultados e identificação da publicação devem ser registrados em `docs/RELEASE-2026-10-08.md` após as validações. Não confundir versão preparada com versão confirmada no Azure.
 
-## Reforço de segurança — 18/10/2026 (implementação, ainda não publicada)
+## Reforço de segurança — 18/10/2026
 
 ### Confirmado na produção por consultas somente leitura
 
@@ -88,3 +88,7 @@ Nenhum push/deploy, mudança de login, MFA, firewall, permissões de VM ou rota�
 ### Publicação autorizada — 18/10/2026
 
 Usuário autorizou implantar o reforço em produção. Release `2026.10.18.001`, código `636f30a`, mantendo a base institucional `82ba991`. Publicar Next/SWA e API externa, sem mudanças na VM, certificados, login/MFA ou novos recursos de backup/WAF. Validar bloqueios anônimos, acesso pelo canal autenticado, downloads e headers. Registrar abaixo o resultado depois da implantação; preparação não comprova publicação.
+
+Publicação concluída, incluindo ajuste de normalização case-insensitive dos headers para evitar duplicação de diretivas na API. Release final pública `2026.10.18.002`, código `a26d22b`, SHA implantado `f3e9642d43135126c4fbbf101de70ed43ba07ee6`, workflow `39153649835` concluído com sucesso (primeira etapa `39153347641`, também sucesso). API externa republicada com o ajuste. 139 testes automatizados aprovados; barreira CI passou incluindo os 11 testes específicos e as auditorias de produção sem alertas altos/críticos. Manutenção das ferramentas de desenvolvimento e atualização das actions Node20/v4 permanecem itens de acompanhamento, sem downgrade forçado.
+
+Validação on-line: home, contato, links, pequenas marcas, robots e sitemap HTTP 200 e headers de segurança ativos. Administração e API do site sem sessão retornaram 302/login; cabeçalho de administrador forjado não liberou acesso. API externa sem chave retornou 401 e origem externa 403. Pelo canal de servidor autorizado, status retornou 200, correlação e Cache-Control corretos; contador da identidade sintética foi reservado e uma única chamada confirmou 429 com Retry-After, sem teste de carga. Registro sintético removido. Histórico e PDF oficial das duas empresas acessíveis. Nenhuma nota, boleto, e-mail, pagamento ou alteração de documentos foi gerado por esses testes. Não foi simulada sessão visual do navegador do usuário. VM fiscal, certificados, MFA, firewall e destino de backup não alterados. Backup independente/restauro real continuam pendentes; esta publicação não certifica conformidade OWASP nem conclui auditoria de toda a infraestrutura.
