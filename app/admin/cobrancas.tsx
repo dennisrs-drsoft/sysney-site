@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { dataBr, hojeBrasil, moeda, pago, situacao, type Cobranca, type Empresa, type Plano } from "@/lib/cobrancas";
 import {MensagemAdmin} from "./dialogos-admin";
 import { ConciliacaoPix } from "./conciliacao-pix";
+import { ArquivosAcompanhamento } from "./arquivos-acompanhamento";
 
 import { useOrdenacaoTabela } from "./ordenacao-tabela";
 
@@ -124,12 +125,12 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
       </div>
       {visiveis.length === 0 ? <p className="my-8 rounded-xl bg-slate-50 p-6 text-center text-slate-600">{loading ? "Carregando cobranças..." : planos.length ? "Nenhuma cobrança neste filtro." : "Cadastre a primeira mensalidade para gerar a agenda por competência."}</p> : <div className="mt-5 overflow-x-auto"><table className="w-full min-w-[850px] text-left text-sm"><thead className="border-b text-xs uppercase text-slate-500"><tr>{cabecalhos}</tr></thead><tbody>{visiveis.map(c => <tr key={c.id} className="border-b border-slate-100"><td className="px-3 py-4"><strong>{c.clienteNome}</strong><p className="mt-1 text-slate-500">{c.competencia.split("-").reverse().join("/")}</p></td><td className="px-3 py-4">{dataBr(c.envioPrevisto)}<p className="mt-1 text-xs text-slate-500">{primeiroEvento(c, "envio") ? `Enviado: ${dataBr(primeiroEvento(c, "envio")!.data)}` : "Envio não registrado"}</p></td><td className="px-3 py-4">{dataBr(c.vencimento)}</td><td className="px-3 py-4 font-bold">{moeda(c.centavos - pago(c))}<p className="mt-1 text-xs font-normal text-slate-500">Total: {moeda(c.centavos)}</p></td><td className="px-3 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${situacao(c,hoje) === "Atrasado" ? "bg-red-50 text-red-700" : situacao(c,hoje) === "Pago" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>{situacao(c,hoje)}</span></td><td className="px-3 py-4"><button className={secondary} onClick={() => { setSelecionada(c.id); setAviso(""); }}>Acompanhar</button></td></tr>)}</tbody></table></div>}
     </section>
-    {selecionado && <Detalhe key={selecionado.id} c={selecionado} ocupado={ocupado || loading} hoje={hoje} salvar={salvar} fechar={() => setSelecionada(null)}/>}
+    {selecionado && <Detalhe key={`${empresa}-${selecionado.id}`} empresa={empresa} c={selecionado} ocupado={ocupado || loading} hoje={hoje} salvar={salvar} fechar={() => setSelecionada(null)}/>}
     {selecionado && !selecionado.boleto && selecionado.persistida && <ConciliacaoPix empresa={empresa} key={`pix-${selecionado.id}`} c={selecionado} aoAtualizar={()=>void carregar()}/>}
   </div>;
 }
 
-function Detalhe({ c, ocupado, hoje, salvar, fechar }: { c: Cobranca; ocupado: boolean; hoje: string; salvar: (body: Record<string, unknown>) => Promise<void>; fechar: () => void }) {
+function Detalhe({ empresa, c, ocupado, hoje, salvar, fechar }: { empresa: Empresa; c: Cobranca; ocupado: boolean; hoje: string; salvar: (body: Record<string, unknown>) => Promise<void>; fechar: () => void }) {
   const [acao, setAcao] = useState("documentos");
   const [copiado, setCopiado] = useState("");
   const texto = `Olá,\n\nSegue o demonstrativo de cobrança referente a ${c.descricao}.\nCompetência: ${c.competencia.split("-").reverse().join("/")}\nValor: ${moeda(c.centavos)}\nVencimento: ${dataBr(c.vencimento)}\n\nFavor confirmar o recebimento.\n\nFinanceiro`;
@@ -141,12 +142,13 @@ function Detalhe({ c, ocupado, hoje, salvar, fechar }: { c: Cobranca; ocupado: b
   const pagamentos = c.eventos.filter(e => e.tipo === "pagamento" && !c.eventos.some(x => x.tipo === "estorno" && x.referencia === e.id));
   return <section className="rounded-3xl border-2 border-blue-200 bg-white p-6">
     <div className="flex justify-between gap-3"><div><p className="text-xs font-bold uppercase text-blue-700">Acompanhamento · {c.competencia}</p><h3 className="mt-2 text-xl font-black">{c.clienteNome}</h3><p className="mt-2 text-sm text-slate-600">{c.email} · saldo {moeda(c.centavos - pago(c))}</p></div><button onClick={fechar} className={`${secondary} self-start`}>Fechar</button></div>
+    <ArquivosAcompanhamento empresa={empresa} c={c}/>
     <div className="mt-5 grid gap-6 lg:grid-cols-2">
       <div><h4 className="font-bold">Registrar uma etapa</h4><p className="mt-1 text-xs leading-5 text-slate-500">Os registros são manuais e ficam com data e responsável. Use as datas reais dos documentos e comprovantes.</p>
         <form onSubmit={registrar} className="mt-4"><fieldset disabled={ocupado} className="space-y-4">
           <label className={label}>Etapa<select className={input} value={acao} onChange={e => setAcao(e.target.value)}><option value="documentos">Conferir documentos preparados</option><option value="envio">Registrar envio realizado</option><option value="recebimento">Confirmar recebimento pelo cliente</option><option value="pagamento">Registrar pagamento manual</option><option value="estorno">Corrigir pagamento registrado</option></select></label>
           <label className={label}>Data real<input type="date" name="data" required max={hoje} defaultValue={hoje} className={input}/></label>
-          {acao === "documentos" ? <div key={`${c.nota}-${c.boleto}`} className="space-y-3"><label className={label}>Número da NFS-e<input className={input} name="nota" maxLength={120} required defaultValue={c.nota}/></label><label className={label}>Identificação do boleto / nosso número<input className={input} name="boleto" maxLength={120} required defaultValue={c.boleto}/></label><label className="flex gap-2 text-sm"><input name="demonstrativo" type="checkbox" required defaultChecked={c.demonstrativo}/>Demonstrativo, nota e boleto conferidos para esta competência</label><p className="text-xs text-slate-500">São referências de documentos já emitidos. Os arquivos ainda não são armazenados neste módulo.</p></div> : <>
+          {acao === "documentos" ? <div key={`${c.nota}-${c.boleto}`} className="space-y-3"><label className={label}>Número da NFS-e<input className={input} name="nota" maxLength={120} required defaultValue={c.nota}/></label><label className={label}>Identificação do boleto / nosso número<input className={input} name="boleto" maxLength={120} required defaultValue={c.boleto}/></label><label className="flex gap-2 text-sm"><input name="demonstrativo" type="checkbox" required defaultChecked={c.demonstrativo}/>Demonstrativo, nota e boleto conferidos para esta competência</label><p className="text-xs text-slate-500">São referências de documentos já emitidos. Os PDFs disponíveis aparecem em Documentos da cobrança, acima. Registrar esta etapa não anexa nem emite arquivos.</p></div> : <>
             {acao === "pagamento" && <label className={label}>Valor recebido (R$)<input name="valor" type="number" step="0.01" min="0.01" max={(c.centavos - pago(c))/100} required className={input}/></label>}
             {acao === "estorno" && <label className={label}>Registro a corrigir<select name="referencia" required className={input}><option value="">Selecione</option>{pagamentos.map(e => <option key={e.id} value={e.id}>{dataBr(e.data)} · {moeda(e.centavos || 0)}</option>)}</select></label>}
             <label className={label}>{acao === "envio" ? "Destinatário, canal e referência do envio" : acao === "recebimento" ? "Quem confirmou e por qual canal" : "Comprovante ou motivo do registro"}<textarea name="detalhe" required maxLength={500} className={input} rows={3}/></label>
