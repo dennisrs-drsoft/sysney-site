@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { CommercialPaths, ImplementationJourney } from "../components/commercial-paths";
 
 const route = "/sistema-vendas-pequenas-marcas";
 const contact = "/contato?origem=pequenas-marcas&interesse=pequenas-marcas";
 const title = "Sistema de vendas para pequenas marcas de moda";
-const description = "Sua marca vende com uma equipe enxuta ou com o próprio dono? Conheça o SISBlink: catálogo digital, pedidos por grade e acompanhamento comercial. Avalie recursos e investimento.";
+const description = "Catálogo digital e pedidos por grade para pequenas marcas de moda. Conheça os caminhos de contratação do SISBlink, implantação e investimento sob consulta.";
 export const metadata: Metadata = {
   title, description, alternates: { canonical: route },
   openGraph: { title, description, url: route, type: "website", locale: "pt_BR", siteName: "SISBlink", images: [{ url: "/sisblink/telas/catalogo.webp", width: 1920, height: 1080, alt: "Catálogo e pedido por grade no SISBlink" }] },
@@ -31,11 +32,13 @@ const dailyWork = [
 ];
 
 const questions = [
+  ["O que está incluído na contratação?", "A proposta identifica os recursos, a quantidade de acessos e os serviços contratados. Os caminhos Essencial, Crescimento e Operação integrada orientam a conversa, mas não são pacotes com condições presumidas. Implantação, treinamento, suporte e integração devem ter seu escopo e seus valores discriminados."],
+  ["Quanto tempo leva para começar?", "O cronograma é definido após conhecer os dados, as regras e as integrações necessárias. Antes da entrada em operação, alinhamos preparação dos cadastros, validação do fluxo e orientação dos usuários. Não há prazo único anunciado para todos os cenários."],
   ["O SISBlink é só para grandes empresas?", "Não. O catálogo, os pedidos e o acompanhamento comercial também podem apoiar pequenas marcas. O tamanho da equipe é uma parte da avaliação: a SYSNEY considera seus produtos, sua forma de vender e os dados necessários para confirmar a adequação da plataforma."],
   ["Faz sentido quando o próprio dono também vende?", "Sim, esse cenário pode ser avaliado. A mesma pessoa pode precisar apresentar a coleção, registrar quantidades e conferir pedidos. Na demonstração, mostre essa rotina para validar como os recursos e os acessos serão organizados."],
   ["Como avaliar se o investimento vale a pena?", "Considere o tempo gasto redigitando e conferindo pedidos, os erros que exigem correção e a dificuldade de acompanhar as vendas. Depois, compare esses pontos com os recursos demonstrados e com o custo total da proposta, incluindo implantação, integração quando necessária e suporte."],
   ["Minha marca precisa ter um ERP para conversar com a SYSNEY?", "Não precisa ter um ERP para iniciar a avaliação. Conte se você usa um sistema, planilhas ou outro processo. A viabilidade e a forma de disponibilizar produtos, clientes, preços e pedidos serão definidas com a SYSNEY antes da contratação."],
-  ["Como saber o preço para minha marca?", "O investimento e as condições comerciais são apresentados pela SYSNEY após entender a operação. Peça uma demonstração e uma proposta com recursos, acessos, implantação e suporte definidos para o cenário que você precisa atender."],
+  ["Como saber o preço para minha marca?", "Os valores são sob consulta. O investimento considera o escopo, a quantidade de acessos, os serviços de implantação e a integração quando necessária. Solicite uma proposta que separe mensalidade e eventuais serviços adicionais, sem presumir preço ou condição comercial."],
 ];
 
 export default function SmallBrandsPage() {
@@ -48,6 +51,8 @@ export default function SmallBrandsPage() {
             <Link href="/" aria-label="SYSNEY — página inicial" className="rounded-lg focus-visible:outline-2 focus-visible:outline-sky-300"><Image src="/logo.png" alt="SYSNEY Informática" width={150} height={150} sizes="112px" className="h-auto w-24 sm:w-28" /></Link>
             <nav aria-label="Navegação para pequenas marcas" className="flex flex-wrap items-center gap-4 text-sm font-bold sm:gap-6">
               <Link href="/sisblink-em-acao" className="text-slate-300 hover:text-sky-300">Ver as telas</Link>
+              <Link href="#modalidades" className="text-slate-300 hover:text-sky-300">Modalidades</Link>
+              <Link href="#implantacao" className="text-slate-300 hover:text-sky-300">Como começar</Link>
               <Link href="/links" className="text-slate-300 hover:text-sky-300">Todas as soluções</Link>
               <Link href={contact} className="rounded-full bg-blue-500 px-5 py-3 hover:bg-blue-400">Conversar com a SYSNEY</Link>
             </nav>
@@ -56,10 +61,10 @@ export default function SmallBrandsPage() {
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">SISBlink para pequenas marcas de moda</p>
               <h1 className="mt-5 text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">Equipe enxuta.<br /><span className="text-sky-300">Venda organizada.</span></h1>
-              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Sua marca pode ter poucas pessoas nas vendas — ou o próprio dono atendendo os clientes. O SISBlink também pode ajudar você a apresentar a coleção, montar pedidos e acompanhar a operação com mais clareza.</p>
-              <p className="mt-5 max-w-xl leading-7 text-slate-300">Profissionalize a venda no tamanho que sua marca tem hoje. Os recursos e o investimento são avaliados conforme sua rotina e o que você precisa organizar.</p>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">Você não precisa ter um grande time para organizar suas vendas. Apresente a coleção, monte pedidos por cor e tamanho e acompanhe o atendimento em um mesmo fluxo com o SISBlink.</p>
+              <p className="mt-5 max-w-xl leading-7 text-slate-300">Para quem acumula funções, clareza faz diferença. Conheça os recursos na demonstração e receba uma proposta para a sua operação, com valores sob consulta.</p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Link href={contact} className="rounded-full bg-emerald-400 px-6 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-300">Avaliar minha marca com a SYSNEY</Link>
+                <Link href={contact} className="rounded-full bg-emerald-400 px-6 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-300">Solicitar proposta para minha marca</Link>
                 <Link href="#rotina" className="rounded-full border border-white/30 px-6 py-4 text-center font-bold transition hover:bg-white/10">Veja como funciona ↓</Link>
               </div>
             </div>
@@ -106,6 +111,9 @@ export default function SmallBrandsPage() {
           <Link href="/sisblink-em-acao" className="mt-8 inline-flex font-black text-blue-700 underline underline-offset-4 hover:text-blue-500">Explore também o dashboard, o chat e o pedido espelhado →</Link>
         </div>
       </section>
+
+      <CommercialPaths />
+      <ImplementationJourney />
 
       <section aria-labelledby="value-title" className="bg-[#07111f] px-6 py-16 text-white sm:py-20 lg:px-10">
         <div className="mx-auto max-w-[1600px]">

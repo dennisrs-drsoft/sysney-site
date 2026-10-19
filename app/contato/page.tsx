@@ -183,9 +183,10 @@ export default async function ContatoPage({ searchParams }: Props) {
                 defaultValue=""
               >
                 <option value="" disabled>
-                  {pequenasMarcas ? "Quantidade de pessoas nas vendas" : "Quantidade de representantes"}
+                  Quantidade de pessoas nas vendas
                 </option>
-                <option value="Até 5">Até 5</option>
+                <option value="Somente eu">Somente eu</option>
+                <option value="2 a 5">2 a 5</option>
                 <option value="6 a 20">6 a 20</option>
                 <option value="21 a 50">21 a 50</option>
                 <option value="Acima de 50">Acima de 50</option>
@@ -215,7 +216,7 @@ export default async function ContatoPage({ searchParams }: Props) {
                 name="mensagem"
                 required
                 maxLength={4000}
-                placeholder="Conte rapidamente o que você procura *"
+                placeholder="Conte o que precisa organizar e quais recursos gostaria de conhecer *"
                 rows={6}
                 className="md:col-span-2 rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />

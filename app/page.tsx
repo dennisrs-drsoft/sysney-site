@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import { SisblinkLiveHighlight } from "./components/sisblink-live-highlight";
 import { SmallBrandsHighlight } from "./components/small-brands-highlight";
+import { CommercialPaths, ImplementationJourney } from "./components/commercial-paths";
 
 export const metadata: Metadata = {
   title: "Sistema de Força de Vendas B2B para Moda",
@@ -101,11 +102,12 @@ export default function Home() {
               </div>
             </div>
 
-            <nav className="hidden items-center gap-8 text-sm font-semibold text-slate-200 lg:flex">
+            <nav className="hidden items-center gap-4 text-xs font-semibold text-slate-200 lg:flex xl:gap-6 xl:text-sm">
               <Link href="/sistema-forca-de-vendas" className="hover:text-sky-300">Força de vendas</Link>
               <Link href="/plataforma-vendas-b2b" className="hover:text-sky-300">Vendas B2B</Link>
               <Link href="/vendas-para-franquias-e-multimarcas" className="hover:text-sky-300">Franquias</Link>
               <Link href="/integracoes-erp" className="hover:text-sky-300">Integrações</Link>
+              <a href="#modalidades" className="hover:text-sky-300">Modalidades</a>
               <a href="#sobre" className="hover:text-sky-300">Sobre</a>
             </nav>
 
@@ -583,6 +585,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      <CommercialPaths />
+      <ImplementationJourney />
 
       <section id="seguranca" className="scroll-mt-8 bg-[#eef5fb] px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[0.85fr_1.15fr]">

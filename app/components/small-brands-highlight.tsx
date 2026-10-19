@@ -7,8 +7,9 @@ export function SmallBrandsHighlight() {
         <div>
           <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-700">Pequenas marcas · Equipes enxutas</p>
           <h2 id="small-brands-title" className="mt-4 max-w-3xl text-3xl font-black leading-tight tracking-tight sm:text-4xl lg:text-5xl">Sua marca não precisa ser grande para vender de forma organizada.</h2>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">Se o próprio dono atende clientes ou poucas pessoas cuidam das vendas, cada conferência e cada redigitação pesam na rotina. O SISBlink também pode apoiar essa operação com catálogo digital, pedidos e acompanhamento comercial.</p>
+          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-600">Se o próprio dono atende clientes ou poucas pessoas cuidam das vendas, cada conferência e cada redigitação pesam na rotina. Organize catálogo, pedidos por grade e acompanhamento comercial com o SISBlink, com escopo definido para sua operação.</p>
           <Link href="/sistema-vendas-pequenas-marcas" className="mt-8 inline-flex items-center rounded-full bg-blue-600 px-6 py-4 text-center font-black text-white transition hover:bg-blue-500 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-600">Conheça o SISBlink para pequenas marcas →</Link>
+          <Link href="#modalidades" className="mt-5 block w-fit font-bold text-blue-700 underline underline-offset-4">Veja os caminhos de contratação · valores sob consulta</Link>
         </div>
         <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-950/5 sm:p-8">
           <p className="text-sm font-black text-blue-800">Mais organização para quem acumula funções.</p>
