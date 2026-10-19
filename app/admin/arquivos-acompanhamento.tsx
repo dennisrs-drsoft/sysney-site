@@ -4,6 +4,7 @@ import type { Cobranca, Empresa } from "@/lib/cobrancas";
 import { nomesAnexos, type EmailCobranca } from "@/lib/emails-cobranca";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { emailsDaCobranca, notasDaCobranca } from "@/lib/arquivos-acompanhamento";
+import { MensagemAdmin } from "./dialogos-admin";
 
 const botao = "inline-flex rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-600";
 type Nota = { numero: string; pdf: boolean; xml: boolean };
@@ -39,12 +40,12 @@ export function ArquivosAcompanhamento({ empresa, c }: { empresa: Empresa; c: Co
   return <section aria-labelledby="arquivos-cobranca-titulo" aria-busy={!atual} className="mt-6 rounded-2xl border border-blue-200 bg-blue-50/60 p-4 sm:p-5">
     <h4 id="arquivos-cobranca-titulo" className="text-lg font-black">Documentos da cobrança</h4>
     <p className="mt-2 text-sm leading-6 text-slate-600">Abra a cópia para salvar ou compartilhar com o cliente. Consultar e baixar não emite documentos, não altera o pagamento e não reenvia e-mail.</p>
-    {!atual ? <p className="mt-4 text-sm" role="status">Consultando documentos vinculados…</p> : <>
+    {!atual ? <p className="mt-4 text-sm">Consultando documentos vinculados…</p> : <>
       {anexos.map(a => <div key={`${a.emailId}-${a.tipo}`} className="mt-3 rounded-xl border border-blue-100 bg-white p-4"><p className="font-bold">{nomesAnexos[a.tipo]}</p><p className="mt-1 break-words text-xs text-slate-500">{a.nome} · anexo salvo na cobrança</p><a target="_blank" rel="noreferrer" className={`${botao} mt-3`} href={`/api/admin/emails?empresa=${empresa}&id=${encodeURIComponent(a.emailId)}&anexo=${a.tipo}`}>Abrir PDF — {nomesAnexos[a.tipo]}</a></div>)}
       {nota && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4"><p className="font-bold">NFS-e {nota.numero} · arquivo fiscal</p><div className="mt-3 flex flex-wrap gap-3">{nota.pdf && <a target="_blank" rel="noreferrer" className={botao} href={`/api/admin/nfse?empresa=${empresa}&historico=1&numero=${encodeURIComponent(nota.numero)}&arquivo=pdf`}>Abrir PDF da nota fiscal</a>}{nota.xml && <a className={botao} href={`/api/admin/nfse?empresa=${empresa}&historico=1&numero=${encodeURIComponent(nota.numero)}&arquivo=xml`}>Baixar XML da nota fiscal</a>}</div></div>}
       {!anexos.some(a => a.tipo === "nota") && !nota?.pdf && <p className="mt-4 text-sm text-slate-600">{c.nota ? `Nota ${c.nota} registrada, mas sem PDF disponível nesta consulta.` : "Nenhuma nota fiscal vinculada a esta cobrança."} Confira também a seção Notas antigas e XML.</p>}
       {!anexos.some(a => a.tipo === "boleto") && <p className="mt-3 text-sm text-slate-600">{c.boleto ? `Boleto ${c.boleto}: PDF não localizado entre os anexos. Consulte o Histórico do Inter para recuperar a cópia, sem reemitir.` : "Sem boleto registrado. Cobranças pagas via PIX não precisam de boleto."}</p>}
-      {atual.erros.length > 0 && <div role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">{atual.erros.join(" ")} Isso não significa que os documentos foram apagados. Tente atualizar a consulta.</div>}
+      <MensagemAdmin mensagem={atual.erros.join(" ")} titulo="Consulta de documentos incompleta" subtitulo="Os arquivos disponíveis continuam acessíveis" tom="erro" observacao="Isso não significa que os documentos foram apagados. Atualizar apenas consulta os arquivos; não emite nem envia documentos." aoFechar={() => setEstado(v => v ? {...v, erros: []} : v)} acao={() => setCarga(v => v + 1)} rotuloAcao="Atualizar documentos"/>
     </>}
     <button type="button" disabled={!atual} onClick={() => setCarga(v => v + 1)} className={`${botao} mt-4 disabled:opacity-50`}>Atualizar documentos</button>
   </section>;
