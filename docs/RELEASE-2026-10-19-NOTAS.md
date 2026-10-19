@@ -9,3 +9,9 @@ Publicação autorizada pelo usuário, somente Next/SWA. Preserva a release come
 - Datas ausentes podem permanecer no filtro de período por opção explícita, ativada inicialmente. Ordenação, paginação e filtros preservados; botão para limpar filtros. Falha de uma fonte não oculta registros da outra; modal padrão para erro. Troca de empresa não mostra dados antigos sob novo contexto.
 
 Build completo, TypeScript e lint direcionado aprovados; 16 testes específicos aprovados na implementação. Validação visual autenticada ainda não realizada. Nenhuma mudança em API externa, VM, certificados ou DNS. Scripts operacionais excluídos dos commits. Evidência de publicação será acrescentada ao término.
+
+## Publicação confirmada
+
+Versão pública 2026.10.19.003 confirmada no version.json. Workflow 39313366032 concluído com sucesso; SHA 713962e86ad04938c7ba83635fcce7c046dcd9ca. Antes do push, 39 testes de regressão passaram, incluindo busca, deduplicação, leitura dos arquivos, diálogos, ordenação e segurança; verificação de segredos sem padrões reconhecidos. Barreira de segurança do workflow aprovada.
+
+Consulta somente leitura dos registros reais da DRSOFT exercitou a mesma projeção: nota 928 encontrada por TFSeven e pelo número, uma única ocorrência e metadados de PDF presentes, inclusive com período setembro–outubro/2026. Isso não simula a sessão visual do usuário nem confirma abertura do PDF no dispositivo dele. Somente Next/SWA publicado.
