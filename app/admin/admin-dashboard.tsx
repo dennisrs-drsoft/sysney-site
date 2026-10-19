@@ -90,7 +90,7 @@ const secoes: { id: SecaoId; label: string }[] = [
   { id: "aprovacoes", label: "Aprovar emissão" },
   { id: "emails", label: "Laboratório de e-mails" },
   { id: "historico-inter", label: "Histórico do Inter" },
-  { id: "historico-fiscal", label: "Notas antigas e XML" },
+  { id: "historico-fiscal", label: "Notas fiscais e XML" },
   { id: "regularizacao", label: "Regularização fiscal" },
   { id: "nfse-nacional", label: "NFS-e Nacional" },
   { id: "nova-emissao", label: "Nova emissão" },
