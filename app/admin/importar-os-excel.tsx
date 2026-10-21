@@ -10,6 +10,7 @@ const botao="rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-
 export function ImportarOSExcel({empresa,clienteId,clienteNome,aoImportar}:{empresa:Empresa;clienteId:string;clienteNome:string;aoImportar:()=>Promise<void>}){
  const [arquivo,setArquivo]=useState<File|null>(null),[previa,setPrevia]=useState<Previa|null>(null),[ocupado,setOcupado]=useState(false),[aviso,setAviso]=useState(""),[pagina,setPagina]=useState(1),[progresso,setProgresso]=useState("");
  const confirmar=useConfirmarAdmin(),tentativa=useRef<string|null>(null);
+ const [andamento,setAndamento]=useState({importadas:0,total:1});
  async function consultar(){
   if(!arquivo)return;setOcupado(true);setPrevia(null);setPagina(1);setProgresso("");tentativa.current=null;
   try{
@@ -29,7 +30,7 @@ export function ImportarOSExcel({empresa,clienteId,clienteNome,aoImportar}:{empr
     const r=await fetch(`/api/admin/ordens-servico?${q}`,{method:"POST",headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},body:arquivo,signal:AbortSignal.timeout(90000)});
     const d=await lerRespostaAdmin<{resultado?:{importadas:number;ignoradas:number;repetida:boolean;pendentes?:number};erro?:string}>(r,true);
     if(!r.ok||!d.resultado)throw Error(d.erro||"Importação não confirmada.");
-    resultado=d.resultado;setProgresso(`${resultado.importadas} atendimento(s) importado(s) · ${resultado.pendentes||0} pendente(s). Mantenha esta tela aberta.`);
+    resultado=d.resultado;setAndamento({importadas:resultado.importadas,total:resultado.importadas+(resultado.pendentes||0)});setProgresso(`${resultado.importadas} atendimento(s) importado(s) · ${resultado.pendentes||0} pendente(s). Mantenha esta tela aberta.`);
     if(!resultado.pendentes)break;
    }
    if(!resultado||resultado.pendentes)throw Error("Importação pausada. Confira a prévia para continuar os lotes restantes.");
@@ -54,6 +55,6 @@ export function ImportarOSExcel({empresa,clienteId,clienteNome,aoImportar}:{empr
    {previa.erros>0&&<p className="text-sm font-semibold text-amber-900">Corrija as linhas com erro no Excel e confira a prévia novamente. Nenhuma linha será gravada enquanto houver erros.</p>}
    <button className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white disabled:opacity-50" disabled={ocupado||previa.erros>0||(previa.novas===0&&!previa.retomada)} onClick={()=>void importar()}>{previa.retomada?"Retomar importação sem duplicar":"Confirmar importação dos novos serviços"}</button>
   </div>}
-  {progresso&&<p role="status" aria-live="polite" className="mt-4 rounded-xl bg-blue-50 p-3 text-sm font-semibold">{progresso}</p>}
+  {progresso&&<div className="mt-4 rounded-xl border border-blue-100 bg-blue-50 p-4"><label className="block text-sm font-bold">Andamento da importação<progress className="mt-3 block h-3 w-full accent-blue-600" max={Math.max(1,andamento.total)} value={andamento.importadas}/></label><p aria-live="polite" className="mt-2 text-sm">{progresso}</p></div>}
  </details>;
 }
