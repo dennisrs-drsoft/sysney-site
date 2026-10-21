@@ -27,3 +27,11 @@ Relatório gerado com pdf-lib, texto quebrado por largura e páginas adicionais.
 ## Validação
 
 Testes de domínio e store exercitam frações, minutos, mínimo, diária ausente, valor fixo, snapshots, versão antiga, deduplicação, reserva, falha parcial/retomada, histórico idempotente e criação apenas de rascunho. Store é exercitado com repositório transacional e blobs em memória; isso não prova transporte/concorrência do Azure real. A importação autorizada foi conferida separadamente no armazenamento real, sem gerar cobrança. Conferência visual do relatório real realizada. Homologação da interface e preparação de nova cobrança em produção continuam dependentes de publicação e aprovação separadas.
+
+## Publicação — 21/10/2026
+
+Publicação autorizada pelo usuário e concluída: versão `2026.10.21.001`, código `eacf89f`, workflow SWA `39672362894` com sucesso. API externa `sysney-admin-api-2602` publicada separadamente pelo script revisado, sem implantação na VM fiscal. Base anterior `c24eed2` preservada.
+
+Quarenta testes aprovados nesta release; build Next.js, bundle da API, TypeScript e verificações locais anteriores aprovados. Auditorias de dependências de produção de ambos os projetos sem alertas; isso não equivale a ausência de alertas nas ferramentas de desenvolvimento. Contrato OpenAPI validado sintaticamente; governança Postman não executada por exigir login.
+
+Verificação on-line somente leitura: versão pública correta; home, contato, links, pequenas marcas, robots e sitemap HTTP 200. Admin e sua API sem sessão redirecionam ao login; API externa sem chave HTTP 401 confirmado por uma asserção Postman. Pelo canal de servidor autorizado, ordens e status existentes das duas empresas retornaram HTTP 200; seis registros históricos vinculados à nota 49 e relatório privado com assinatura PDF válida. Nenhum POST financeiro, emissão fiscal, boleto, envio de e-mail ou registro de pagamento foi executado. Não foi simulada sessão visual do usuário no SWA; validação funcional da interface pelo usuário continua recomendada.
