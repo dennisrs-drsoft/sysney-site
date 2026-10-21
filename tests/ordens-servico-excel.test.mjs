@@ -24,5 +24,9 @@ test('rejeita formatos desconhecidos, arquivos grandes, macros, XML externo e ZI
  assert.throws(()=>lerExcelOS(zipOS({...arquivosOS(),'xl/workbook.xml':'<!DOCTYPE x [<!ENTITY a SYSTEM "file:///secret">]><workbook/>'})));
  const b=excelOS();b[50]^=0xff;assert.throws(()=>lerExcelOS(b));
  assert.throws(()=>lerExcelOS(zipOS({...arquivosOS(),'xl/sharedStrings.xml':'x'.repeat(4*1024*1024+1)})));
- assert.throws(()=>lerExcelOS(excelOS(Array.from({length:41},()=>({data:'01/08/2026',inicio:'08:00',fim:'09:00',descricao:'Serviço'})))));
+ assert.throws(()=>lerExcelOS(excelOS(Array.from({length:1001},()=>({data:'01/08/2026',inicio:'08:00',fim:'09:00',descricao:'Serviço'})))));
+});
+test('aceita mil atendimentos no mesmo histórico, sem depender do limite de gravação por lote',()=>{
+ const rows=Array.from({length:1000},(_,i)=>({data:new Date(Date.UTC(2023,0,1+i)).toISOString().slice(0,10),inicio:'08:00',fim:'09:00',descricao:`Serviço ${i+1}`}));
+ const p=lerExcelOS(excelOS(rows));assert.equal(p.linhas.length,1000);assert.equal(p.linhas.filter(l=>l.erro).length,0);
 });

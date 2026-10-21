@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Ordens de serviço privadas",
-    "version": "1.2.0",
+    "version": "1.3.0",
     "description": "Somente administrador autenticado. Empresa obrigatória. Não emite nota, boleto ou e-mail. Operações de gravação usam operacaoId UUID e versão; não repetir POST incerto com novo ID. Histórico faturado é imutável e não entra em nova cobrança."
   },
   "security": [{"sessionAdmin":[]}],
@@ -54,7 +54,7 @@
           "required": true,
           "content": {
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
-              "schema":{"type":"string","format":"binary","description":"XLSX até 2 MB, aba OSS, até 40 atendimentos. Prévia com linhas novas, repetidas, suspeitas ou inválidas. Recalcula pelas regras atuais. Erros bloqueiam confirmação; repetições são ignoradas. Importação atômica e deduplicada por cliente/empresa/hash. Nenhuma cobrança ou documento é gerado."}
+              "schema":{"type":"string","format":"binary","description":"XLSX até 2 MB, aba OSS, até 1.000 atendimentos antigos e novos. Prévia sem gravação inclui novas, ignoradas, erros, retomada e jaImportadas. Primeira confirmação congela as regras. Cada POST importar-excel grava até 40 novos e retorna resultado {importadas acumuladas, ignoradas, hash, pendentes, repetida}. Somente após uma resposta de sucesso com pendentes>0, continuar com o mesmo arquivo/cliente/versao/operacaoId. Não repetir automaticamente em timeout/erro: conferir a prévia e retomar o mesmo arquivo. Cada lote é atômico e deduplicado; o arquivo inteiro não é uma transação. Estado parcial persistido permite retomada com regras congeladas e sem duplicar. Nenhuma cobrança ou documento é gerado."}
             },
             "application/json": {
               "schema": {

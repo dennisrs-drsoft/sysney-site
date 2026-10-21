@@ -7,6 +7,7 @@ import { novoEmail, emailsValidos, type EmailCobranca } from "./emails-cobranca"
 import { pdfOrdensServico } from "./ordens-servico-pdf";
 import type { Plano, Cobranca, Empresa } from "./cobrancas";
 import { lerExcelOS } from "./ordens-servico-excel";
+import { MAX_ATENDIMENTOS_EXCEL_OS, MAX_NOVOS_LOTE_EXCEL_OS } from "./ordens-servico-limites";
 type Registro = TableEntityResult<{
     json: string;
 }> & {
@@ -14,6 +15,13 @@ type Registro = TableEntityResult<{
 };
 type Salva = OrdemServico & {
     versao: string;
+};
+type ImportacaoExcel = {
+    estado?: "em-andamento" | "concluida";
+    regras?: RegrasOS;
+    versaoRegras?: string;
+    documento?: string;
+    resultado: { importadas: number; ignoradas: number; hash: string; pendentes?: number };
 };
 type Regra = {
     tipo: "regra";
@@ -124,12 +132,15 @@ export class OrdensServicoStore {
     async preverExcel(clienteId: unknown, bytes: Buffer) {
         const arquivo=lerExcelOS(bytes),c=await this.cliente(clienteId),reg=await this.ler(`regra-${c.id}`);
         if(!reg)throw Error("Salve as regras do cliente antes de importar.");
-        const regra=JSON.parse(reg.json) as Regra,existentes=(await this.listar()).ordens.filter(o=>o.clienteId===c.id),vistas=new Set<string>(),horariosVistos=new Set<string>();
+        const andamento=await this.ler(`excel-${hash(c.id+":"+arquivo.hash)}`),importacao=andamento?JSON.parse(andamento.json) as ImportacaoExcel:null;
+        const retomada=importacao?.estado==="em-andamento",atual=JSON.parse(reg.json) as Regra;
+        const regra=retomada&&importacao.regras&&importacao.versaoRegras?{regras:validarRegrasOS(importacao.regras),versao:importacao.versaoRegras}:atual;
+        const existentes=(await this.listar()).ordens.filter(o=>o.clienteId===c.id),porIdentidade=new Map(existentes.map(o=>[this.fingerprint(o),o])),horariosExistentes=new Set(existentes.map(o=>JSON.stringify([o.data,o.diaFim,o.inicio,o.fim]))),vistas=new Set<string>(),horariosVistos=new Set<string>();
         const linhas=arquivo.linhas.map(l=>{
             if(!l.entrada)return {...l,situacao:"erro" as const};
             const e=l.entrada,fp=this.fingerprint({...e,clienteId:c.id});
             const horario=JSON.stringify([e.data,e.diaFim,e.inicio,e.fim]);
-            const igual=existentes.find(o=>this.fingerprint(o)===fp),mesmoHorario=horariosVistos.has(horario)||existentes.some(o=>o.data===e.data&&o.diaFim===e.diaFim&&o.inicio===e.inicio&&o.fim===e.fim);
+            const igual=porIdentidade.get(fp),mesmoHorario=horariosVistos.has(horario)||horariosExistentes.has(horario);
             horariosVistos.add(horario);
             const duplicada=vistas.has(fp);vistas.add(fp);
             try{const calculo=calcularOS(e,regra.regras);
@@ -137,24 +148,29 @@ export class OrdensServicoStore {
             }catch(e){return {...l,situacao:"erro" as const,erro:e instanceof Error?e.message:"Cálculo inválido."};}
         });
         const novas=linhas.filter(l=>l.situacao==="nova"&&l.entrada).map(l=>({...l.entrada!,id:String(l.linha),clienteId:c.id,clienteNome:c.nome,documento:c.documento,regras:regra.regras,estado:"aberta" as const,criadoEm:"",atualizadoEm:"",por:""}));
-        return {hash:arquivo.hash,clienteId:c.id,clienteNome:c.nome,versao:regra.versao,regras:regra.regras,linhas,novas:novas.length,ignoradas:linhas.filter(l=>l.situacao==="repetida"||l.situacao==="conferir").length,erros:linhas.filter(l=>l.situacao==="erro").length,resumo:novas.length?resumirOS(novas):null};
+        return {hash:arquivo.hash,clienteId:c.id,clienteNome:c.nome,versao:regra.versao,regras:regra.regras,linhas,novas:novas.length,ignoradas:linhas.filter(l=>l.situacao==="repetida"||l.situacao==="conferir").length,erros:linhas.filter(l=>l.situacao==="erro").length,resumo:novas.length?resumirOS(novas,MAX_ATENDIMENTOS_EXCEL_OS):null,retomada,jaImportadas:retomada?importacao.resultado.importadas:0};
     }
     async importarExcel(clienteId:unknown,bytes:Buffer,versao:unknown,op:string,por:string,confirmado:unknown) {
         uuid(op);if(confirmado!==true)throw Error("Confirme a prévia antes de importar.");
         const previa=await this.preverExcel(clienteId,bytes),key=`excel-${hash(previa.clienteId+":"+previa.hash)}`,old=await this.ler(key);
-        if(old)return {...JSON.parse(old.json).resultado,repetida:true};
+        const anterior=old?JSON.parse(old.json) as ImportacaoExcel:null;
+        if(anterior&&anterior.estado!=="em-andamento")return {...anterior.resultado,pendentes:0,repetida:true};
         if(previa.erros)throw Error("Corrija as linhas com erro antes de importar o arquivo inteiro.");
         if(previa.versao!==versao)throw conflito("As regras mudaram depois da prévia. Confira novamente.");
         const c=await this.cliente(previa.clienteId),reg=await this.ler(`regra-${c.id}`);
-        if(!reg||JSON.parse(reg.json).versao!==versao)throw conflito("As regras mudaram. Confira novamente.");
+        if(!reg||(!anterior&&JSON.parse(reg.json).versao!==versao)|| (anterior?.documento&&anterior.documento!==c.documento))throw conflito("Cadastro ou regras alterados. Confira novamente.");
+        if(anterior&&JSON.stringify(anterior.regras)!==JSON.stringify(previa.regras))throw conflito("Importação em andamento. Atualize a prévia antes de retomar.");
         const em=new Date().toISOString(),a:TransactionAction[]=[["update",{partitionKey:this.part,rowKey:`regra-${c.id}`,json:reg.json},"Replace",{etag:reg.etag}]];
-        for(const l of previa.linhas.filter(l=>l.situacao==="nova")){
+        const lote=previa.linhas.filter(l=>l.situacao==="nova").slice(0,MAX_NOVOS_LOTE_EXCEL_OS);
+        for(const l of lote){
             const h=hash(`${c.id}:${previa.hash}:${l.linha}`),id=`${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
             const o:Salva={...l.entrada!,id,clienteId:c.id,clienteNome:c.nome,documento:c.documento,regras:previa.regras,estado:"aberta",versao:op,criadoEm:em,atualizadoEm:em,por,origem:`Excel OSS · SHA256 ${previa.hash} · linha ${l.linha}`};
             a.push(["create",this.entidade(`os-${id}`,o)],["create",this.entidade(this.fingerprint(o),{ordemId:id})]);
         }
-        const resultado={importadas:previa.novas,ignoradas:previa.ignoradas,hash:previa.hash};
-        a.push(["create",this.entidade(key,{tipo:"importacao-excel",hash:previa.hash,clienteId:c.id,resultado,operacaoId:op,por,em})]);
+        const importadas=(anterior?.resultado.importadas||0)+lote.length,pendentes=previa.novas-lote.length;
+        const resultado={importadas,ignoradas:previa.linhas.length-importadas-pendentes,hash:previa.hash,pendentes};
+        const registro=this.entidade(key,{tipo:"importacao-excel",estado:pendentes?"em-andamento":"concluida",hash:previa.hash,clienteId:c.id,documento:c.documento,regras:previa.regras,versaoRegras:previa.versao,resultado,operacaoId:op,por,em});
+        a.push(old?["update",registro,"Replace",{etag:old.etag}]:["create",registro]);
         await this.tabela().submitTransaction(a);return {...resultado,repetida:false};
     }
     async cancelar(id: unknown, versao: unknown, op: string, por: string) { const key = `os-${uuid(id)}`, row = await this.ler(key); if (!row)

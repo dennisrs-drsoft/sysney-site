@@ -2,6 +2,7 @@ import { inflateRawSync } from "node:zlib";
 import { createHash } from "node:crypto";
 import { XMLParser, XMLValidator } from "fast-xml-parser";
 import { validarEntradaOS, type EntradaOS } from "./ordens-servico";
+import { MAX_ATENDIMENTOS_EXCEL_OS } from "./ordens-servico-limites";
 
 export const LIMITE_EXCEL_OS = 2 * 1024 * 1024;
 type No = Record<string, unknown>;
@@ -73,7 +74,7 @@ export function lerExcelOS(bytes:Buffer) {
     if(!/^worksheets\/sheet\d+\.xml$/.test(target))throw Error("Localização da aba OSS não suportada.");
     const strings=lista(obj(xml(ler("xl/sharedStrings.xml",true)).sst).si).map(texto);
     const rows=lista(obj(obj(xml(ler(`xl/${target}`)).worksheet).sheetData).row);
-    if(rows.length>2000 || strings.length>10000)throw Error("Planilha muito extensa. Use no máximo 40 atendimentos por arquivo.");
+    if(rows.length>10000 || strings.length>20000)throw Error("Planilha muito extensa. Use no máximo 1.000 atendimentos por arquivo.");
     const cells=new Map<string,Celula>();const numeros:number[]=[];
     for(const raw of rows){const row=obj(raw),num=Number(row["@r"]);if(!Number.isInteger(num)||num<1||num>10000)throw Error("Linha Excel inválida.");numeros.push(num);
         for(const rawcell of lista(row.c)){const c=obj(rawcell),ref=String(c["@r"]||"");if(!/^[A-Z]{1,3}\d+$/.test(ref)||Number(ref.replace(/^[A-Z]+/,""))!==num||cells.has(ref))throw Error("Célula Excel inválida.");
@@ -90,7 +91,7 @@ export function lerExcelOS(bytes:Buffer) {
         if(/^(vencto|vencimento)\s*:?$/i.test(a.valor.trim()) && !c.valor.trim())continue;
         const temData=/^(\d{4,5}(?:\.0+)?|\d{2}\/\d{2}\/20\d{2}|20\d{2}-\d{2}-\d{2})/.test(a.valor.trim());
         if(!temData&&!b.valor.trim()&&!c.valor.trim())continue;
-        if(result.length>=40)throw Error("Limite de 40 atendimentos por arquivo. Divida a planilha em arquivos menores.");
+        if(result.length>=MAX_ATENDIMENTOS_EXCEL_OS)throw Error("Limite de 1.000 atendimentos por arquivo. Divida o histórico em arquivos menores.");
         try{
             const d=get(n+1,"A");
             if([a,b,c,d].some(x=>x.formula||x.tipo==="e"))throw Error("Data, horários e descrição devem ser preenchidos, não fórmulas.");

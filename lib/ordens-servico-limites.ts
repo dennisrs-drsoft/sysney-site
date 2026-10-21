@@ -1,0 +1,2 @@
+export const MAX_ATENDIMENTOS_EXCEL_OS = 1000;
+export const MAX_NOVOS_LOTE_EXCEL_OS = 40;

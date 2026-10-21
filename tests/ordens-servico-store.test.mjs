@@ -1,6 +1,6 @@
 import {test} from "node:test";
 import assert from "node:assert/strict";
-import {randomUUID} from "node:crypto";
+import {randomUUID,createHash} from "node:crypto";
 import {build} from "esbuild";
 import {mkdir} from "node:fs/promises";
 import {pathToFileURL} from "node:url";
@@ -16,7 +16,7 @@ class Tabela {
  async createEntity(e){if(this.falharCriacao){this.falharCriacao=false;throw erro(503);}const k=this.key(e.partitionKey,e.rowKey);if(this.rows.has(k))throw erro(409);this.rows.set(k,{...structuredClone(e),etag:String(++this.seq)});}
  async updateEntity(e,mode,opts={}){const k=this.key(e.partitionKey,e.rowKey),r=this.rows.get(k);if(!r)throw erro(404);if(opts.etag&&opts.etag!==r.etag)throw erro(412);this.rows.set(k,{...structuredClone(e),etag:String(++this.seq)});}
  async *listEntities({queryOptions}){const p=queryOptions.filter.split("'")[1];for(const r of this.rows.values())if(r.partitionKey===p)yield structuredClone(r);}
- async submitTransaction(actions){const snapshot=structuredClone(this.rows),seq=this.seq;try{for(const [op,e,mode,opts]of actions){if(op==="create")await this.createEntity(e);else if(op==="update")await this.updateEntity(e,mode,opts);else{if(!this.rows.delete(this.key(e.partitionKey,e.rowKey)))throw erro(404);}}}catch(e){this.rows=snapshot;this.seq=seq;throw e;}}
+ async submitTransaction(actions){assert.ok(actions.length<=100,'limite de ações do Azure');const snapshot=structuredClone(this.rows),seq=this.seq;try{for(const [op,e,mode,opts]of actions){if(op==="create")await this.createEntity(e);else if(op==="update")await this.updateEntity(e,mode,opts);else{if(!this.rows.delete(this.key(e.partitionKey,e.rowKey)))throw erro(404);}}}catch(e){this.rows=snapshot;this.seq=seq;throw e;}}
 }
 function setup(){const tables=new Map(),blobs=new Map();const store=new OrdensServicoStore("sysney","teste");store.tabela=(n="AdminDocumentos")=>{if(!tables.has(n))tables.set(n,new Tabela());return tables.get(n);};store.container=()=>({getBlockBlobClient:k=>({uploadData:async bytes=>{if(blobs.has(k))throw erro(412);blobs.set(k,bytes);},getProperties:async()=>({contentLength:blobs.get(k).length})})});return {store,tables,blobs};}
 const regras={horaCentavos:6200,diariaCentavos:null,minimoMinutos:0,arredondamentoMinutos:1,adicionalBps:600};
@@ -55,7 +55,24 @@ test("Excel: prévia não grava; importação é atômica e repetida não duplic
  store.tabela().falharCriacao=true;await assert.rejects(store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true));assert.equal((await store.listar()).ordens.length,antes);
  const result=await store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true);assert.equal(result.importadas,1);
  assert.equal((await store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true)).repetida,true);
+ const key='excel-'+createHash('sha256').update('c1:'+p.hash).digest('hex'),legacy=await store.ler(key),saved=JSON.parse(legacy.json);
+ delete saved.estado;delete saved.regras;delete saved.versaoRegras;
+ await store.tabela().updateEntity(store.entidade(key,saved),'Replace',{etag:legacy.etag});
+ assert.equal((await store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true)).repetida,true);
  assert.equal((await store.listar()).ordens.length,antes+1);assert.equal((await store.listar()).lotes.length,0);
  const d=await store.preverExcel('c1',excelOS([{data:'01/09/2026',inicio:'08:00',fim:'09:00',descricao:'Descrição alterada'}]));assert.equal(d.novas,0);assert.equal(d.ignoradas,1);
  const bad=excelOS([{data:'02/09/2026',inicio:'08:00',fim:'09:00',descricao:'Correto'},{data:'31/02/2026',inicio:'08:00',fim:'09:00',descricao:'Inválido'}]);await assert.rejects(store.importarExcel('c1',bad,p.versao,randomUUID(),'Teste',true));assert.equal((await store.listar()).ordens.length,antes+1);
+});
+test('histórico grande importa somente novos em lotes retomáveis, sem duplicar e com regras congeladas',async()=>{
+ const {store}=await preparar(),rows=Array.from({length:85},(_,i)=>({data:new Date(Date.UTC(2026,8,1+i)).toISOString().slice(0,10),inicio:'08:00',fim:'09:00',descricao:`Novo ${i+1}`})),b=excelOS(rows);
+ const p=await store.preverExcel('c1',b);assert.equal(p.novas,85);assert.equal(p.resumo.total,558620);
+ const op=randomUUID(),r=await store.importarExcel('c1',b,p.versao,op,'Teste',true);assert.equal(r.importadas,40);assert.equal(r.pendentes,45);
+ let atual=(await store.listar()).regras[0];await store.salvarRegras('c1',{...regras,horaCentavos:7000},atual.versao,randomUUID(),'Teste');
+ const retomada=await store.preverExcel('c1',b);assert.equal(retomada.retomada,true);assert.equal(retomada.jaImportadas,40);assert.equal(retomada.regras.horaCentavos,6200);assert.equal(retomada.novas,45);
+ const segundo=await store.importarExcel('c1',b,retomada.versao,op,'Teste',true);assert.equal(segundo.importadas,80);assert.equal(segundo.pendentes,5);
+ store.tabela().falharCriacao=true;await assert.rejects(store.importarExcel('c1',b,retomada.versao,op,'Teste',true));assert.equal((await store.listar()).ordens.length,81);
+ const fim=await store.importarExcel('c1',b,retomada.versao,randomUUID(),'Teste',true);assert.equal(fim.importadas,85);assert.equal(fim.pendentes,0);assert.equal(fim.ignoradas,0);
+ const d=await store.listar();assert.equal(d.ordens.length,86);assert.equal(d.ordens.filter(o=>o.regras.horaCentavos!==6200).length,0);assert.equal(d.lotes.length,0);
+ assert.equal((await store.importarExcel('c1',b,retomada.versao,randomUUID(),'Teste',true)).repetida,true);
+ const ampliada=await store.preverExcel('c1',excelOS([...rows,{data:'01/03/2027',inicio:'08:00',fim:'09:00',descricao:'Adicionado depois'}]));assert.equal(ampliada.novas,1);assert.equal(ampliada.ignoradas,85);
 });

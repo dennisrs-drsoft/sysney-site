@@ -120,9 +120,9 @@ export function calcularOS(raw: EntradaOS, regras: RegrasOS) {
     }
     return { minutos, faturaveis, base300: base300.toString(), centavos: arredondar(base300, BigInt(300)) };
 }
-export function resumirOS(ordens: OrdemServico[]) {
-    if (!ordens.length || ordens.length > 40)
-        throw Error("Selecione de 1 a 40 atendimentos.");
+export function resumirOS(ordens: OrdemServico[], limite = 40) {
+    if (!Number.isInteger(limite) || limite < 1 || limite > 1000 || !ordens.length || ordens.length > limite)
+        throw Error(`Selecione de 1 a ${limite} atendimentos.`);
     if (new Set(ordens.map(o => o.id)).size !== ordens.length)
         throw Error("Atendimento repetido na seleção.");
     const primeira = ordens[0];

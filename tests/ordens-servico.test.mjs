@@ -40,6 +40,11 @@ test("histórico, já cobrado e reservado nunca geram nova cobrança; clientes e
  assert.throws(()=>resumirOS([ordem("1"),ordem("2",{clienteId:"outro"})]));
  assert.throws(()=>resumirOS([ordem("1"),ordem("2",{regras:{...regras,horaCentavos:7000}})]));assert.throws(()=>resumirOS([ordem(),ordem()]));
 });
+test("ampliação do resumo da importação não aumenta o limite padrão de cobrança",()=>{
+ const linhas=Array.from({length:41},(_,i)=>ordem(String(i)));
+ assert.throws(()=>resumirOS(linhas));assert.throws(()=>selecionarParaCobrancaOS(linhas,linhas.map(o=>o.id)));
+ assert.equal(resumirOS(linhas,1000).total,269452);
+});
 test("API mantém autenticação, origem, tamanho, segregação e PDFs somente leitura",()=>{
  const ui=readFileSync(new URL("../app/admin/ordens-servico.tsx",import.meta.url),"utf8"),api=readFileSync(new URL("../app/api/admin/ordens-servico/route.ts",import.meta.url),"utf8");
  assert.match(api,/usuarioAdministrador/);assert.match(api,/req.headers.get\("origin"\)!==req.nextUrl.origin/);assert.match(api,/lerCorpoLimitado\(req,excel\?LIMITE_EXCEL_OS:64000\)/);assert.match(api,/no-store/);assert.match(ui,/useConfirmarAdmin/);assert.match(ui,/Retomar lote/);assert.doesNotMatch(ui,/window.confirm|window.alert/);
