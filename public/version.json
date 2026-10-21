@@ -1,6 +1,6 @@
 {
-  "version": "2026.10.19.003",
-  "release": "notas-unificadas-busca-tfseven",
-  "siteBase": "a2721ba",
-  "adminBase": "c471b2f"
+  "version": "2026.10.21.001",
+  "release": "ordens-servico-regras-por-cliente",
+  "siteBase": "c24eed2",
+  "adminBase": "713962e"
 }

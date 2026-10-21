@@ -8,8 +8,9 @@ import * as historico from "../../generated/historico-inter.mjs";
 import * as status from "../../generated/status.mjs";
 import * as documentos from "../../generated/documentos.mjs";
 import * as nfse from "../../generated/nfse.mjs";
+import * as ordens from "../../generated/ordens-servico.mjs";
 
 app.http("admin-painel",{
   methods:["GET","POST"],authLevel:"function",route:"financeiro/painel/{recurso}",
-  handler:criarHandlerPainel({clientes,cobrancas,emails,aprovacoes,"historico-inter":historico,status,documentos,nfse}),
+  handler:criarHandlerPainel({clientes,cobrancas,emails,aprovacoes,"historico-inter":historico,status,documentos,nfse,"ordens-servico":ordens}),
 });

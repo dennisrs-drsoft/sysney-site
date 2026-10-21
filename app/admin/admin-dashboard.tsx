@@ -8,6 +8,7 @@ import { LaboratorioEmails } from "./laboratorio-emails";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { HistoricoInter } from "./historico-inter";
 import { HistoricoFiscal } from "./historico-fiscal";
+import { OrdensServicoPainel } from "./ordens-servico";
 import { RegularizacaoFiscalPainel } from "./regularizacao-fiscal";
 import { NfseNacional } from "./nfse-nacional";
 import { Aprovacoes } from "./aprovacoes";
@@ -21,7 +22,7 @@ import {
 } from "react";
 
 type EmpresaId = "drsoft" | "sysney";
-type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "historico-fiscal" | "regularizacao" | "nfse-nacional" | "aprovacoes";
+type SecaoId = "visao-geral" | "nova-emissao" | "clientes" | "documentos" | "cobrancas" | "acompanhamento" | "emails" | "historico-inter" | "historico-fiscal" | "regularizacao" | "nfse-nacional" | "aprovacoes" | "ordens-servico";
 
 type Cliente = {
   id: string;
@@ -91,6 +92,7 @@ const secoes: { id: SecaoId; label: string }[] = [
   { id: "emails", label: "Laboratório de e-mails" },
   { id: "historico-inter", label: "Histórico do Inter" },
   { id: "historico-fiscal", label: "Notas fiscais e XML" },
+  { id: "ordens-servico", label: "Ordens de serviço" },
   { id: "regularizacao", label: "Regularização fiscal" },
   { id: "nfse-nacional", label: "NFS-e Nacional" },
   { id: "nova-emissao", label: "Nova emissão" },
@@ -778,6 +780,8 @@ export function AdminDashboard() {
     conteudo = <RegularizacaoFiscalPainel key={empresaId} empresa={empresaId} />;
   } else if (secao === "historico-inter") {
     conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
+  } else if (secao === "ordens-servico") {
+    conteudo = <OrdensServicoPainel key={empresaId} empresa={empresaId} clientes={clientesEmpresa} abrirFila={()=>setSecao("cobrancas")} />;
   } else if (secao === "historico-fiscal") {
     conteudo = <HistoricoFiscal key={empresaId} empresa={empresaId} />;
   } else if (secao === "emails") {

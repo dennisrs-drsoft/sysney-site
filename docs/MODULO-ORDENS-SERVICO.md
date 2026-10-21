@@ -1,0 +1,29 @@
+# Ordens de serviço
+
+Módulo privado separado por empresa. Contrato: `postman/ordens-servico.openapi.json`. Rota Next/SWA e backend externo compartilham o mesmo handler; ambos precisam ser publicados para uso on-line. Sem mudanças na VM fiscal ou integrações bancárias.
+
+## Cálculo e regras
+
+Por cliente: hora/diária em centavos (null indica não configurada), mínimo por atendimento, incremento de arredondamento em minutos e acréscimo comercial em pontos-base. O lançamento congela a regra; editar uma regra não recalcula atendimentos existentes. Alteração de atendimento aberto mantém o snapshot original. Quantidades de diárias têm duas casas decimais; valor fixo em centavos.
+
+Hora: duração entre data/hora inicial e final menos intervalo. Aplica mínimo e arredonda para cima conforme incremento. Virada de dia exige data final explícita; limite de sete dias por lançamento. O cálculo usa frações inteiras de centavo (denominador 300) e BigInt para preservar frações de hora. Arredonda subtotal e total no fechamento; o adicional apresentado é a diferença entre total e subtotal. Não é motor de DAS ou apuração fiscal.
+
+## Persistência e proteção
+
+AdminDocumentos, partição `os-{empresa}`: regras, atendimentos, índices de identidade, reservas de lote e marcador de importação histórica. UUID de operação para gravações e controle de versão/ETag. Identidade repetida de cliente/data/horários/tipo/descrição é bloqueada transacionalmente. Cancelamento é lógico e mantém esse índice e o histórico.
+
+Somente atendimentos abertos, do mesmo cliente e com as mesmas regras entram numa cobrança; máximo 40. Histórico já faturado, reservados, cancelados e já vinculados ficam bloqueados. Relatórios históricos podem ser consultados sem nova cobrança.
+
+A preparação reserva lote e atendimentos numa única transação. Em seguida cria plano avulso, cobrança e rascunho com relatório PDF em registros de IDs determinísticos. O rascunho exige emissão/conferência da nota e, quando aplicável, boleto antes de aprovação/envio. Não há chamadas a emissão fiscal, banco ou SendGrid no módulo. Persistência entre tabelas não é transação distribuída: em falha os atendimentos permanecem reservados e `retomar` conclui o mesmo lote. Não sobrescreve destino diferente nem repete POST com novo ID automaticamente.
+
+`POST acao=retomar` exige id do lote, confirmado=true e operacaoId UUID. Nunca libera reserva sem revisão; não há exclusão física ou cancelamento automático de documento fiscal.
+
+## Histórico e arquivos
+
+Importação histórica operacional não é ação exposta na API: valida cliente, regras, total e nota; cria atendimentos imutáveis e índice de importação, sem plano/cobrança/pagamento novo. Documentos e dados reais ficam na base privada/saídas ignoradas, não no repositório público.
+
+Relatório gerado com pdf-lib, texto quebrado por largura e páginas adicionais. Arquivos novos de cobrança ficam no contêiner privado `admin-anexos`, caminho próprio por lote; links passam por autenticação. GET de relatório não salva nem emite nada. Bytes de PDF não são assinatura digital fiscal nem substituem a NFS-e oficial.
+
+## Validação
+
+Testes de domínio e store exercitam frações, minutos, mínimo, diária ausente, valor fixo, snapshots, versão antiga, deduplicação, reserva, falha parcial/retomada, histórico idempotente e criação apenas de rascunho. Store é exercitado com repositório transacional e blobs em memória; isso não prova transporte/concorrência do Azure real. A importação autorizada foi conferida separadamente no armazenamento real, sem gerar cobrança. Conferência visual do relatório real realizada. Homologação da interface e preparação de nova cobrança em produção continuam dependentes de publicação e aprovação separadas.

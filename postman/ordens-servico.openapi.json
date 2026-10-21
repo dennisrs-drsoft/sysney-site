@@ -1,0 +1,102 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Ordens de serviço privadas",
+    "version": "1.0.0",
+    "description": "Somente administrador autenticado. Empresa obrigatória. Não emite nota, boleto ou e-mail. Operações de gravação usam operacaoId UUID e versão; não repetir POST incerto com novo ID. Histórico faturado é imutável e não entra em nova cobrança."
+  },
+  "security": [{"sessionAdmin":[]}],
+  "components": {"securitySchemes":{"sessionAdmin":{"type":"apiKey","in":"cookie","name":"StaticWebAppsAuthCookie","description":"Sessão Azure Static Web Apps com papel administrador. A chave da API externa é exclusivamente de servidor e não deve ser enviada pelo navegador."}}},
+  "paths": {
+    "/api/admin/ordens-servico": {
+      "parameters": [
+        {
+          "name": "empresa",
+          "in": "query",
+          "required": true,
+          "schema": {
+            "type": "string",
+            "enum": [
+              "sysney",
+              "drsoft"
+            ]
+          }
+        }
+      ],
+      "get": {
+        "summary": "Lista regras, ordens e lotes; ids separados por vírgula e arquivo=pdf retornam relatório privado",
+        "responses": {
+          "200": {
+            "description": "JSON sem segredos ou PDF privado"
+          },
+          "400": {
+            "description": "Seleção inválida"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "503": {
+            "description": "Armazenamento indisponível"
+          }
+        }
+      },
+      "post": {
+        "summary": "Salvar regras, salvar/cancelar atendimento, preparar cobrança ou retomar lote",
+        "description": "acao=regras: clienteId,regras,versao; acao=salvar: id,clienteId,entrada,versao; acao=cancelar: id,versao; acao=cobrar: itens[{id,versao}],competencia,vencimento,email,formaPagamento,pixChave,pixBeneficiario,confirmado=true. operacaoId UUID obrigatório em todas. Hora/diária em centavos ou null; mínimo e incremento em minutos; adicional em pontos-base. Retorno de cobrança é recuperável com o MESMO operacaoId; reserva transacional impede reutilização dos atendimentos. Regras ficam congeladas no lançamento. Valores são recalculados no servidor.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "acao",
+                  "operacaoId"
+                ],
+                "properties": {
+                  "acao": {
+                    "type": "string",
+                    "enum": [
+                      "regras",
+                      "salvar",
+                      "cancelar",
+                      "cobrar",
+                      "retomar"
+                    ]
+                  },
+                  "operacaoId": {
+                    "type": "string",
+                    "format": "uuid"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Registro salvo ou cobrança preparada; nenhum envio/emissão"
+          },
+          "400": {
+            "description": "Validação falhou"
+          },
+          "401": {
+            "description": "Não autorizado"
+          },
+          "403": {
+            "description": "Origem inválida"
+          },
+          "409": {
+            "description": "Versão antiga, duplicidade, reserva ou operação com conteúdo diferente"
+          },
+          "413": {
+            "description": "Corpo excede limite"
+          },
+          "503": {
+            "description": "Armazenamento indisponível; consulte antes de repetir"
+          }
+        }
+      }
+    }
+  }
+}
