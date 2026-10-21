@@ -2,10 +2,11 @@ import { TableClient, type TableEntityResult, type TransactionAction } from "@az
 import { DefaultAzureCredential } from "@azure/identity";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { createHash } from "node:crypto";
-import { calcularOS, validarEntradaOS, validarRegrasOS, resumirOS, selecionarParaCobrancaOS, textoOS, dataOS, type OrdemServico, type LoteOS, type RegrasOS } from "./ordens-servico";
+import { calcularOS, validarEntradaOS, validarRegrasOS, resumirOS, selecionarParaCobrancaOS, textoOS, dataOS, type OrdemServico, type LoteOS, type RegrasOS, type PreferenciasCobrancaOS } from "./ordens-servico";
 import { novoEmail, emailsValidos, type EmailCobranca } from "./emails-cobranca";
 import { pdfOrdensServico } from "./ordens-servico-pdf";
 import type { Plano, Cobranca, Empresa } from "./cobrancas";
+import { lerExcelOS } from "./ordens-servico-excel";
 type Registro = TableEntityResult<{
     json: string;
 }> & {
@@ -18,6 +19,7 @@ type Regra = {
     tipo: "regra";
     clienteId: string;
     regras: RegrasOS;
+    preferencias?: PreferenciasCobrancaOS;
     versao: string;
     por: string;
     em: string;
@@ -63,17 +65,26 @@ export class OrdensServicoStore {
     }>(this.empresa, key); if (!/^\d{11}(\d{3})?$/.test(c.documento.replace(/\D/g, "")))
         throw Error("Documento do cliente inválido."); return { id: key, nome: c.nome, documento: c.documento, email: c.email }; }
     entidade(key: string, json: unknown) { return { partitionKey: this.part, rowKey: key, json: JSON.stringify(json) }; }
-    async salvarRegras(clienteId: unknown, regras: unknown, versao: unknown, op: string, por: string) {
+    async salvarRegras(clienteId: unknown, regras: unknown, versao: unknown, op: string, por: string, preferencias?: unknown) {
         const c = await this.cliente(clienteId), r = validarRegrasOS(regras), key = `regra-${c.id}`, old = await this.ler(key);
         const anterior = old ? JSON.parse(old.json) as Regra : null;
+        let padroes = anterior?.preferencias;
+        if (preferencias !== undefined) {
+            if (!preferencias || typeof preferencias !== "object" || Array.isArray(preferencias)) throw Error("Preferências inválidas.");
+            const p = preferencias as Record<string, unknown>;
+            const campo = (nome: string, max: number) => { const v=p[nome]; if(typeof v!=="string" || v.length>max || /[\r\n]/.test(v)) throw Error("Dados de cobrança inválidos."); return v.trim(); };
+            padroes = {email:campo("email",254),cc:campo("cc",2540),pixChave:campo("pixChave",150),pixBeneficiario:campo("pixBeneficiario",150)};
+            if (padroes.email && !/^[^\s@;,<>]+@[^\s@;,<>]+\.[^\s@;,<>]+$/.test(padroes.email)) throw Error("E-mail de cobrança inválido.");
+            if (padroes.cc && !emailsValidos(padroes.cc)) throw Error("E-mails de cópia inválidos.");
+        }
         if (anterior?.versao === op) {
-            if (JSON.stringify(anterior.regras) !== JSON.stringify(r))
+            if (JSON.stringify(anterior.regras) !== JSON.stringify(r) || JSON.stringify(anterior.preferencias) !== JSON.stringify(padroes))
                 throw conflito("Operação repetida com dados diferentes.");
             return anterior;
         }
         if (anterior && anterior.versao !== versao)
             throw conflito("As regras mudaram. Atualize antes de salvar.");
-        const nova: Regra = { tipo: "regra", clienteId: c.id, regras: r, versao: op, por, em: new Date().toISOString() };
+        const nova: Regra = { tipo: "regra", clienteId: c.id, regras: r, ...(padroes ? {preferencias:padroes} : {}), versao: op, por, em: new Date().toISOString() };
         if (old)
             await this.tabela().updateEntity(this.entidade(key, nova), "Replace", { etag: old.etag });
         else
@@ -109,6 +120,42 @@ export class OrdensServicoStore {
         a.push(old ? ["update", this.entidade(key, nova), "Replace", { etag: old.etag }] : ["create", this.entidade(key, nova)]);
         await this.tabela().submitTransaction(a);
         return nova;
+    }
+    async preverExcel(clienteId: unknown, bytes: Buffer) {
+        const arquivo=lerExcelOS(bytes),c=await this.cliente(clienteId),reg=await this.ler(`regra-${c.id}`);
+        if(!reg)throw Error("Salve as regras do cliente antes de importar.");
+        const regra=JSON.parse(reg.json) as Regra,existentes=(await this.listar()).ordens.filter(o=>o.clienteId===c.id),vistas=new Set<string>(),horariosVistos=new Set<string>();
+        const linhas=arquivo.linhas.map(l=>{
+            if(!l.entrada)return {...l,situacao:"erro" as const};
+            const e=l.entrada,fp=this.fingerprint({...e,clienteId:c.id});
+            const horario=JSON.stringify([e.data,e.diaFim,e.inicio,e.fim]);
+            const igual=existentes.find(o=>this.fingerprint(o)===fp),mesmoHorario=horariosVistos.has(horario)||existentes.some(o=>o.data===e.data&&o.diaFim===e.diaFim&&o.inicio===e.inicio&&o.fim===e.fim);
+            horariosVistos.add(horario);
+            const duplicada=vistas.has(fp);vistas.add(fp);
+            try{const calculo=calcularOS(e,regra.regras);
+                return {...l,centavos:calculo.centavos,situacao:igual||duplicada?"repetida" as const:mesmoHorario?"conferir" as const:"nova" as const,observacao:igual?`Já cadastrada${igual.nota?` · NFS-e ${igual.nota}`:""}; não será importada novamente.`:duplicada?"Linha repetida neste arquivo; será ignorada.":mesmoHorario?"Mesmo dia e horário de outro atendimento no arquivo ou cadastro; será ignorada para evitar duplicidade. Confira manualmente.":l.valorPlanilha!==undefined&&l.valorPlanilha!==calculo.centavos?"Valor diferente do Excel. Será usada a regra atual do cliente.":""};
+            }catch(e){return {...l,situacao:"erro" as const,erro:e instanceof Error?e.message:"Cálculo inválido."};}
+        });
+        const novas=linhas.filter(l=>l.situacao==="nova"&&l.entrada).map(l=>({...l.entrada!,id:String(l.linha),clienteId:c.id,clienteNome:c.nome,documento:c.documento,regras:regra.regras,estado:"aberta" as const,criadoEm:"",atualizadoEm:"",por:""}));
+        return {hash:arquivo.hash,clienteId:c.id,clienteNome:c.nome,versao:regra.versao,regras:regra.regras,linhas,novas:novas.length,ignoradas:linhas.filter(l=>l.situacao==="repetida"||l.situacao==="conferir").length,erros:linhas.filter(l=>l.situacao==="erro").length,resumo:novas.length?resumirOS(novas):null};
+    }
+    async importarExcel(clienteId:unknown,bytes:Buffer,versao:unknown,op:string,por:string,confirmado:unknown) {
+        uuid(op);if(confirmado!==true)throw Error("Confirme a prévia antes de importar.");
+        const previa=await this.preverExcel(clienteId,bytes),key=`excel-${hash(previa.clienteId+":"+previa.hash)}`,old=await this.ler(key);
+        if(old)return {...JSON.parse(old.json).resultado,repetida:true};
+        if(previa.erros)throw Error("Corrija as linhas com erro antes de importar o arquivo inteiro.");
+        if(previa.versao!==versao)throw conflito("As regras mudaram depois da prévia. Confira novamente.");
+        const c=await this.cliente(previa.clienteId),reg=await this.ler(`regra-${c.id}`);
+        if(!reg||JSON.parse(reg.json).versao!==versao)throw conflito("As regras mudaram. Confira novamente.");
+        const em=new Date().toISOString(),a:TransactionAction[]=[["update",{partitionKey:this.part,rowKey:`regra-${c.id}`,json:reg.json},"Replace",{etag:reg.etag}]];
+        for(const l of previa.linhas.filter(l=>l.situacao==="nova")){
+            const h=hash(`${c.id}:${previa.hash}:${l.linha}`),id=`${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20,32)}`;
+            const o:Salva={...l.entrada!,id,clienteId:c.id,clienteNome:c.nome,documento:c.documento,regras:previa.regras,estado:"aberta",versao:op,criadoEm:em,atualizadoEm:em,por,origem:`Excel OSS · SHA256 ${previa.hash} · linha ${l.linha}`};
+            a.push(["create",this.entidade(`os-${id}`,o)],["create",this.entidade(this.fingerprint(o),{ordemId:id})]);
+        }
+        const resultado={importadas:previa.novas,ignoradas:previa.ignoradas,hash:previa.hash};
+        a.push(["create",this.entidade(key,{tipo:"importacao-excel",hash:previa.hash,clienteId:c.id,resultado,operacaoId:op,por,em})]);
+        await this.tabela().submitTransaction(a);return {...resultado,repetida:false};
     }
     async cancelar(id: unknown, versao: unknown, op: string, por: string) { const key = `os-${uuid(id)}`, row = await this.ler(key); if (!row)
         throw Error("Atendimento não encontrado."); const o = JSON.parse(row.json) as Salva; if (o.versao === op && o.estado === "cancelada")
@@ -234,7 +281,7 @@ export class OrdensServicoStore {
         return { importada: true, total: resumo.total };
     }
     async executar(body: Record<string, unknown>, por: string) { const op = uuid(body.operacaoId); if (body.acao === "regras")
-        return this.salvarRegras(body.clienteId, body.regras, body.versao, op, por); if (body.acao === "salvar")
+        return this.salvarRegras(body.clienteId, body.regras, body.versao, op, por, body.preferencias); if (body.acao === "salvar")
         return this.salvar(body, op, por); if (body.acao === "cancelar")
         return this.cancelar(body.id, body.versao, op, por); if (body.acao === "cobrar")
         return this.cobrar(body, op, por); if (body.acao === "retomar") {

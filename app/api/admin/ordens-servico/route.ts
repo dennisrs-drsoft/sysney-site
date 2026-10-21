@@ -3,6 +3,7 @@ import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
 import { lerCorpoLimitado, ErroRequisicao } from "@/admin-api/src/services/seguranca-http.mjs";
 import { OrdensServicoStore } from "@/lib/ordens-servico-store";
+import { LIMITE_EXCEL_OS } from "@/lib/ordens-servico-excel";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const resposta=(dados:unknown,status=200)=>NextResponse.json(dados,{status,headers:{"Cache-Control":"no-store"}});
@@ -14,10 +15,17 @@ export async function POST(req:NextRequest){
   if(!usuarioAdministrador(req))return resposta({erro:"Não autorizado."},401);
   if(req.headers.get("origin")!==req.nextUrl.origin)return resposta({erro:"Origem inválida."},403);
   try{
-    const raw=await lerCorpoLimitado(req,64000);if(!raw)throw Error("Corpo da solicitação vazio.");
-    const body=JSON.parse(raw.toString("utf8"));let por="Administrador";
+    const acao=req.nextUrl.searchParams.get("acao"),excel=acao==="prever-excel"||acao==="importar-excel";
+    const raw=await lerCorpoLimitado(req,excel?LIMITE_EXCEL_OS:64000);if(!raw?.length)throw Error("Corpo da solicitação vazio.");
+    let por="Administrador";
     const encoded=req.headers.get("x-ms-client-principal");
     if(encoded){const p=JSON.parse(Buffer.from(encoded,"base64").toString("utf8"));por=String(p.userDetails||p.userId||por).slice(0,254);}
+    if(excel){
+      if(req.headers.get("content-type")?.split(";")[0]!=="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")throw Error("Selecione um arquivo XLSX.");
+      const s=store(req),clienteId=req.nextUrl.searchParams.get("clienteId");
+      return resposta(acao==="prever-excel"?await s.preverExcel(clienteId,raw):{resultado:await s.importarExcel(clienteId,raw,req.nextUrl.searchParams.get("versao"),req.nextUrl.searchParams.get("operacaoId")||"",por,req.nextUrl.searchParams.get("confirmado")==="true")});
+    }
+    const body=JSON.parse(raw.toString("utf8"));
     return resposta({resultado:await store(req).executar(body,por)});
   }catch(e){return falha(e);}
 }

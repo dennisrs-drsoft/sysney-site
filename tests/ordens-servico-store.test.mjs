@@ -4,6 +4,7 @@ import {randomUUID} from "node:crypto";
 import {build} from "esbuild";
 import {mkdir} from "node:fs/promises";
 import {pathToFileURL} from "node:url";
+import {excelOS} from "./fixtures/os-excel.mjs";
 await mkdir("output",{recursive:true});
 await build({entryPoints:["lib/ordens-servico-store.ts"],outfile:"output/os-store-teste.mjs",bundle:true,platform:"node",format:"esm",target:"node22",packages:"external"});
 const {OrdensServicoStore}=await import(pathToFileURL(process.cwd()+"/output/os-store-teste.mjs").href);
@@ -26,3 +27,35 @@ test("congela regras, bloqueia duplicidade e edição com versão antiga",async(
 test("gera apenas rascunho, relatório real e cobrança; repetir operação não duplica",async()=>{const {store,os,blobs}=await preparar(),op=randomUUID(),body=corpo(os);const lote=await store.executar({...body,operacaoId:op},"Teste");assert.equal(lote.estado,"concluido");assert.equal(blobs.size,1);assert.match(Buffer.from([...blobs.values()][0]).subarray(0,8).toString(),/%PDF-/);assert.equal((await store.listar()).ordens[0].estado,"cobrada");const email=JSON.parse((await store.tabela().getEntity("emails-sysney",op)).json);assert.equal(email.status,"rascunho");assert.equal(email.tentativas.length,0);assert.equal(email.anexos[0].tipo,"ordem-servico");assert.equal((await store.executar({...body,operacaoId:op},"Teste")).estado,"concluido");await assert.rejects(store.executar({...body,operacaoId:randomUUID()},"Teste"));});
 test("falha parcial mantém reserva e permite retomar sem segunda cobrança",async()=>{const {store,os}=await preparar(),op=randomUUID();store.tabela("AdminConfiguracoes").falharCriacao=true;await assert.rejects(store.executar({...corpo(os),operacaoId:op},"Teste"));assert.equal((await store.listar()).ordens[0].estado,"reservada");await assert.rejects(store.executar({...corpo(os),operacaoId:randomUUID()},"Teste"));await store.executar({acao:"retomar",id:op,operacaoId:randomUUID(),confirmado:true},"Teste");assert.equal((await store.listar()).lotes[0].estado,"concluido");assert.equal((await store.listar()).ordens[0].estado,"cobrada");});
 test("histórico importado é idempotente, mantém nota e não cria cobrança",async()=>{const {store,os}=await preparar();const historico={...os,id:randomUUID(),data:"2026-07-01",diaFim:"2026-07-01",estado:"historico",nota:"49"};assert.equal((await store.importarHistorico([historico],"49","sha-original","Teste")).importada,true);assert.equal((await store.importarHistorico([historico],"49","sha-original","Teste")).importada,false);await assert.rejects(store.executar({...corpo(historico),operacaoId:randomUUID()},"Teste"));assert.equal((await store.listar()).lotes.length,0);await assert.rejects(store.cancelar(historico.id,historico.versao,randomUUID(),"Teste"));});
+
+test("preferências são versionadas por cliente e empresa; atualizar valores preserva contatos",async()=>{
+ const {store,os}=await preparar();let r=(await store.listar()).regras[0];
+ const preferencias={email:"financeiro@example.com",cc:"copia@example.com",pixChave:"11111111111111",pixBeneficiario:"Empresa teste"};
+ const op=randomUUID(),body={acao:"regras",clienteId:"c1",regras,versao:r.versao,preferencias,operacaoId:op};
+ await store.executar(body,"Teste");await store.executar(body,"Teste");
+ assert.deepEqual((await store.listar()).regras[0].preferencias,preferencias);
+ await assert.rejects(store.executar({...body,preferencias:{...preferencias,cc:"outro@example.com"}},"Teste"));
+ await assert.rejects(store.executar({...body,operacaoId:randomUUID()},"Teste"));
+ r=(await store.listar()).regras[0];
+ await assert.rejects(store.executar({...body,versao:r.versao,operacaoId:randomUUID(),preferencias:{...preferencias,cc:"invalido"}},"Teste"));
+ await assert.rejects(store.executar({...body,versao:r.versao,operacaoId:randomUUID(),preferencias:{...preferencias,email:"ok@example.com\r\nBcc: outro@example.com"}},"Teste"));
+ await store.salvarRegras("c1",{...regras,horaCentavos:7000},r.versao,randomUUID(),"Teste");
+ assert.deepEqual((await store.listar()).regras[0].preferencias,preferencias);
+ assert.equal((await store.listar()).ordens[0].regras.horaCentavos,6200);
+ const b=corpo(os),billingId=randomUUID();await store.executar({...b,email:"alterado@example.com",cc:preferencias.cc,operacaoId:billingId},"Teste");
+ const email=JSON.parse((await store.tabela().getEntity("emails-sysney",billingId)).json);
+ assert.equal(email.para,"alterado@example.com");assert.equal(email.cc,"copia@example.com");assert.equal(email.status,"rascunho");
+});
+
+test("Excel: prévia não grava; importação é atômica e repetida não duplica nem gera cobrança",async()=>{
+ const {store}=await preparar(),b=excelOS([{data:'01/09/2026',inicio:'08:00',fim:'09:00',descricao:'Novo serviço'},{data:'01/09/2026',inicio:'08:00',fim:'09:00',descricao:'Novo serviço'}]);
+ const antes=(await store.listar()).ordens.length,p=await store.preverExcel('c1',b);assert.equal(p.novas,1);assert.equal(p.ignoradas,1);assert.equal((await store.listar()).ordens.length,antes);
+ await assert.rejects(store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',false));
+ await assert.rejects(store.importarExcel('c1',b,'versao-antiga',randomUUID(),'Teste',true));
+ store.tabela().falharCriacao=true;await assert.rejects(store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true));assert.equal((await store.listar()).ordens.length,antes);
+ const result=await store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true);assert.equal(result.importadas,1);
+ assert.equal((await store.importarExcel('c1',b,p.versao,randomUUID(),'Teste',true)).repetida,true);
+ assert.equal((await store.listar()).ordens.length,antes+1);assert.equal((await store.listar()).lotes.length,0);
+ const d=await store.preverExcel('c1',excelOS([{data:'01/09/2026',inicio:'08:00',fim:'09:00',descricao:'Descrição alterada'}]));assert.equal(d.novas,0);assert.equal(d.ignoradas,1);
+ const bad=excelOS([{data:'02/09/2026',inicio:'08:00',fim:'09:00',descricao:'Correto'},{data:'31/02/2026',inicio:'08:00',fim:'09:00',descricao:'Inválido'}]);await assert.rejects(store.importarExcel('c1',bad,p.versao,randomUUID(),'Teste',true));assert.equal((await store.listar()).ordens.length,antes+1);
+});

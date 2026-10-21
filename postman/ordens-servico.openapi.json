@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Ordens de serviço privadas",
-    "version": "1.0.0",
+    "version": "1.2.0",
     "description": "Somente administrador autenticado. Empresa obrigatória. Não emite nota, boleto ou e-mail. Operações de gravação usam operacaoId UUID e versão; não repetir POST incerto com novo ID. Histórico faturado é imutável e não entra em nova cobrança."
   },
   "security": [{"sessionAdmin":[]}],
@@ -41,11 +41,21 @@
         }
       },
       "post": {
-        "summary": "Salvar regras, salvar/cancelar atendimento, preparar cobrança ou retomar lote",
+        "parameters":[
+          {"name":"acao","in":"query","schema":{"type":"string","enum":["prever-excel","importar-excel"]},"description":"Somente para POST binário XLSX; omitir nas ações JSON."},
+          {"name":"clienteId","in":"query","schema":{"type":"string"},"description":"Obrigatório no XLSX; cliente da empresa selecionada."},
+          {"name":"versao","in":"query","schema":{"type":"string"},"description":"Obrigatório para importar-excel: versão das regras retornada na prévia."},
+          {"name":"operacaoId","in":"query","schema":{"type":"string","format":"uuid"},"description":"Obrigatório para importar-excel."},
+          {"name":"confirmado","in":"query","schema":{"type":"boolean"},"description":"Exige true para importar-excel; a prévia não grava."}
+        ],
+        "summary": "Salvar regras e preferências por cliente, salvar/cancelar atendimento, preparar cobrança ou retomar lote",
         "description": "acao=regras: clienteId,regras,versao; acao=salvar: id,clienteId,entrada,versao; acao=cancelar: id,versao; acao=cobrar: itens[{id,versao}],competencia,vencimento,email,formaPagamento,pixChave,pixBeneficiario,confirmado=true. operacaoId UUID obrigatório em todas. Hora/diária em centavos ou null; mínimo e incremento em minutos; adicional em pontos-base. Retorno de cobrança é recuperável com o MESMO operacaoId; reserva transacional impede reutilização dos atendimentos. Regras ficam congeladas no lançamento. Valores são recalculados no servidor.",
         "requestBody": {
           "required": true,
           "content": {
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+              "schema":{"type":"string","format":"binary","description":"XLSX até 2 MB, aba OSS, até 40 atendimentos. Prévia com linhas novas, repetidas, suspeitas ou inválidas. Recalcula pelas regras atuais. Erros bloqueiam confirmação; repetições são ignoradas. Importação atômica e deduplicada por cliente/empresa/hash. Nenhuma cobrança ou documento é gerado."}
+            },
             "application/json": {
               "schema": {
                 "type": "object",
@@ -54,6 +64,17 @@
                   "operacaoId"
                 ],
                 "properties": {
+                  "preferencias": {
+                    "type":"object",
+                    "description":"Opcional em acao=regras: padrões de preenchimento para próximas cobranças. Omitir preserva o existente; strings vazias removem o padrão. Não altera cobranças existentes. Usa versao para concorrência.",
+                    "required":["email","cc","pixChave","pixBeneficiario"],
+                    "properties":{
+                      "email":{"type":"string","maxLength":254,"description":"E-mail único ou vazio"},
+                      "cc":{"type":"string","maxLength":2540,"description":"Lista válida separada por ponto e vírgula ou vazia"},
+                      "pixChave":{"type":"string","maxLength":150},
+                      "pixBeneficiario":{"type":"string","maxLength":150}
+                    }
+                  },
                   "acao": {
                     "type": "string",
                     "enum": [

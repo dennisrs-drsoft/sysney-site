@@ -1,0 +1,11 @@
+import {deflateRawSync} from 'node:zlib';
+const xml=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+function crc(b){let c=0xffffffff;for(const v of b){c^=v;for(let j=0;j<8;j++)c=(c>>>1)^((c&1)?0xedb88320:0);}return (c^0xffffffff)>>>0;}
+export function zipOS(files){const parts=[],central=[];let offset=0;for(const [name,text] of Object.entries(files)){const n=Buffer.from(name),input=Buffer.from(text),data=deflateRawSync(input),head=Buffer.alloc(30),dir=Buffer.alloc(46);head.writeUInt32LE(0x04034b50);head.writeUInt16LE(20,4);head.writeUInt16LE(8,8);head.writeUInt32LE(crc(input),14);head.writeUInt32LE(data.length,18);head.writeUInt32LE(input.length,22);head.writeUInt16LE(n.length,26);dir.writeUInt32LE(0x02014b50);dir.writeUInt16LE(20,4);dir.writeUInt16LE(20,6);dir.writeUInt16LE(8,10);dir.writeUInt32LE(crc(input),16);dir.writeUInt32LE(data.length,20);dir.writeUInt32LE(input.length,24);dir.writeUInt16LE(n.length,28);dir.writeUInt32LE(offset,42);parts.push(head,n,data);central.push(dir,n);offset+=head.length+n.length+data.length;}
+const d=Buffer.concat(central),end=Buffer.alloc(22);end.writeUInt32LE(0x06054b50);end.writeUInt16LE(central.length/2,8);end.writeUInt16LE(central.length/2,10);end.writeUInt32LE(d.length,12);end.writeUInt32LE(offset,16);return Buffer.concat([...parts,d,end]);}
+export function arquivosOS(rows=[{data:'01/08/2026',inicio:'08:00',fim:'09:00',descricao:'Serviço de demonstração'}],{date1904=false,aba='OSS'}={}){
+ const str=(r,s)=>`<c r="${r}" t="inlineStr"><is><t>${xml(s)}</t></is></c>`;
+ const cell=(r,s)=>typeof s==='number'?`<c r="${r}"><v>${s}</v></c>`:str(r,s);
+ return {'xl/workbook.xml':`<workbook xmlns:r="urn:test"><workbookPr date1904="${date1904?'1':'0'}"/><sheets><sheet name="${aba}" r:id="rId1"/></sheets></workbook>`,'xl/_rels/workbook.xml.rels':'<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>','xl/worksheets/sheet1.xml':`<worksheet><sheetData>${rows.map((o,i)=>{const n=i*3+1;return `<row r="${n}">${cell('A'+n,o.data)}${cell('B'+n,o.inicio)}${cell('C'+n,o.fim)}${o.formula?`<c r="G${n}"><f>EXECUTE()</f><v>62</v></c>`:''}</row><row r="${n+1}">${str('A'+(n+1),o.descricao)}</row>`;}).join('')}</sheetData></worksheet>`};
+}
+export const excelOS=(rows,opts)=>zipOS(arquivosOS(rows,opts));

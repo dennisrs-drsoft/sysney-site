@@ -42,5 +42,5 @@ test("histórico, já cobrado e reservado nunca geram nova cobrança; clientes e
 });
 test("API mantém autenticação, origem, tamanho, segregação e PDFs somente leitura",()=>{
  const ui=readFileSync(new URL("../app/admin/ordens-servico.tsx",import.meta.url),"utf8"),api=readFileSync(new URL("../app/api/admin/ordens-servico/route.ts",import.meta.url),"utf8");
- assert.match(api,/usuarioAdministrador/);assert.match(api,/req.headers.get\("origin"\)!==req.nextUrl.origin/);assert.match(api,/lerCorpoLimitado\(req,64000\)/);assert.match(api,/no-store/);assert.match(ui,/useConfirmarAdmin/);assert.match(ui,/Retomar lote/);assert.doesNotMatch(ui,/window.confirm|window.alert/);
+ assert.match(api,/usuarioAdministrador/);assert.match(api,/req.headers.get\("origin"\)!==req.nextUrl.origin/);assert.match(api,/lerCorpoLimitado\(req,excel\?LIMITE_EXCEL_OS:64000\)/);assert.match(api,/no-store/);assert.match(ui,/useConfirmarAdmin/);assert.match(ui,/Retomar lote/);assert.doesNotMatch(ui,/window.confirm|window.alert/);
 });

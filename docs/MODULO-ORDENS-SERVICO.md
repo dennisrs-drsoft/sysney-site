@@ -10,6 +10,8 @@ Hora: duração entre data/hora inicial e final menos intervalo. Aplica mínimo 
 
 ## Persistência e proteção
 
+O registro de regras aceita `preferencias` opcional com `email`, `cc`, `pixChave` e `pixBeneficiario`, strings editáveis, validadas e segregadas por empresa/cliente. `acao=regras` usa a mesma versão/ETag para evitar perda concorrente. Omissão preserva preferências existentes; strings vazias removem o padrão. Não modifica regras congeladas, lotes nem cobranças anteriores. A tela preenche novos formulários com os padrões salvos e envia os valores revisados explicitamente em `acao=cobrar` (incluindo `cc`). O rascunho congela esses dados; salvar preferências não envia mensagens nem cria cobranças. Não armazenar contatos reais no código ou contrato público.
+
 AdminDocumentos, partição `os-{empresa}`: regras, atendimentos, índices de identidade, reservas de lote e marcador de importação histórica. UUID de operação para gravações e controle de versão/ETag. Identidade repetida de cliente/data/horários/tipo/descrição é bloqueada transacionalmente. Cancelamento é lógico e mantém esse índice e o histórico.
 
 Somente atendimentos abertos, do mesmo cliente e com as mesmas regras entram numa cobrança; máximo 40. Histórico já faturado, reservados, cancelados e já vinculados ficam bloqueados. Relatórios históricos podem ser consultados sem nova cobrança.
@@ -19,6 +21,16 @@ A preparação reserva lote e atendimentos numa única transação. Em seguida c
 `POST acao=retomar` exige id do lote, confirmado=true e operacaoId UUID. Nunca libera reserva sem revisão; não há exclusão física ou cancelamento automático de documento fiscal.
 
 ## Histórico e arquivos
+
+### Importação de novos atendimentos por Excel
+
+POST binário na mesma rota, `acao=prever-excel` ou `acao=importar-excel`, `clienteId` obrigatório e MIME `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. Limite de 2 MB, 40 atendimentos, 2.000 linhas XML, 200 entradas ZIP, 4 MB por entrada descompactada e 20 MB totais declarados. Inflação limitada, CRC conferido, sem extração em disco; macros, conteúdo externo, DTD e entidades customizadas rejeitados. Não executa fórmulas nem interpreta conteúdo como instruções.
+
+Formato inicial: aba OSS, A=data (Excel 1900/1904 ou dd/mm/aaaa), B=início, C=fim; descrição em A na linha seguinte. Importa por hora, intervalo zero; diárias/fixos e intervalos precisam do formulário manual. Não inventa virada de dia, data ou descrição. Fórmulas em entradas são bloqueadas; valores calculados de G, quando disponíveis, servem apenas para aviso de divergência. Recalcula pelas regras atuais do cliente. Mantém dias reais, independentemente do nome do arquivo.
+
+Validação local: TypeScript, lint dos arquivos alterados, bundle da API e sintaxe OpenAPI aprovados. Testes de domínio/store/importador e barreiras de segurança aprovados; incluem limites, XML externo/macros, datas inválidas, versões, repetição e confirmação. Prévia do arquivo original, sem gravação, reconheceu seis serviços existentes, zero novos e zero erros. Handler compilado da API confirmou 401 sem papel, 403 para origem externa, 413 acima do limite, 400 para arquivo falso e 200 na prévia autenticada por contexto local de teste. Isso não simula sessão visual SWA; publicação e teste da interface em produção ainda pendentes para esta extensão.
+
+Prévia não grava. Confirmação envia novamente o mesmo arquivo, `versao` das regras, `operacaoId` UUID e `confirmado=true`. Linhas inválidas bloqueiam o arquivo inteiro. Repetições exatas e horários já cadastrados aparecem como ignorados, sem sobrescrita; possíveis repetições por horário com descrição diferente pedem conferência manual. A transação cria todos os novos atendimentos e índices, marcador SHA256 por cliente/empresa e verifica ETag da regra. Até 82 ações por transação, abaixo do limite Azure. Reimportar o mesmo arquivo não duplica. Não cria plano, cobrança, nota, boleto, e-mail ou pagamento. A origem de cada registro mantém hash e linha; o XLSX original não é armazenado pelo importador.
 
 Importação histórica operacional não é ação exposta na API: valida cliente, regras, total e nota; cria atendimentos imutáveis e índice de importação, sem plano/cobrança/pagamento novo. Documentos e dados reais ficam na base privada/saídas ignoradas, não no repositório público.
 

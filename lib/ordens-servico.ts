@@ -1,3 +1,9 @@
+export type PreferenciasCobrancaOS = {
+    email: string;
+    cc: string;
+    pixChave: string;
+    pixBeneficiario: string;
+};
 export type RegrasOS = {
     horaCentavos: number | null;
     diariaCentavos: number | null;
