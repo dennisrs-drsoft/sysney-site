@@ -1,0 +1,255 @@
+openapi: 3.1.0
+info:
+  title: SYSNEY — preparação fiscal ATP
+  version: 1.0.0-draft.2
+  description: |
+    Contrato fechado para implementação local; NÃO publicado. Fase 1 não transmite
+    notas, cria cobranças ou envia e-mails. Origem ATP e emitente SYSNEY definidos
+    pelo servidor. Adaptador nacional pendente. Polling, sem callbacks nesta fase.
+servers:
+  - url: https://fiscal.example.invalid
+security:
+  - AtpBearer: []
+paths:
+  /api/integracoes/atp/v1/solicitacoes-fiscais:
+    post:
+      operationId: prepararSolicitacaoFiscalAtp
+      description: |
+        Persiste por chave única (ATP,paymentId). externalReference também única
+        no escopo ATP e imutável. Mesmo payload canônico retorna o registro existente;
+        divergência retorna 409. Não usar eventId, subscriptionId ou orderId como
+        identidade de pagamento. Após timeout, consultar externalReference antes de
+        repetir com o MESMO payload. Datas/valor não são inferidos do cartão.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PreparationRequest'}
+      responses:
+        '202':
+          description: Preparação persistida, sem emissão fiscal
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreparationResponse'}
+        '200':
+          description: Repetição idêntica, registro existente
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreparationResponse'}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '413': {$ref: '#/components/responses/Error'}
+        '429': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+    get:
+      operationId: buscarSolicitacaoFiscalAtpPorReferencia
+      parameters:
+        - in: query
+          name: externalReference
+          required: true
+          schema: {type: string, minLength: 1, maxLength: 160}
+      responses:
+        '200':
+          description: Registro pertencente à origem autenticada ATP
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreparationResponse'}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/integracoes/atp/v1/solicitacoes-fiscais/{id}:
+    parameters:
+      - {$ref: '#/components/parameters/Id'}
+    get:
+      operationId: consultarSolicitacaoFiscalAtp
+      responses:
+        '200':
+          description: Preparação ou resultado, nunca dados de outra origem
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreparationResponse'}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/integracoes/atp/v1/solicitacoes-fiscais/{id}/revisao-estorno:
+    parameters:
+      - {$ref: '#/components/parameters/Id'}
+    post:
+      operationId: solicitarRevisaoFiscalEstornoAtp
+      description: Sinaliza revisão durável; não cancela/substitui nota nem desfaz pagamento.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [refundId, reason]
+              properties:
+                refundId: {type: string, minLength: 1, maxLength: 160, description: Correlação estável da revisão no ATP; não exige identificador de estorno do Asaas}
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '200':
+          description: Revisão registrada ou repetição idêntica
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PreparationResponse'}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/integracoes/atp/v1/solicitacoes-fiscais/{id}/documentos/{format}:
+    parameters:
+      - {$ref: '#/components/parameters/Id'}
+      - in: path
+        name: format
+        required: true
+        schema: {type: string, enum: [xml, pdf]}
+    get:
+      operationId: baixarDocumentoFiscalAtp
+      description: |
+        Somente bytes oficiais privados já vinculados e conferidos pelo servidor.
+        Nunca aceita blob/path/URL do consumidor. Nunca transmite nem emite novamente.
+        Nota emitida com PDF pendente continua emitida. Não altera XML ou PDF oficial.
+      responses:
+        '200':
+          description: Documento oficial; Cache-Control no-store, Content-Disposition attachment
+          content:
+            application/xml:
+              schema: {type: string}
+            application/pdf:
+              schema: {type: string, format: binary}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+components:
+  securitySchemes:
+    AtpBearer:
+      type: http
+      scheme: bearer
+      description: |
+        Token exclusivo servidor ATP, aleatório, mínimo 32 bytes, em cofre nos dois
+        serviços. Nunca admin master key/principal de navegador. Comparação segura;
+        origem ATP fixada pelo token. Não usar CORS/Origin como autenticação.
+        ATP_FISCAL_V1_ENABLED diferente de true ou token ausente/inválido na
+        configuração => 503, sem acesso ao armazenamento. Token apresentado errado =>401.
+  parameters:
+    Id:
+      in: path
+      name: id
+      required: true
+      schema: {type: string, pattern: '^[a-f0-9]{64}$'}
+  responses:
+    Error:
+      description: Erro estável; corpo sem dados fiscais ou segredos
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required: [error, requestId]
+            properties:
+              requestId: {type: string}
+              error:
+                type: object
+                additionalProperties: false
+                required: [code, message, retryable]
+                properties:
+                  code:
+                    type: string
+                    enum: [INTEGRATION_DISABLED, UNAUTHORIZED, INVALID_REQUEST, PAYLOAD_TOO_LARGE, IDEMPOTENCY_CONFLICT, NOT_FOUND, DOCUMENT_NOT_READY, RATE_LIMITED, STORAGE_UNAVAILABLE]
+                  message: {type: string}
+                  retryable: {type: boolean}
+  schemas:
+    PreparationRequest:
+      type: object
+      additionalProperties: false
+      required: [paymentId, externalReference, orderId, arenaId, amountCentsBRL, paymentVerifiedAtUtc, competence, servicePeriod, description, recipient]
+      properties:
+        paymentId: {type: string, minLength: 1, maxLength: 160}
+        externalReference: {type: string, minLength: 1, maxLength: 160}
+        orderId: {type: string, minLength: 1, maxLength: 160}
+        arenaId: {type: string, minLength: 1, maxLength: 160}
+        amountCentsBRL: {type: integer, minimum: 1, maximum: 10000000000, description: Valor bruto recebido em centavos BRL, não líquido após taxas}
+        paymentVerifiedAtUtc: {type: string, format: date-time, pattern: 'Z$', description: Hora UTC em que ATP verificou e confirmou o pagamento; não é a hora real do pagamento}
+        paidAtUtc: {type: string, format: date-time, pattern: 'Z$', description: Opcional; somente quando a fonte fornece timestamp real do pagamento, nunca inventar a partir de confirmedDate ou DueDate}
+        competence: {type: string, pattern: '^20\d{2}-(0[1-9]|1[0-2])$'}
+        servicePeriod:
+          type: object
+          additionalProperties: false
+          required: [startDate, endDate]
+          properties:
+            startDate: {type: string, format: date}
+            endDate: {type: string, format: date, description: Não anterior a startDate}
+        description: {type: string, minLength: 1, maxLength: 1500}
+        recipient:
+          type: object
+          additionalProperties: false
+          required: [documentType, document, legalName, confirmed, address]
+          properties:
+            documentType: {type: string, enum: [CNPJ, CPF]}
+            document: {type: string, pattern: '^(\d{11}|\d{14})$', description: Tipo e dígitos verificadores validados; CPF aceito na preparação, não suportado no adaptador municipal atual}
+            legalName: {type: string, minLength: 1, maxLength: 150}
+            confirmed: {type: boolean, const: true, description: Tomador confirmado separadamente do titular do cartão}
+            address:
+              type: object
+              additionalProperties: false
+              required: [streetType, street, number, district, municipalityCode, state, postalCode]
+              properties:
+                streetType: {type: string, minLength: 1, maxLength: 10}
+                street: {type: string, minLength: 1, maxLength: 150}
+                number: {type: string, minLength: 1, maxLength: 20}
+                complement: {type: string, maxLength: 100}
+                district: {type: string, minLength: 1, maxLength: 100}
+                municipalityCode: {type: string, pattern: '^\d{7}$'}
+                state: {type: string, pattern: '^[A-Z]{2}$'}
+                postalCode: {type: string, pattern: '^\d{8}$'}
+    PreparationResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, replayed, request]
+      properties:
+        requestId: {type: string}
+        replayed: {type: boolean}
+        request:
+          type: object
+          additionalProperties: false
+          required: [id, source, paymentId, externalReference, orderId, arenaId, amountCentsBRL, competence, status, reviewStatus, createdAtUtc, updatedAtUtc, capabilities, documents]
+          properties:
+            id: {type: string, pattern: '^[a-f0-9]{64}$'}
+            source: {type: string, const: ATP}
+            paymentId: {type: string}
+            externalReference: {type: string}
+            orderId: {type: string}
+            arenaId: {type: string}
+            amountCentsBRL: {type: integer}
+            competence: {type: string}
+            status: {type: string, enum: [pending_review, prepared, transmitting, uncertain, rejected, issued]}
+            reviewStatus: {type: string, enum: [none, refund_review_required]}
+            createdAtUtc: {type: string, format: date-time}
+            updatedAtUtc: {type: string, format: date-time}
+            capabilities:
+              type: object
+              additionalProperties: false
+              required: [automaticIssuance, nationalAdapterReady, emailHandledBy]
+              properties:
+                automaticIssuance: {type: boolean, const: false}
+                nationalAdapterReady: {type: boolean, const: false}
+                emailHandledBy: {type: string, const: ATP}
+            invoice:
+              type: object
+              additionalProperties: false
+              required: [number, issuerDocument, provider]
+              properties:
+                number: {type: string}
+                issuerDocument: {type: string}
+                provider: {type: string, enum: [municipal_sp, national]}
+            documents:
+              type: object
+              additionalProperties: false
+              required: [xml, pdf]
+              properties:
+                xml: {type: string, enum: [pending, available]}
+                pdf: {type: string, enum: [pending, available]}

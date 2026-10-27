@@ -1,0 +1,16 @@
+{
+  "paymentId": "pay_sintetico_001",
+  "externalReference": "ATP:pay_sintetico_001",
+  "orderId": "pedido-sintetico",
+  "arenaId": "arena-sintetica",
+  "amountCentsBRL": 19900,
+  "paymentVerifiedAtUtc": "2026-10-27T12:00:00Z",
+  "competence": "2026-10",
+  "servicePeriod": {"startDate": "2026-10-01", "endDate": "2026-10-31"},
+  "description": "Assinatura sintética para teste offline",
+  "recipient": {
+    "documentType": "CNPJ", "document": "11222333000181",
+    "legalName": "CLIENTE SINTETICO LTDA", "confirmed": true,
+    "address": {"streetType": "R", "street": "Rua Sintetica", "number": "100", "district": "Centro", "municipalityCode": "3550308", "state": "SP", "postalCode": "01001000"}
+  }
+}
