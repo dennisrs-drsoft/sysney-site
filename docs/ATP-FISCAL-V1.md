@@ -529,3 +529,50 @@ perfil conflitante, preparação HTTP concorrente e `dry-run` sem acesso de escr
 ou transporte. Assinatura/XSD, TypeScript, build API e verificação de segredos
 também aprovados. Toda a evidência de emissão continua simulada; nenhum POST fiscal
 oficial adicional foi executado.
+
+### Candidato disponibilizado na DRServer — 27/10/2026
+
+Código4bf89f0 copiado em pasta NOVA
+`C:\ProgramData\SYSNEY\NacionalCandidatos\4bf89f0`, sem substituir FiscalTeste.
+29 arquivos de fontes/scripts/XSD/documentação, ZIP de transporte conferido por
+SHA256 `00a5e960ccf881d8ec644ba2c098a155fb1f8a98e9e77a00fbd60f4673d1797c`.
+Nenhum certificado ou segredo incluído. Preservados candidatos e artefatos anteriores.
+
+Inventário nativo confirmou Windows Server2016 Datacenter x64, versão10.0.14393,
+e Node global10.16.0, insuficiente para estes módulos. A matriz oficial Node22 inclui
+Windows10/Server2016 ou superior:
+https://github.com/nodejs/node/blob/v22.x/BUILDING.md#platform-list
+
+Foi disponibilizado Node PORTÁTIL22.23.4 somente dentro do candidato, sem MSI,
+registro, PATH, serviço, tarefa, ACL ou grants novos. Release LTS Jod publicada em
+20/10/2026, obtida de `https://nodejs.org/dist/v22.23.4/node-v22.23.4-win-x64.zip`.
+SHA256 oficial lido e conferido na VM:
+`cbc74b5e0982c9dbb41525fd8fb5dcd32fbee237863f7829072f4639a1ce5f20`.
+Authenticode do node.exe: Valid, titular OpenJS Foundation. Node global10.16.0
+permaneceu igual. Não desabilitada qualquer proteção ou verificação de assinatura.
+
+Bundle ESM com dependências já revisadas: Azure Tables13.3.2, Identity4.13.3,
+Blob12.34.0. SHA256 do bundle:
+`f9deacd7b0977e84dea7f53257c7507c51e8de5aed5d909d44e7650d84740307`.
+Tamanho1278985 bytes; gzip330231 bytes. Build reproduzível pelo comando
+`node deploy/build-national-restricted-runner.mjs`; manifestos/artefatos em output
+ignorado pelo Git. Não precisa instalar npm/node_modules na VM para este bundle.
+Posição no candidato mantém a resolução dos scripts nativos relativa ao módulo.
+
+Dry-run REAL executado nessa cópia da VM, com caminhos absolutos:
+
+```powershell
+& 'C:\ProgramData\SYSNEY\NacionalCandidatos\4bf89f0\runtime\node-v22.23.4-win-x64\node.exe' 'C:\ProgramData\SYSNEY\NacionalCandidatos\4bf89f0\admin-api\src\services\nacional-restrita-runner.mjs' dry-run
+```
+
+Resultado: readyfalse, transmittedfalse, writesfalse. Listou os NOMES
+ADMIN_STORAGE_ACCOUNT, SYSNEY_NATIONAL_RESTRICTED_ENVIRONMENT=homologacao,
+--profile, --request-id, issuer.opSimpNac, issuer.regEspTrib, service.cTribNac,
+service.tribISSQN, service.tpRetISSQN, service.totTrib e dps.serie. regApTribSN é
+adicionalmente obrigatório quando opSimpNac3. Não foram fornecidos valores fiscais
+nem configuração municipal convertida. Nenhum número foi reservado, nenhuma DPS
+assinada ou transmitida pelo runner, nenhum acesso ao storage fiscal de escrita.
+Prepare/run desabilitados no processo. Esse teste comprova runtime/imports/entrada,
+não autorização oficial de NFS-e. Perfil/configuração restrita explícita e ensaio
+governamental com XML/PDF/situação ADN seguem pendentes; a cópia do runner/runtime
+e dependências já não é uma pendência. Nenhuma publicação Next/API ou worker instalado.
