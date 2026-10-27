@@ -212,3 +212,47 @@ Resultado: 16 testes, 16 aprovados, zero falhas. `node --check` dos módulos de
 vínculo/store e `git diff --check` também passaram. Sem Azure, SQL de produção,
 provedor fiscal, certificado ou envio de e-mail. Próxima etapa conjunta:
 proveniência no fluxo NACIONAL homologado e enquadramento ATP aprovado pelo contador.
+
+## Leitor e fronteira de aprovação — avanço local seguinte
+
+`atp-authorized-xml.mjs`: leitor estrutural conservador para NFSe nacional 1.01,
+namespace padrão oficial e apenas caminhos explícitos de infNFSe/DPS/infDPS.
+Preserva bruto em centavos, exige tpAmb=1 e identifica emitente/tomador, competência,
+descrição, chave, número e data de processamento. Não usa busca recursiva pelo
+primeiro CNPJ/valor encontrado. Rejeita DTD/ENTITY/CDATA/PIs externas, UTF-8 inválido,
+arrays nos campos singulares, namespace divergente, IDs duplicados e excessos de
+tamanho/profundidade/elementos. Perfil conservador pode rejeitar XML legítimo fora
+desse subconjunto; não chamar isso de suporte nacional completo.
+
+Referência consultada: documentação oficial de Produção e ZIP XSD v1.01-20260209
+em https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual
+(ZIP inspecionado somente em memória). Não confundir com schemas de produção
+restrita de outubro; schemas precisam ser fixados/homologados na próxima etapa.
+
+O leitor autorizado exige função interna verifyAuthorization que comprove schema,
+assinatura/chain e confirmação oficial não cancelada, ligadas ao SHA-256 exato,
+chave e ambiente. Prova precisa ter até cinco minutos; datas futuras são bloqueadas
+com tolerância de 30s. NÃO há implementação real desse verificador nesta etapa;
+ausência falha fechada. Testes usam substituto explícito e XML reduzido SEM VALIDADE
+FISCAL, não documento XSD válido nem assinatura fiscal de verdade.
+
+`atp-fiscal-admin.mjs`: factory da fronteira administrativa com autenticação
+injetada, checagem de Origin, corpo limitado/allowlist e ações reserve/preview/approve.
+Ator não vem do corpo, Bearer ATP não substitui sessão admin. Preview inclui hashes
+de bytes e ETag; aprovação compara previewHash, snapshotHash e confirmação explícita,
+congela evidência da leitura e chama núcleo transacional. Mudança do XML entre
+preview e approve retorna conflito. Sem registro de rota real ou botão de produção;
+falta conectar authenticate à ponte administrativa protegida e ao verificador real.
+
+Draft.2 público não mudou. Nenhuma rota externa nova ativada, nenhuma nota real lida,
+copiada, vinculada, emitida ou cancelada; nenhum e-mail/pagamento foi executado.
+Azurite não localizado no PATH/dependências; não criados recursos Azure nem usados
+Table/Blob reais. Testes de infraestrutura isolada seguem pendentes.
+
+Conjunto ampliado: 22 testes offline/HTTP loopback aprovados, zero falhas.
+Comando: `node --test tests/atp-authorized-xml.test.mjs tests/atp-fiscal-admin.test.mjs tests/atp-fiscal-link.test.mjs tests/atp-fiscal-http.test.mjs tests/atp-fiscal-v1.test.mjs`.
+Bloqueios do contador: natureza da receita, código nacional, tributos/retenções,
+competência/período, tomador e tratamento de estorno. Bloqueios do provedor/infra:
+schema/assinatura e consulta oficial, habilitação/certificado/DPS, DANFSe, homologação
+e RBAC/storage isolado. Ainda depende de implementação nossa: verificador real,
+conexão da proveniência ao fluxo nacional e rota/modal autenticados após homologação.
