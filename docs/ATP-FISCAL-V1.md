@@ -467,3 +467,65 @@ build da API aprovados. A instância Azurite compartilhada11000 retornou500 ao P
 para não alterá-la, a rodada final usou outra instância loopback11010/11012 com pasta
 absoluta privada. Foram criados/removidos somente recursos QA de nomes aleatórios.
 Não atribuir essa falha do emulador à API financeira de produção.
+
+### Runner sob demanda e sequência concluídos — complemento 27/10
+
+As pendências de desenvolvimento de sequência e entrada operacional acima foram
+resolvidas no código, sem instalação de serviço. `createRestrictedDpsSequence`
+mantém contador por emitente SYSNEY, ambiente homologacao e série normalizada, e
+atribuição por solicitação ATP. Contador + atribuição são gravados atomicamente na
+mesma partição de FiscalFila; concorrência usa ETag/insert-only. Reinício, replay
+e timeout após commit recuperam número e instante da preparação originais, sem
+consumir novo número. Perfil/série alterados para a mesma solicitação são recusados.
+Não existe expiração, reset ou reaproveitamento automático de número reservado.
+A primeira atribuição da série própria inicia em1; usar série exclusivamente nova
+de homologação, nunca série nacional já usada por outro sistema sem migrar contador.
+
+Entrada executável: `admin-api/scripts/nacional-restrita.mjs`, modos `dry-run`,
+`prepare`, `run`. O módulo não faz nada ao importar. Configuração explícita:
+
+- `ADMIN_STORAGE_ACCOUNT`: conta privada já provisionada e autorizada.
+- `SYSNEY_NATIONAL_RESTRICTED_ENVIRONMENT=homologacao`: qualquer outro valor recusa.
+- `SYSNEY_NATIONAL_RESTRICTED_RUNNER=true`: habilita só a operação local sob demanda.
+- `SYSNEY_ALLOW_NATIONAL_RESTRICTED_SEND=true`: exigido adicionalmente para `run`.
+
+O perfil JSON privado contém apenas os grupos issuer/service/dps documentados,
+sem certificado/chave/token. Usar caminho absoluto privado fora do Git. Exemplos
+operacionais, com IDs e caminhos substituídos pelo operador:
+
+```powershell
+node admin-api/scripts/nacional-restrita.mjs dry-run --profile C:/pasta-privada/perfil.json --request-id ID_HEX_64
+node admin-api/scripts/nacional-restrita.mjs prepare --profile C:/pasta-privada/perfil.json --request-id ID_HEX_64
+node admin-api/scripts/nacional-restrita.mjs run --work-id WORK_HEX_64 --approved-hash HASH_HEX_64 --confirm-restricted SIM
+```
+
+`dry-run` lista NOMES de campos ausentes; perfil incompleto nem abre armazenamento.
+Com perfil completo, apenas lê a preparação e valida a estrutura do gerador. Não
+reserva sequência, não assina, não cria runtime e não faz POST. Não é homologação
+tributária nem confirmação de aceite governamental. `prepare` reserva número/
+proveniência e guarda DPS assinada privada, sem enviar. `run` exige hash exato da
+preparação, confirmação explícita e gates restritos; replay usa somente GET depois
+da reserva do POST. Saída imprime apenas IDs/hashes/status, nunca XML ou credenciais.
+Identidade do ator vem da conta local do processo, não de parâmetro HTTP. Executar
+somente na sessão operacional Windows autorizada, com identidade Azure já permitida;
+o runner não cria grants, tarefas, serviços ou ACLs e não oferece endpoint público.
+
+Para operação na VM, copiar os módulos/scripts/schemas revisados e dependências em
+pasta operacional aprovada e testar o `dry-run` antes de habilitar gates locais.
+Não foi feita essa cópia/instalação neste trabalho. Nenhuma instalação de worker
+permanente é necessária para o ensaio sob demanda. Não habilitar produção a partir
+de sucesso restrito. Integração administrativa/publicação e rotina permanente só
+depois de homologação oficial positiva e revisão da operação.
+
+Resultado governamental restrito é guardado com `authorityStatus=unknown` e
+`requiresReview=true` enquanto a situação global ADN não estiver comprovada.
+Evento específico404 nunca permite concluir ausência de cancelamento/substituição
+nem promover pedido ATP para issued. Vínculo de produção permanece fechado.
+
+Validação deste complemento: 31 testes Node aprovados, zero falhas/skips. Inclui
+oito reservas simultâneas do mesmo pedido, oito pedidos concorrentes distintos,
+nova instância do cliente após reinício, timeout depois de commit, séries isoladas,
+perfil conflitante, preparação HTTP concorrente e `dry-run` sem acesso de escrita
+ou transporte. Assinatura/XSD, TypeScript, build API e verificação de segredos
+também aprovados. Toda a evidência de emissão continua simulada; nenhum POST fiscal
+oficial adicional foi executado.

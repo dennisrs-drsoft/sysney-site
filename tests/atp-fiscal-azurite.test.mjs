@@ -8,6 +8,7 @@ import {createAtpFiscalRepository,createAtpFiscalEmulatorStore} from '../admin-a
 import {digest} from '../admin-api/src/services/atp-fiscal-v1.mjs';
 import {createRestrictedDpsLedger} from '../admin-api/src/services/national-restricted-ledger.mjs';
 import {createNationalRestrictedWorkStore} from '../admin-api/src/services/national-restricted-work-store.mjs';
+import {createRestrictedDpsSequence} from '../admin-api/src/services/national-restricted-sequence.mjs';
 
 test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', {skip:!process.env.ATP_AZURITE_PACKAGE,timeout:90000},async()=>{
  const packagePath=process.env.ATP_AZURITE_PACKAGE;
@@ -27,6 +28,21 @@ test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', 
  let tableCreated=false,containerCreated=false;
  try{
   await service.createTable(tableName);tableCreated=true;await container.create();containerCreated=true;
+  const sequences=[createRestrictedDpsSequence(table),createRestrictedDpsSequence(table)];
+  const firstAssignment={requestId:'1'.repeat(64),series:'99',preparationHash:digest('profile+request'),emissionAt:'2026-10-27T12:00:00-03:00'};
+  const repeated=await Promise.all(Array.from({length:8},(_,i)=>sequences[i%2].reserve(firstAssignment)));
+  assert.ok(repeated.every(a=>a.number==='1'));
+  const restarted=createRestrictedDpsSequence(TableClient.fromConnectionString(connection,tableName,{allowInsecureConnection:true}));
+  assert.deepEqual(await restarted.reserve({...firstAssignment,emissionAt:'2026-10-28T12:00:00-03:00'}),repeated[0]);
+  const distinct=await Promise.all(Array.from({length:8},(_,i)=>sequences[i%2].reserve({...firstAssignment,requestId:digest('parallel-'+i)})));
+  assert.deepEqual(distinct.map(a=>Number(a.number)).sort((a,b)=>a-b),[2,3,4,5,6,7,8,9]);
+  await assert.rejects(restarted.reserve({...firstAssignment,series:'100'}),/ASSIGNMENT_CONFLICT/);
+  await assert.rejects(restarted.reserve({...firstAssignment,preparationHash:digest('changed')}),/ASSIGNMENT_CONFLICT/);
+  let lost=true;
+  const timeoutSequence=createRestrictedDpsSequence({getEntity:(...a)=>table.getEntity(...a),submitTransaction:async a=>{const r=await table.submitTransaction(a);if(lost){lost=false;throw Error('Synthetic timeout after commit');}return r;}});
+  const afterTimeout=await timeoutSequence.reserve({...firstAssignment,requestId:'2'.repeat(64)});assert.equal(afterTimeout.number,'10');
+  assert.equal((await restarted.reserve({...firstAssignment,requestId:'2'.repeat(64)})).number,'10');
+  assert.equal((await restarted.reserve({...firstAssignment,requestId:'3'.repeat(64),series:'100'})).number,'1');
   const repo=createAtpFiscalRepository({table,blobs:{getContainerClient:n=>{assert.equal(n,'admin-anexos');return container;}}});
   const ledger=createRestrictedDpsLedger(table),dps='DPS355030825776709900017900099000000000000001';
   const reservation={idDps:dps,hash:digest('dps-qa'),status:'transmitting'};

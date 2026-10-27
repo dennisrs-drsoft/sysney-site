@@ -50,3 +50,9 @@ shared11000 instance returned500 on QA blob PUT. No shared process/data was chan
 `ATP_AZURITE_BLOB_PORT` and `ATP_AZURITE_TABLE_PORT` select those local test ports;
 the emulator helper still rejects remote endpoints. The fixture, native signature,
 HTTP mock and live readonly mTLS observations remain distinct forms of evidence.
+
+Integrated preparation now uses the durable sequence interface. HTTP simulation
+exercises concurrent preparation and restarted workflow replay; Azurite regression
+exercises the real atomic counter/assignment with8 same-request reservations,
+8 different requests, recreated clients, post-commit lost response and series scope.
+31 Node tests pass; runner dry-run tests assert no write or provider transport.

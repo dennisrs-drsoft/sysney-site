@@ -19,15 +19,21 @@ test('ATP HTTP → proveniencia → DPS → assinatura injetada → SEFIN HTTP s
   const transport=async r=>{assert.equal(r.environment,'homologacao');const v=await fetch(base+r.path,{method:r.method,...(r.body?{headers:{'content-type':'application/json'},body:JSON.stringify(r.body)}:{})});return {status:v.status,contentType:v.headers.get('content-type'),body:Buffer.from(await v.arrayBuffer())};};
   const client=createNationalRestrictedClient({transport,ledger});
   // Signature injection here is synthetic; native Windows/XSD is a separate test.
-  const workflow=createNationalRestrictedWorkflow({repository,works,client,environment:'homologacao',sign:async xml=>xml});
+  const assigned=new Map(),sequence={reserve:async a=>{if(!assigned.has(a.requestId))assigned.set(a.requestId,{...a,number:'1'});return assigned.get(a.requestId);}};
+  const make=()=>createNationalRestrictedWorkflow({repository,works,sequence,client,environment:'homologacao',sign:async xml=>xml});
+  const workflow=make();
   const actor={role:'administrador',id:'qa-local'},profile={issuer:{opSimpNac:'3',regApTribSN:'1',regEspTrib:'0'},service:{cTribNac:'000000',tribISSQN:'1',tpRetISSQN:'1',totTrib:{kind:'indTotTrib',value:'0'}},dps:{serie:'99'}};
-  const work=await workflow.prepare({requestId:request.id,profile,number:'1',emissionAt:'2026-10-27T12:00:00-03:00',actor,synthetic:true});
+  const preparation={requestId:request.id,profile,emissionAt:'2026-10-27T12:00:00-03:00',actor,synthetic:true};
+  const prepared=await Promise.all([workflow.prepare(preparation),make().prepare(preparation)]),work=prepared[0];
+  assert.equal(prepared[1].workId,work.workId);assert.equal(assigned.size,1);
+  assert.equal((await make().prepare({...preparation,emissionAt:'2026-10-27T13:00:00-03:00'})).workId,work.workId);
   assert.equal(provenance.size,1);assert.match(work.signedXml.toString(),/NAO TRANSMITIR/);
   await assert.rejects(workflow.run({workId:work.workId,actor,approvedHash:work.signedHash}),/RESTRICTED_APPROVAL_REQUIRED/);
   await fetch(base+'/qa/mode?name=normal');
   const before=await (await fetch(base+'/qa/stats')).json();
   const run=()=>workflow.run({workId:work.workId,actor,approvedHash:work.signedHash,explicitRestrictedApproval:true});
   const result=await run();assert.deepEqual(result.documents,{xml:true,pdf:true});assert.equal(result.productionIssued,false);
+  assert.equal(result.authorityStatus,'unknown');assert.equal(result.requiresReview,true);
   await run();const after=await (await fetch(base+'/qa/stats')).json();assert.equal(after.posts,before.posts+1);
   assert.ok(Buffer.isBuffer(jobs.get(work.workId).result.xml));assert.ok(Buffer.isBuffer(jobs.get(work.workId).result.pdf));
   assert.equal((await (await fetch(url+'/'+request.id,{headers})).json()).request.status,'pending_review');
