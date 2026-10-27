@@ -1,0 +1,5 @@
+simulation: national-restricted
+routing: path
+mocks:
+  - routeKey: sefin
+    path: ../mocks/national-restricted/default.js

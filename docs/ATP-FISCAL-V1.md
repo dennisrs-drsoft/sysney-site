@@ -377,3 +377,93 @@ Rodada desta simplificação: 25 testes aprovados, zero falhas/skips, incluindo
 Azurite isolado e handlers administrativos compilados. TypeScript --noEmit e
 build da API aprovados. Cliente nacional real não foi chamado nos testes; a
 consulta oficial normalizada é substituída por evidência sintética controlada.
+
+## Avanço nacional restrito — 27/10/2026
+
+Esta seção atualiza o estado técnico anterior, sem habilitar produção. Contrato
+`1.0.0-draft.2`, `nationalAdapterReady:false`, fronteira administrativa e flags de
+produção permanecem inalterados. Não houve push, deploy de worker ou emissão real.
+
+Implementados gerador DPS 1.01 com endereço confirmado, assinatura Windows com
+certificado do vínculo seguro SYSNEY (sem exportar chave), transporte mTLS de hosts
+fixos restritos, consulta DPS/chave e evento específico, recuperação de DANFSe,
+ledger insert-only anterior ao POST e armazenamento privado com hash. Composição
+interna `createWindowsNationalRestrictedRuntime` conecta essas peças à solicitação
+ATP e à reserva de proveniência existente. Preparar e executar exigem administrador,
+ambiente homologacao, hash aprovado e autorização restrita explícita. Depois de uma
+reserva, inclusive timeout, só consulta; sem repetição automática do POST. A VM exige
+também gate de envio restrito e faz sua própria reserva durável antes da transmissão.
+
+O runner não foi instalado nem registrado no worker/rotas. Sua implantação controlada,
+uma forma operacional de selecionar a preparação e reservar a sequência DPS própria,
+e homologação oficial são pendências nossas. Não confundir uma factory interna
+testada com automação on-line concluída. Documentos restritos ficam em
+`qa/nacional-restrita`, nunca tornam a solicitação pública ATP `issued` e não são
+entregues como XML/PDF de produção. Não há rotina de e-mail nesta composição.
+
+Evidência efetiva na DRServer: certificado SYSNEY válido, chave privada acessível,
+GET autenticado ao Swagger SEFIN restrito HTTP200. Sem certificado, a mesma consulta
+é recusada. DPS sintética assinada no Windows PowerShell5.1 com o certificado real,
+assinatura conferida e XSD oficial restrito validado, sem exportação de chave, sem
+gravar XML assinado e sem transmissão. Certificado observado expira em 10/11/2026;
+renovar antes dessa data para manter as integrações. Nenhum certificado foi instalado
+ou alterado neste trabalho. Arquivos públicos XSD usados no QA da VM ficam em pasta
+nova privada de homologação, sem alteração do serviço municipal.
+
+Schemas públicos fixados no repositório: pacote oficial restrito 20/10/2026,
+SHA256 `25fdcecc651a67a216496ab10d7566631e6ed10f721e37d62c7845dadb0ea267`.
+O leiaute contém `finNFSe` obrigatório, `toma`, e ordem de `cServ` diferente de
+exemplos antigos. Algoritmo de assinatura segue o exemplo do manual nacional
+publicado (RSA-SHA1/SHA1); validação XSD e assinatura local não provam aceitação
+atual pelo provedor. A aceitação oficial ainda deve ser testada.
+
+### Cadastro real consultado, sem alterações
+
+Leitura de `AdminConfiguracoes` na conta financeira: emitentes, regimes e perfis
+`nfse-perfil-sysney` existem. Os três perfis consultados são municipais: regime
+simples, codigoServico03158, aliquota0, issRetidofalse. Não contêm cTribNac, codigoNBS
+ou cClassTrib. Não foi localizado perfil nacional ATP nas partições consultadas.
+Na VM, `C:\ProgramData\SYSNEY\FiscalTeste\config.json` contém modo, emitentes,
+storage e producaoEmitentes; busca de nomes nos config*.json dessa pasta SYSNEY não
+encontrou os parâmetros nacionais. Não houve leitura de chave privada, despejo de
+segredos nem cópia de dados de outro cliente para o ATP.
+
+O cadastro municipal existente não foi descartado. Os campos nacionais ainda não
+localizados são: `issuer.opSimpNac`, `issuer.regEspTrib`, condicionalmente
+`issuer.regApTribSN`, `service.cTribNac`, `service.tribISSQN`,
+`service.tpRetISSQN`, `service.totTrib`. Série DPS é configuração técnica própria.
+Município/CNPJ/certificado vêm do emitente, tomador/valor/período vêm da preparação
+ATP; não inferir código nacional, regime especial, transparência tributária ou
+alíquota a partir de03158 ou dos6% da Compuwise. Não existe aprovação contábil por
+nota ou requisito de contratar verificador: perfil externo versionado é suficiente
+quando disponível. IBS/CBS/isenções/exportação e outros perfis não suportados devem
+falhar explicitamente, não ser silenciosamente convertidos em prestação normal.
+
+### Limites da homologação
+
+Testes locais HTTP/Postman passaram para caminho integrado e falhas, com XML/PDF
+fictícios; assinatura nativa e armazenamento Azurite são verificações separadas.
+Nenhuma NFS-e nacional foi autorizada oficialmente nesta rodada. A fixture contém
+cTribNac000000 e `NAO TRANSMITIR`, e permanece bloqueada na saída nativa. A página
+oficial de São José dos Campos confirma ambiente sem validade fiscal, mas não fornece
+um conjunto preenchido de parâmetros DPS para o caso de teste. Não transformar
+exemplo de blog em perfil oficial nem parâmetros de outro município em dados ATP.
+
+DANFSe GET está modelado conforme o manual oficial ADN, mas a documentação indicada
+no catálogo retornou404 com certificado; nenhum PDF oficial foi recuperado sem uma
+chave autorizada. Consulta de evento específico implementada não normaliza a situação
+global de cancelamento/substituição. Normalização completa ADN, validação de documento
+autorizado e vínculo de produção continuam pendentes de desenvolvimento/homologação;
+nunca interpretar evento404, apenas HTTP200 ou XML sintético como autorização fiscal.
+
+Consulta oficial adicional: GET de DPS fictícia inexistente no host SEFIN restrito,
+com o certificado SYSNEY, respondeu HTTP404 em27/10; nenhuma transmissão foi feita.
+O diagnóstico só registrou código HTTP/validade do certificado, sem XML ou segredos.
+
+Validação final: 29 testes Node aprovados, sem falhas/skips, incluindo armazenamento
+real no emulador isolado e fluxo HTTPsim. Teste PowerShell de assinatura/XSD,
+TypeScript --noEmit, import da composição runtime, análise de sintaxe PowerShell e
+build da API aprovados. A instância Azurite compartilhada11000 retornou500 ao PUT QA;
+para não alterá-la, a rodada final usou outra instância loopback11010/11012 com pasta
+absoluta privada. Foram criados/removidos somente recursos QA de nomes aleatórios.
+Não atribuir essa falha do emulador à API financeira de produção.

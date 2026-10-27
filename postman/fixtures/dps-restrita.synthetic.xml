@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DPS xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01">
+ <infDPS Id="DPS355030825776709900017900001000000000000001">
+  <tpAmb>2</tpAmb><dhEmi>2026-10-27T12:00:00-03:00</dhEmi><verAplic>SYSNEY-QA</verAplic>
+  <serie>1</serie><nDPS>1</nDPS><dCompet>2026-10-27</dCompet><tpEmit>1</tpEmit><finNFSe>0</finNFSe><cLocEmi>3550308</cLocEmi>
+  <prest><CNPJ>57767099000179</CNPJ><regTrib><opSimpNac>3</opSimpNac><regApTribSN>1</regApTribSN><regEspTrib>0</regEspTrib></regTrib></prest>
+  <toma><CNPJ>11222333000181</CNPJ><xNome>CLIENTE SINTETICO SEM VALIDADE FISCAL</xNome></toma>
+  <serv><locPrest><cLocPrestacao>3550308</cLocPrestacao></locPrest><cServ><cTribNac>000000</cTribNac><xDescServ>SIMULACAO LOCAL SEM VALIDADE FISCAL. NAO TRANSMITIR.</xDescServ></cServ></serv>
+  <valores><vServPrest><vServ>1.00</vServ></vServPrest><trib><tribMun><tribISSQN>1</tribISSQN><tpRetISSQN>1</tpRetISSQN></tribMun><totTrib><indTotTrib>0</indTotTrib></totTrib></trib></valores>
+ </infDPS>
+</DPS>

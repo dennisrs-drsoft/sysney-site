@@ -28,7 +28,7 @@ export async function startSyntheticFiscalServer({token,port=0}={}){
   }catch{outgoing.writeHead(500);outgoing.end('Erro no harness sintético.');}
  });
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
- return {baseUrl:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})};
+ return {store,baseUrl:`http://127.0.0.1:${server.address().port}`,close:()=>new Promise(resolve=>{server.close(resolve);server.closeAllConnections();})};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const token=process.env.ATP_FISCAL_SYNTHETIC_TOKEN;

@@ -6,15 +6,19 @@ import {TableClient,TableServiceClient} from '@azure/data-tables';
 import {BlobServiceClient} from '@azure/storage-blob';
 import {createAtpFiscalRepository,createAtpFiscalEmulatorStore} from '../admin-api/src/services/atp-fiscal-store.mjs';
 import {digest} from '../admin-api/src/services/atp-fiscal-v1.mjs';
+import {createRestrictedDpsLedger} from '../admin-api/src/services/national-restricted-ledger.mjs';
+import {createNationalRestrictedWorkStore} from '../admin-api/src/services/national-restricted-work-store.mjs';
 
 test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', {skip:!process.env.ATP_AZURITE_PACKAGE,timeout:90000},async()=>{
  const packagePath=process.env.ATP_AZURITE_PACKAGE;
  const constants=await import(pathToFileURL(packagePath+'/dist/src/common/utils/constants.js').href);
  const {EMULATOR_ACCOUNT_NAME:name,EMULATOR_ACCOUNT_KEY:key}=constants;
  assert.equal(name,'devstoreaccount1');
- const connection=`DefaultEndpointsProtocol=http;AccountName=${name};AccountKey=${Buffer.from(key).toString('base64')};BlobEndpoint=http://127.0.0.1:11000/${name};TableEndpoint=http://127.0.0.1:11002/${name};`;
+ const blobPort=process.env.ATP_AZURITE_BLOB_PORT||'11000',tablePort=process.env.ATP_AZURITE_TABLE_PORT||'11002';
+ for(const port of [blobPort,tablePort])assert.match(port,/^\d{4,5}$/);
+ const connection=`DefaultEndpointsProtocol=http;AccountName=${name};AccountKey=${Buffer.from(key).toString('base64')};BlobEndpoint=http://127.0.0.1:${blobPort}/${name};TableEndpoint=http://127.0.0.1:${tablePort}/${name};`;
  // Nenhum endpoint remoto pode entrar pelo helper de emulação.
- assert.throws(()=>createAtpFiscalEmulatorStore(connection.replace('127.0.0.1:11000','azure.example:11000')));
+ assert.throws(()=>createAtpFiscalEmulatorStore(connection.replace(`127.0.0.1:${blobPort}`,`azure.example:${blobPort}`)));
  const suffix=randomUUID().replaceAll('-',''),tableName='AtpFiscalQa'+suffix,containerName='atpfiscalqa'+suffix;
  assert.match(tableName,/^AtpFiscalQa[a-f0-9]{32}$/);assert.match(containerName,/^atpfiscalqa[a-f0-9]{32}$/);
  const service=TableServiceClient.fromConnectionString(connection,{allowInsecureConnection:true});
@@ -24,6 +28,13 @@ test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', 
  try{
   await service.createTable(tableName);tableCreated=true;await container.create();containerCreated=true;
   const repo=createAtpFiscalRepository({table,blobs:{getContainerClient:n=>{assert.equal(n,'admin-anexos');return container;}}});
+  const ledger=createRestrictedDpsLedger(table),dps='DPS355030825776709900017900099000000000000001';
+  const reservation={idDps:dps,hash:digest('dps-qa'),status:'transmitting'};
+  await ledger.reserve(reservation);assert.equal((await ledger.get(dps)).hash,reservation.hash);await assert.rejects(ledger.reserve(reservation));
+  const works=createNationalRestrictedWorkStore({table,blobs:{getContainerClient:n=>{assert.equal(n,'admin-anexos');return container;}}});
+  const job={workId:'9'.repeat(64),signedXml:Buffer.from('<DPS>SIMULACAO</DPS>'),environment:'homologacao',state:'prepared'};
+  await works.create(job);await assert.rejects(works.create(job));assert.deepEqual((await works.get(job.workId)).signedXml,job.signedXml);
+  await works.saveResult(job.workId,{state:'confirmed_restricted',xml:Buffer.from('<NFSeSimulada>QA</NFSeSimulada>')});assert.equal((await works.get(job.workId)).result.state,'confirmed_restricted');
   const make=(id,ref)=>({id,source:'ATP',input:{paymentId:id,externalReference:ref,amountCentsBRL:100,competence:'2026-10'},hash:digest(id),status:'pending_review',reviewStatus:'none',createdAtUtc:'2026-10-27T12:00:00Z',updatedAtUtc:'2026-10-27T12:00:00Z'});
   const one=make('a'.repeat(64),'QA:ONE'),two=make('b'.repeat(64),'QA:ONE');
   await repo.create(one);assert.equal((await repo.byReference('QA:ONE')).id,one.id);
@@ -43,7 +54,7 @@ test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', 
   const commit={request:updated,requestEtag:current.etag,provenance:proof,claim:{invoiceIdentity,requestId:three.id,approvalHash},audit:{actorId:'QA-SINTETICO',approvalHash}};
   await repo.commitLink(commit);assert.equal((await repo.get(three.id)).status,'issued');assert.equal((await repo.getInvoiceClaim(invoiceIdentity)).requestId,three.id);
   assert.deepEqual(await repo.download(updated,'xml'),xml);
-  const anonymous=await fetch(`http://127.0.0.1:11000/${name}/${containerName}/${file.blob}`,{signal:AbortSignal.timeout(3000)});
+  const anonymous=await fetch(`http://127.0.0.1:${blobPort}/${name}/${containerName}/${file.blob}`,{signal:AbortSignal.timeout(3000)});
   assert.equal(anonymous.status,403);await anonymous.body?.cancel();
   await assert.rejects(repo.download({...updated,documents:{xml:{...file,blob:'sysney/fora-do-escopo.xml'}}},'xml'));
   const claimBefore=await repo.getInvoiceClaim(invoiceIdentity);await assert.rejects(repo.commitLink(commit));assert.deepEqual(await repo.getInvoiceClaim(invoiceIdentity),claimBefore);
