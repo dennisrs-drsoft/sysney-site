@@ -29,3 +29,25 @@ O preflight detectou advisories altos/crítico novos que impediam o job `securit
 A validação utilizou o checkout físico isolado `C:\Users\denni\sysney-atp-release-qa`, com `npm ci --ignore-scripts` na raiz e na API. O `node_modules` compartilhado com a outra frente não foi alterado. `next build` padrão com Turbopack 16.4.3 passou, incluindo TypeScript; 89/89 testes passaram, zero skips, após gerar os handlers da API. Smoke local GET: home, contato, admin, sitemap e robots 200; admin com noindex; endpoint administrativo anônimo 401. Nenhum formulário foi enviado.
 
 Runner municipal recompilado com as dependências corrigidas e modo de readiness somente leitura, para comprovar SDK/identidade gerenciada sem consumir fila, assinar ou transmitir. SHA-256 local `db609aa518d23455f27632a83093bbb7be4270c7b6ff3b1f76cc82cd56f730c1`, 1.804.195 bytes. Dry-run confirmou chamadas e emissões desligadas. A publicação da API preservará as configurações Inter/SendGrid e alterará somente os nomes/gates ATP descritos acima.
+
+## Implantação confirmada
+
+- Código `f5a23c9a3d03f5ec502689d735c8d993e67b8ffa` publicado por avanço simples de `origin/main`, preservando a base consolidada e os conteúdos institucionais. [Workflow 40582938948](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/40582938948): security checks e build/deploy concluídos com sucesso.
+- API externa: ZIP deploy remoto confirmado, SHA-256 `a4db274cc5b76445b694478f3e2371fbda4750b0b3d84930cc966410466d5f8f`. Configurações Inter/SendGrid preservadas. `SYSNEY_DEPLOY_COMMIT` aponta para o código acima.
+- `ATP_FISCAL_V1_ENABLED=true`, segredo por nome no Key Vault; vínculo, queue, executor, emissão, operador e readiness persistentes da API false; `SYSNEY_ALLOW_NATIONAL_RESTRICTED_SEND=false`. Nenhuma emissão automática ou nacional foi habilitada.
+- Prova real servidor a servidor: GET anônimo à fachada recusado com **401**; GET autenticado do ID inexistente com **404 / NOT_FOUND**, sem POST, preparação, cobrança ou nota. O chat ATP confirmou a mesma prova a partir do App Service real, com seu token configurado, migração 49 aplicada sem backfill e zero registros fiscais. A confirmação de seus demais dados/vendas/cortesia pertence ao relatório ATP; não foram alterados por esta frente.
+- Smoke público: `www.sysney.com` home/contato/sitemap/robots 200; domínio sem www redireciona 301 para www. `/admin` e endpoints administrativos anônimos redirecionam 302 ao login GitHub. Isso confirma a barreira anônima; não substitui revisão da sessão pessoal do administrador. Nenhum formulário ou e-mail foi enviado.
+
+### Worker na DRServer
+
+Release instalada em `C:\ProgramData\SYSNEY\AtpMunicipal\releases\f5a23c9a3d03f5ec502689d735c8d993e67b8ffa`. ZIP SHA-256 `4f4b182a91f1888461b349a59afecfaa524fedf11e78c2b967fd2e485784cd87`, 15 arquivos de manifesto conferidos. Runner conforme hash informado acima; Node portátil já existente, sem instalação global/PATH, SHA-256 `dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f` e assinatura Authenticode válida.
+
+A tarefa nova `SYSNEY-ATP-Municipal-Isolado` está **Disabled**, com configuração `paused=true`, `allowFiscalCalls=false`, `issuanceEnabled=false`, `nationalEnabled=false`. O registro inicial por XML encontrou incompatibilidade `LogonType` no Windows Server 2016; foi corrigido exclusivamente com os cmdlets nativos de tarefa/principal, já desabilitada antes do registro. Nenhuma execução fiscal ocorreu nessa correção.
+
+Readiness instalado retornou `installed_paused`; invocação manual `-Once` retornou `paused` sem chamadas. Readiness do bundle executado com Node/SDK e identidade gerenciada **reais** da VM leu `FiscalFila` e `AdminDocumentos`: `queueJobs=0`, `preparations=0`, `storageReadable=true`, `storageWrites=false`, `transmitted=false`. O gate temporário de leitura foi restaurado em finally.
+
+Somente o diretório novo do worker recebeu ACL privada SYSTEM/Administradores. Hash e ACL da configuração fiscal legada permaneceram iguais; certificado/chave privada, tarefas/serviços legados, SQL, firewall e RBAC não foram alterados. O certificado vinculado existente foi apenas verificado e continua com vencimento em 10/11/2026; sua renovação não fez parte desta implantação.
+
+### Credencial e encerramento
+
+O chat ATP confirmou gravação e validação do token no Azure, sem expor seu valor. Após o ACK, a cópia temporária local `token.txt` foi excluída e sua ausência verificada. Key Vault e configurações Azure permanecem preservados. Não houve nova chamada fiscal oficial, TesteEnvio, emissão, callback, e-mail, reprocessamento de histórico ou ativação de vendas nesta implantação. A integração está instalada para preparação e consulta; emissão e envio permanecem sujeitos à habilitação explícita futura e às regras fiscais já documentadas.
