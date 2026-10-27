@@ -672,3 +672,16 @@ regra IncidenciaSIM/Aliq2.90/DtIni2025-03-17/DtFim2025-03-17. Esse intervalo nã
 comprova vigência em27/10/2026. Não foi copiada essa alíquota para o Simples nem
 recuada competência para conseguir emissão. Consultar vigência atual é necessário
 antes de outro caso; não inferir que todos os serviços de SP estejam indisponíveis.
+
+A conferência de vigência atual foi concluída por consultas oficiais específicas:
+GET `/3550308/01.05.01.000/2026-10-27/aliquota` respondeu404, “Alíquotas não
+encontradas”; GET da mesma competência para regimes_especiais respondeu404,
+“Parâmetros de regimes especiais não encontrados”. Portanto não foi criado outro
+caso nem feito outro POST usando essa alternativa sem vigência confirmada.
+Limite externo observado é a parametrização vigente DOS SERVIÇOS CONSULTADOS no
+ambiente restrito; não foi demonstrada indisponibilidade de todos os códigos de
+São Paulo. Não se fizeram buscas de códigos/sufixos por força bruta, mudança de
+município/emitente ou recuo de competência. O primeiro ledger/DPS rejeitado está
+preservado. Próximo ensaio exige serviço de teste com parametrização oficial
+compatível na competência atual ou esclarecimento/correção do provedor restrito.
+Isso é distinto de pedir parecer contábil por nota ou de inventar tributação ATP.
