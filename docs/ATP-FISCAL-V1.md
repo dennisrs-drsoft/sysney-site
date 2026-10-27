@@ -112,3 +112,33 @@ lookup, replay e revisão. Isso não testa Azure Functions host/roteamento, Key 
 Table Storage ou Blob reais. Não existe URL de homologação Azure publicada.
 `issued` não é alcançável via fluxo público desta fase: apenas fixtures internas
 de teste podem simular esse estado; vínculo com emissão real continua pendente.
+
+## Visão administrativa adicionada localmente
+
+Seção `Fiscal ATP` no menu financeiro, somente SYSNEY. GET `/api/admin/atp-fiscal`
+usa a autenticação administrativa existente e sua ponte para a API externa,
+nunca o Bearer ATP. Lista origem, referência, competência, valor bruto, estado,
+número da nota se houver e revisão de estorno. Paginação de até 50 registros com
+cursor e carregamento incremental; sem agregados enganosos sobre páginas não lidas.
+Não mostra tomador/endereço/XML/brutos internos. Não cria cobrança financeira.
+Contrato público draft.2 permanece inalterado.
+
+O vínculo supervisionado NÃO foi habilitado: a identidade do administrador existe,
+mas os trabalhos fiscais internos atuais não carregam proveniência ATP/paymentId.
+Coincidência de CNPJ/valor/competência sozinha não comprova a associação. Faltam:
+
+1. Proveniência ATP imutável ou confirmação supervisionada explícita do período e
+   objeto do serviço no trabalho fiscal já autorizado, além de emitente/tomador/
+   valor/competência e retorno oficial `teste=false` conferidos.
+2. Reserva única de uso da nota por solicitação (e vice-versa), transação/CAS,
+   confirmação vinculada aos hashes e responsável, recuperação após timeout e
+   tratamento de documento já associado sem substituir silenciosamente.
+3. Cópia privada de XML autorizado e PDF oficial com proveniência, tamanho/hash e
+   verificação de consistência; PDF pendente não deve desfazer `issued`.
+4. Registro auditado da aprovação e projeção pública sem dados pessoais ou paths.
+   Nenhuma ação aceita URL/blob arbitrário nem altera notas Compuwise/históricas.
+
+Validações adicionais executadas: TypeScript `--noEmit` sem erros e build local da
+API administrativa incluindo o novo handler. Não houve build Next completo, teste
+visual ou teste autenticado de lista em Azure. Deploys de frontend e API continuam
+pendentes de revisão e autorização específica; nenhuma configuração foi aplicada.

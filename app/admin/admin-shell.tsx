@@ -21,7 +21,7 @@ function Icon({ name }: { name: string }) {
 }
 const groups = [
   { label: "Visão do negócio", ids: ["visao-geral", "cobrancas", "acompanhamento"] },
-  { label: "Operação financeira", ids: ["ordens-servico", "nova-emissao", "aprovacoes", "emails"] },
+  { label: "Operação financeira", ids: ["ordens-servico", "atp-fiscal", "nova-emissao", "aprovacoes", "emails"] },
   { label: "Cadastros e integrações", ids: ["clientes", "documentos", "historico-inter", "historico-fiscal", "regularizacao", "nfse-nacional"] },
 ];
 
