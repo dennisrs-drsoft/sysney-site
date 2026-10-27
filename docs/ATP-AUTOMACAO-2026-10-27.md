@@ -8,7 +8,7 @@ Nenhuma nota, cobrança, e-mail, TesteEnvio ou chamada fiscal oficial integra es
 
 ## Execução privada
 
-- Timer privado `atp-municipal-automation` e runtime retornam antes de credenciais/storage se automação, emissão ou fila não estiverem explicitamente habilitados. A implantação mantém todos esses gates false e o timer Disabled.
+- Timer privado `atp_municipal_automation` e runtime retornam antes de credenciais/storage se automação, emissão ou fila não estiverem explicitamente habilitados. A implantação mantém todos esses gates false e o timer Disabled. O nome usa sublinhados para permitir o app setting `AzureWebJobs.atp_municipal_automation.Disabled` no Azure.
 - A política versionada protegida fica em `AdminConfiguracoes`, partição `atp-municipal-automation`, linha `sysney-v1`. Exige aprovação global, perfil fiscal, série ATP exclusiva, semente inicial e `notBeforeUtc` explícito. Não é criada nem aprovada implicitamente pelo deploy. Não há aprovação humana por nota quando uma política válida estiver futuramente ativada.
 - Varredura somente de solicitações novas com metadados elegíveis, sem inferir pagamentos antigos. Checkpoints e próxima tentativa persistidos evitam monopolizar a primeira página com documentos concluídos ou falhas transitórias.
 - Lease por solicitação, claim único e fencing monotônico; ETag controla disputa. Snapshot e política divergentes exigem revisão. Fila e ledger reservados antes da transmissão; timeout não libera novo envio do mesmo RPS: consulta/recuperação são o caminho de retomada.
