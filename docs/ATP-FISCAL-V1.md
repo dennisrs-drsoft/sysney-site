@@ -685,3 +685,91 @@ município/emitente ou recuo de competência. O primeiro ledger/DPS rejeitado es
 preservado. Próximo ensaio exige serviço de teste com parametrização oficial
 compatível na competência atual ou esclarecimento/correção do provedor restrito.
 Isso é distinto de pedir parecer contábil por nota ou de inventar tributação ATP.
+
+### Consolidação de entrega e rastreabilidade
+
+O perfil do ensaio foi preenchido por completo e validado estruturalmente; a
+rejeição de negócio E0312 impede chamá-lo de perfil fiscal homologado. As escolhas
+fictícias da tabela anterior não são conclusões sobre sublimites, regime especial,
+retenção ou carga tributária efetiva da SYSNEY. Código170201 representa somente
+digitação fictícia; a classificação produtiva do ATP continua sem aprovação no
+sistema. A informação municipal confirmada não foi extrapolada para preenchê-la.
+
+| Aspecto | Homologação executada | Produção preservada |
+| --- | --- | --- |
+| Ambiente/host | tpAmb2, SEFIN/ADN producaorestrita | Sem chamada fiscal produtiva |
+| Dados | Serviço/tomador/valor fictícios, sem pagamento | Nenhum pedido/cobrança/recebimento real criado |
+| Reserva | Série49991/número1, ledger e hash preservados | Série RPS e notas existentes inalteradas |
+| Resultado | HTTP400/E0312, sem nota/chave/XML autorizado/PDF | Nenhuma promoção para issued, adapterReadyfalse |
+| E-mail | Nenhum envio pelo SYSNEY | Nenhum cliente contactado |
+| Segurança | Chave fiscal apenas no Windows, gates no processo | Sem nova ACL/RBAC/serviço/PATH/config municipal |
+| Produto ATP | Caso privado fora dos pedidos públicos | Vendas/cortesia Casa Praia não alteradas |
+
+Pastas candidatas reais: base
+`C:\ProgramData\SYSNEY\NacionalCandidatos\4bf89f0` e cenário
+`homologacao-20261027-001` dentro dela. O cenário contém o perfil em
+`profile-homologacao-ficticio.json`, a referência/hash de aprovação em
+`approval.json`, schemas sob `admin-api\schemas\nfse-nacional-restrita`, scripts
+nativos sob `admin-api\scripts` e entrada executável sob
+`admin-api\src\services\caso-nacional-restrito-table.mjs`.
+O código de teste não é carregado pelo serviço municipal nem pela API pública.
+Artefatos anteriores, incluindo o runner que encontrou403 de blob, foram preservados.
+
+Hashes SHA256 dos bytes dos artefatos transferidos para o cenário (não confundir
+com o SHA do objeto Git, que pode normalizar finais de linha):
+
+| Arquivo ativo no cenário | SHA256 |
+| --- | --- |
+| caso-nacional-restrito-table.mjs | 75150e8c7938085d46408a244222b886f69354facbbcd7a459037fe68f7cba48 |
+| transportar-nacional-restrita.ps1 | efcdbf98377fe28bae7ee6fd023d33222ddd95d929bb36d7aa2bd8dc5ed528a8 |
+| assinar-dps-restrita.ps1 | a69a84e3eced8905c9109287124daf0a82644e33f6c35e7fcfbd8d73f9aa0a1f |
+| assinar-dps-stdin.ps1 | 40d3f76373a6b9d102e2f3adfa0a13ad32d927e15a613028869a19c81d6e12d4 |
+
+Base técnica pública consultada: lista de serviços gov.br acima; descrições e
+enums do XSD oficial restrito20/10/2026 fixado no repositório; Swagger SEFIN
+`https://sefin.producaorestrita.nfse.gov.br/SefinNacional/swagger/docs/v1` e Swagger
+ADN/parametrizacao indicado acima. Resultados de consulta se referem ao ambiente
+restrito e à competência27/10/2026, não à parametrização de produção. A consulta
+de histórico não substitui a consulta de vigência e a pontuação do parâmetro URI
+não é o formato do campo cTribNac dentro do XML.
+
+### Minuta para suporte oficial — NÃO ENVIADA
+
+Texto preparado para eventual encaminhamento humano. Não contém token, chave,
+certificado, XML assinado, CNPJ/CPF, nome de cliente ou identificador DPS que
+incorpore documento. Nenhum contato externo foi feito.
+
+> Assunto: Produção restrita NFS-e — E0312 e parametrização vigente para3550308
+>
+> Estamos realizando homologação técnica no ambiente de produção restrita, com
+> certificado ICP-Brasil e DPS de teste tpAmb2, sem prestação ou pagamento real.
+> Em27/10/2026, um único POST ao SEFIN restrito, município3550308 e serviço
+> nacional170201, foi rejeitado por HTTP400/E0312: código nacional não administrado
+> pelo município de incidência na competência informada. Nenhuma NFS-e/chave foi
+> retornada; a reserva da tentativa foi preservada e não repetimos a transmissão.
+>
+> Na API oficial de parametrização restrita, a consulta do convênio de3550308
+> retornou200 com indicadores de adesão1. Usando o parâmetro no formato pontuado,
+> GET3550308/17.02.01.000/historicoaliquotas retornou404, histórico não encontrado.
+> Para um possível cenário alternativo de licença fictícia, o histórico de
+> 01.05.01.000 retornou200, mas apenas regra com início e fim em17/03/2025. As
+> consultas de aliquota e regimes_especiais desse código na competência27/10/2026
+> retornaram404. Por isso não enviamos outra DPS para essa alternativa nem mudamos
+> data ou município para contornar a regra.
+>
+> Poderiam esclarecer qual parametrização vigente deve estar disponível para um
+> teste técnico desses serviços em3550308 na competência atual e se há carga de
+> dados pendente no ambiente restrito? Existe documentação/lista oficial de cenários
+> de serviço habilitados para esse município no ambiente de homologação?
+> Não estamos solicitando definição tributária produtiva do nosso produto, apenas
+> a referência operacional correta para homologação sem validade fiscal.
+>
+> Os identificadores técnicos e arquivos privados da tentativa estão preservados
+> e podem ser fornecidos por canal autenticado apropriado, se necessários.
+
+Dependência externa exata: confirmação/correção de parametrização governamental
+vigente para um serviço de teste compatível com3550308 e a competência atual,
+ou indicação oficial de cenário habilitado. Não se pede que o suporte defina a
+tributação produtiva ATP. Depois dessa confirmação, outro caso QA poderá reservar
+novo número sem apagar a tentativa rejeitada e validar autorização, XML, DANFSe e
+situação global ADN. Até lá não há base para afirmar homologação de emissão concluída.
