@@ -95,3 +95,20 @@ Antes de publicar: testes do adapter em storage isolado/Azurite, limites e erros
 revisão de segurança, teste do registro/rotas Functions e download autenticado,
 integração com outbox ATP em ambiente separado e homologação nacional. Callbacks
 assinados com deduplicação ficam para fase 2; fase 1 usa polling.
+
+## HTTP local para o consumidor ATP
+
+`tests/helpers/atp-fiscal-http.mjs` inicia servidor HTTP real em loopback, porta
+4319 por padrão (`PORT` opcional). Definir `ATP_FISCAL_SYNTHETIC_TOKEN` descartável
+com ao menos 43 caracteres no ambiente tanto do harness como do consumidor ATP;
+nunca usar token de produção. Iniciar com
+`node tests/helpers/atp-fiscal-http.mjs`. BaseURL do consumidor:
+`http://127.0.0.1:4319` (acrescentar caminhos `/api/integracoes/...` do contrato).
+Armazenamento em memória, perdido ao reiniciar, sem infraestrutura Azure.
+
+`node --test tests/atp-fiscal-http.test.mjs tests/atp-fiscal-v1.test.mjs` passou
+10 testes, incluindo requisições HTTP reais GET/POST, autenticação, preparação,
+lookup, replay e revisão. Isso não testa Azure Functions host/roteamento, Key Vault,
+Table Storage ou Blob reais. Não existe URL de homologação Azure publicada.
+`issued` não é alcançável via fluxo público desta fase: apenas fixtures internas
+de teste podem simular esse estado; vínculo com emissão real continua pendente.
