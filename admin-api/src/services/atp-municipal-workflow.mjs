@@ -19,7 +19,7 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   const response=await executor.execute({action:'consultar',xml:w.queryXml,chain:'',workId,approvedHash:w.hash});
   let e;
   try{e=reconcileAtpMunicipal({xml:response.xml,work:w,request:r,provenance:p,receivedAtUtc:now(),allowCancelled:true});}catch{
-   await store.save({...w,state:'reconciliation_required',result:{reason:'ATP_MUNICIPAL_EVIDENCE_MISMATCH'},updatedAtUtc:now()});
+   await store.save({...w,state:'reconciliation_required',reconciliationReason:'ATP_MUNICIPAL_EVIDENCE_MISMATCH',updatedAtUtc:now()});
    return {workId,state:'reconciliation_required',issued:false};
   }
   const originalAuthorityKey=w.result?.evidence?.authorityKey;

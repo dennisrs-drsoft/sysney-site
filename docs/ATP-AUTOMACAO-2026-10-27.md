@@ -40,6 +40,7 @@ Casos: CPF/CNPJ, concorrência, replay, timeout depois de commit, PDF503/incorre
 - Audit de produção raiz e API: zero altos/críticos; três moderados transitivos permanecem, conforme a release anterior. Não alegar ausência total de vulnerabilidades.
 - A primeira regressão completa encontrou222/223 aprovados: um bloco `role=status` preexistente dentro do modal ATP contrariava o padrão do administrativo. Corrigido sem remover conteúdo; o estado `fiscal_review_required` agora aparece na listagem. Regressão final **224/224 aprovada, zero falhas/skips**, incluindo o novo teste de política/retry. O ajuste posterior do identificador do timer teve sintaxe e teste do gate OFF repetidos e aprovados.
 - Revisão adicional: a consulta oficial posterior pode serializar o mesmo XML com whitespace diferente. A recuperação de PDF mantém os bytes/hash do XML original já vinculado, validando o retorno atual sem substituir o arquivo. Novo caso HTTP/SDK confirmou PDF tardio com XML reformatado e nenhuma nova emissão;7/7 testes direcionados de automação/armazenamento municipal/prévia aprovados após esse ajuste. Ele é executado no orquestrador da API, não na ação worker da VM.
+- Consulta posterior inválida preserva também o resultado autorizado privado; não apaga o XML/PDF original ao registrar a divergência. Teste HTTP com retorno inválido e comparação integral do resultado confirmou essa preservação;17/17 testes municipais/automação/SDK aprovados após esse reforço.
 
 ## Implantação comprovada
 
