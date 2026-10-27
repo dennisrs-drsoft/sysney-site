@@ -142,3 +142,37 @@ Validações adicionais executadas: TypeScript `--noEmit` sem erros e build loca
 API administrativa incluindo o novo handler. Não houve build Next completo, teste
 visual ou teste autenticado de lista em Azure. Deploys de frontend e API continuam
 pendentes de revisão e autorização específica; nenhuma configuração foi aplicada.
+
+## Núcleo de vínculo supervisionado (etapa local seguinte)
+
+`admin-api/src/services/atp-fiscal-link.mjs` implementa duas operações internas:
+`reserveProvenance({requestId,workId,actor})` ANTES da autorização fiscal e
+`approveLink({requestId,workId,expectedSnapshotHash,actor,confirmed:true})` após
+retorno oficial. Não são rotas ATP/admin publicadas nem aceitam prova via navegador.
+`actor` deve ser derivado de sessão administrativa autenticada pelo chamador interno,
+nunca do corpo do pedido. A operação permanece desabilitada por default.
+
+Proveniência imutável: origem/paymentId/referência/requestId/workId, hash congelado
+dos dados/período/descrição e responsável. Reserva work e índice request-work juntos.
+Vínculo exige evidência privada posterior à proveniência, identidade oficial única,
+emitente SYSNEY, tomador/valor/competência/período/descrição correspondentes e
+documentos com hashes conferidos. Uma nota não pode servir a dois pagamentos.
+
+O adapter Table/Blob recebeu métodos internos de reserva, claim, armazenamento
+content-addressed sem sobrescrita e commit transacional: estado da solicitação,
+ETag de proveniência, claim da nota e auditoria são confirmados juntos. Concorrência
+com revisão de estorno invalida ETag. Timeout após commit é recuperado por leitura
+da mesma claim. PDF ausente mantém issued com XML disponível; divergência de arquivo
+não autoriza substituir o conteúdo silenciosamente ou transmitir de novo.
+
+Seis novos testes sintéticos passaram (16 no conjunto), incluindo replay, timeout,
+concorrência, ausência de PDF, divergências e bloqueio de associação por coincidência.
+Os XML/PDF simulados são SEM VALIDADE FISCAL e não homologam schemas/provedor.
+
+PENDÊNCIAS mantidas: adaptador confiável `readAuthorizedEvidence(workId)` que leia e
+valide XML autorizado real contra o schema/provedor e snapshot interno, chamada de
+reserva no fluxo fiscal antes da emissão, ação/modal administrativo autenticado e
+auditoria de sua aprovação, testes de Table/Blob isolados e homologação nacional.
+O núcleo não confia em URLs/paths de clientes; não ligar sua entrada a um payload
+de evidência livre. Por isso nenhum vínculo real ou endpoint de aprovação foi
+liberado. O harness HTTP continua apenas preparação, sem endpoint sintético admin.
