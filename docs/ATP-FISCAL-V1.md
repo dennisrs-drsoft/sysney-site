@@ -176,3 +176,39 @@ auditoria de sua aprovação, testes de Table/Blob isolados e homologação naci
 O núcleo não confia em URLs/paths de clientes; não ligar sua entrada a um payload
 de evidência livre. Por isso nenhum vínculo real ou endpoint de aprovação foi
 liberado. O harness HTTP continua apenas preparação, sem endpoint sintético admin.
+
+## Revisão de segurança de encerramento — 27/10/2026
+
+Revisão por leitura do código e repetição dos testes locais, não pentest nem
+auditoria independente. Sem publicação ou alteração de configuração/segredos.
+
+- Unicidade implementada no escopo ATP: paymentId, referência, trabalho, solicitação
+  e identidade oficial da nota possuem reservas/índices. A implementação Azure usa
+  transações na mesma partição e ETags; os testes de concorrência usam repositório
+  sintético, NÃO comprovam atomicidade no serviço Azure em execução. Reservas ATP
+  não são uma garantia global sobre sistemas legados/externos não integrados.
+- Bytes privados: API não aceita path/URL de documento e não devolve paths. Downloads
+  usam identidade autenticada ATP, prefixo por solicitação e tamanho/SHA-256;
+  uploads internos são content-addressed com If-None-Match. Estas são garantias de
+  implementação. RBAC, ACL, ausência de acesso público, expiração de acesso e
+  configuração real de Blob/Key Vault ainda exigem verificação no ambiente destino.
+- O hash prova integridade dos bytes esperados, NÃO autenticidade fiscal sozinho.
+  Assinatura, schema, autorização e metadados precisam ser comprovados pelo leitor
+  confiável do provedor ainda pendente. Checks de cabeçalho PDF/XML não o substituem.
+- `actor` e evidência são argumentos de código interno, NÃO credenciais verificadas
+  por si mesmos. Não expor o núcleo como endpoint antes de construir a fronteira
+  administrativa autenticada, confirmação por snapshot e proteção contra CSRF.
+- O leitor futuro deve produzir authorityKey canônica/estável (nacional: chave oficial;
+  municipal: identidade oficial normalizada de emitente/inscrição/número), bloquear
+  entidades externas/DTD no XML e provar a correspondência com a origem ATP.
+- Órfãos de blob após falha anterior ao commit podem existir; não significam nota
+  vinculada. Retenção/limpeza segura ficam pendentes, sem apagar arquivos nesta fase.
+- Timestamps: usar UTC com sufixo Z e até três casas decimais. Reusar exatamente o
+  payload congelado no replay; não recalcular paymentVerifiedAtUtc a cada tentativa.
+
+Execução final:
+`node --test tests/atp-fiscal-link.test.mjs tests/atp-fiscal-http.test.mjs tests/atp-fiscal-v1.test.mjs`
+Resultado: 16 testes, 16 aprovados, zero falhas. `node --check` dos módulos de
+vínculo/store e `git diff --check` também passaram. Sem Azure, SQL de produção,
+provedor fiscal, certificado ou envio de e-mail. Próxima etapa conjunta:
+proveniência no fluxo NACIONAL homologado e enquadramento ATP aprovado pelo contador.
