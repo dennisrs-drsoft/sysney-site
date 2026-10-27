@@ -5,7 +5,7 @@ const NS='http://www.sped.fazenda.gov.br/nfse';
 const fail=()=>{throw Error('XML nacional não comprovado ou incompatível.');};
 const obj=v=>{if(!v||typeof v!=='object'||Array.isArray(v))fail();return v;};
 const str=(v,re)=>{if(typeof v!=='string'||!re.test(v))fail();return v;};
-export function inspectNationalXml(bytes){
+function parseNationalDocument(bytes,rootName){
  if(!Buffer.isBuffer(bytes)||bytes.length>1_000_000||bytes.length<50)fail();
  let xml;try{xml=new TextDecoder('utf-8',{fatal:true}).decode(bytes);}catch{fail();}
  // Rejeição conservadora antes do parser: sem DTD, entidades, CDATA ou PIs externas.
@@ -18,22 +18,41 @@ export function inspectNationalXml(bytes){
  }
  if(depth!==0||XMLValidator.validate(xml)!==true)fail();
  const parsed=new XMLParser({ignoreAttributes:false,attributeNamePrefix:'@_',parseTagValue:false,parseAttributeValue:false,trimValues:false,processEntities:false,allowBooleanAttributes:false}).parse(xml);
+ if(Object.keys(parsed).filter(k=>k!=='?xml').some(k=>k!==rootName))fail();
  // Perfil restrito ao namespace padrão oficial; prefixos alternativos ficam bloqueados
  // até homologação específica. Arrays nunca viram 'primeiro elemento'.
- const root=obj(parsed.NFSe);if(root['@_xmlns']!==NS||root['@_versao']!=='1.01')fail();
- function namespaces(v){if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if(k==='@_xmlns'&&x!==NS)fail();if(!k.startsWith('@_')&&k.includes(':')&&!k.startsWith('ds:'))fail();if(k==='@_xmlns:ds'&&x!=='http://www.w3.org/2000/09/xmldsig#')fail();namespaces(x);}}
+ const root=obj(parsed[rootName]);if(root['@_xmlns']!==NS||root['@_versao']!=='1.01')fail();
+ const DS='http://www.w3.org/2000/09/xmldsig#';
+ function namespaces(v,signature=false){if(!v||typeof v!=='object')return;for(const [k,x] of Object.entries(v)){if(k==='@_xmlns'&&x!==(signature?DS:NS))fail();if(k==='@_xmlns:ds'&&x!==DS)fail();if(k==='Signature'&&obj(x)['@_xmlns']!==DS)fail();if(k==='ds:Signature'&&obj(x)['@_xmlns:ds']!==DS&&root['@_xmlns:ds']!==DS)fail();if(!k.startsWith('@_')&&k.includes(':')&&!(k==='ds:Signature'||signature&&k.startsWith('ds:')))fail();namespaces(x,signature||k==='Signature'||k==='ds:Signature');}}
  namespaces(root);
+ return root;
+}
+export function inspectNationalXml(bytes,{environment='production'}={}){
+ if(!['production','homologacao'].includes(environment))fail();
+ const root=parseNationalDocument(bytes,'NFSe');
  const n=obj(root.infNFSe),d=obj(obj(n.DPS).infDPS),t=obj(d.toma),e=obj(n.emit),prest=obj(d.prest);
  const authorityKey=str(n['@_Id'],/^NFS\d{50}$/).slice(3),number=str(n.nNFSe,/^[1-9]\d{0,12}$/);
  const issuerDocument=str(e.CNPJ,/^\d{14}$/);if(prest.CNPJ!==issuerDocument||prest.CPF!==undefined)fail();
- if(d.tpAmb!=='1'||d.subst!==undefined||d.interm!==undefined)fail();
+ if(d.tpAmb!==(environment==='production'?'1':'2')||d.subst!==undefined||d.interm!==undefined)fail();
  const recipientDocument=t.CNPJ!==undefined?str(t.CNPJ,/^\d{14}$/):str(t.CPF,/^\d{11}$/);if(t.CNPJ!==undefined&&t.CPF!==undefined)fail();
  const competenceDate=str(d.dCompet,/^20\d{2}-\d{2}-\d{2}$/);if(!Number.isFinite(Date.parse(competenceDate))||new Date(competenceDate).toISOString().slice(0,10)!==competenceDate)fail();
  const authorizedAtUtc=str(n.dhProc,/^20\d{2}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/);if(!Number.isFinite(Date.parse(authorizedAtUtc)))fail();
  const amount=str(obj(obj(d.valores).vServPrest).vServ,/^\d{1,11}\.\d{2}$/),[whole,cents]=amount.split('.'),amountCentsBRL=Number(whole)*100+Number(cents);
  if(!Number.isSafeInteger(amountCentsBRL)||amountCentsBRL<=0||amountCentsBRL>10000000000)fail();
  const description=str(obj(obj(d.serv).cServ).xDescServ,/^[\s\S]{1,1500}$/);
- return {authorityKey,number,issuerDocument,recipientDocument,amountCentsBRL,competence:competenceDate.slice(0,7),description,authorizedAtUtc:new Date(authorizedAtUtc).toISOString(),xmlHash:digest(bytes),schemaVersion:'1.01'};
+ const extra=environment==='homologacao'?{dpsId:str(d['@_Id'],/^DPS\d{42}$/),emissionAt:str(d.dhEmi,/^20\d{2}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/),municipalityCode:str(d.cLocEmi,/^\d{7}$/),serviceMunicipality:str(obj(obj(d.serv).locPrest).cLocPrestacao,/^\d{7}$/),serviceCode:str(obj(obj(d.serv).cServ).cTribNac,/^\d{6}$/)}:{};
+ return {authorityKey,number,issuerDocument,recipientDocument,recipientType:t.CNPJ!==undefined?'CNPJ':'CPF',amountCentsBRL,competence:competenceDate.slice(0,7),competenceDate,description,authorizedAtUtc:new Date(authorizedAtUtc).toISOString(),xmlHash:digest(bytes),schemaVersion:'1.01',environment,...extra};
+}
+
+export function inspectRestrictedNationalEvent(bytes,{authorityKey,type,sequence=1,now=Date.now()}){
+ if(!/^\d{50}$/.test(authorityKey)||!['101101','105102','105104'].includes(type)||!Number.isSafeInteger(sequence)||sequence<1||sequence>999)fail();
+ const root=parseNationalDocument(bytes,'evento'),e=obj(root.infEvento),p=obj(obj(e.pedRegEvento).infPedReg);
+ if(!root.Signature&&!root['ds:Signature'])fail();
+ if(e['@_Id']!==`EVT${authorityKey}${type}${String(sequence).padStart(3,'0')}`||p['@_Id']!==`PRE${authorityKey}${type}`||p.tpAmb!=='2'||p.chNFSe!==authorityKey||Number(e.nSeqEvento)!==sequence)fail();
+ const choices=Object.keys(p).filter(k=>/^e\d{6}$/.test(k));if(choices.length!==1||choices[0]!=='e'+type)fail();
+ obj(p['e'+type]);const at=Date.parse(str(e.dhProc,/^20\d{2}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/));
+ if(!Number.isFinite(at)||at>now+30000)fail();
+ return {authorityKey,type,sequence,processedAtUtc:new Date(at).toISOString(),xmlHash:digest(bytes),cancelled:true,substituted:type==='105102'?true:null,environment:'homologacao',source:'specific_official_event'};
 }
 
 export function createNationalEvidenceReader({loadWork,verifyAuthorization,now=Date.now}){

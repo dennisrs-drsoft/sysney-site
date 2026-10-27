@@ -1,5 +1,6 @@
 import {gzipSync,gunzipSync} from 'node:zlib';
 import {digest} from './atp-fiscal-v1.mjs';
+import {inspectRestrictedNationalEvent} from './atp-authorized-xml.mjs';
 const validDps=id=>/^DPS3550308257767099000179\d{20}$/.test(id);
 const validKey=key=>/^\d{50}$/.test(key);
 const fail=code=>{throw Object.assign(Error(code),{code});};
@@ -52,6 +53,16 @@ export function createNationalRestrictedClient({transport,ledger}){
   async consultEvent(key,type,sequence){
    if(!validKey(key)||!/^\d{6}$/.test(type)||!Number.isSafeInteger(sequence)||sequence<1||sequence>999)fail('INVALID_EVENT');
    return json('GET',`/nfse/${key}/eventos/${type}/${sequence}`);
+  },
+  async consultCancellationState(key){
+   if(!validKey(key))fail('INVALID_KEY');const events=[],errors=[];
+   for(const type of ['101101','105102','105104'])try{
+    // Official GET DTO (Swagger27/10): eventoXmlGZipB64, tipoAmbiente2.
+    const data=await json('GET',`/nfse/${key}/eventos/${type}/1`);
+    if(data)events.push(inspectRestrictedNationalEvent(unpackNationalXml(data.eventoXmlGZipB64),{authorityKey:key,type,sequence:1}));
+   }catch{errors.push({type,reason:'EVENT_STATUS_UNCONFIRMED'});}
+   const substituted=events.some(e=>e.substituted===true),cancelled=events.some(e=>e.cancelled===true);
+   return {authorityStatus:substituted?'substituted':cancelled?'cancelled':'unknown',cancelled:cancelled?true:null,substituted:substituted?true:null,requiresReview:true,completeSnapshot:false,events,errors,reason:cancelled?'SPECIFIC_OFFICIAL_NEGATIVE_EVENT':'NO_COMPLETE_ADN_STATUS_SNAPSHOT'};
   },
   async downloadPdf(key){
    if(!validKey(key))fail('INVALID_KEY');

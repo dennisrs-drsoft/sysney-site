@@ -1,6 +1,8 @@
 import {digest,validatePreparation} from './atp-fiscal-v1.mjs';
 import {buildRestrictedDps} from './national-restricted-profile.mjs';
 import {createSupervisedAtpLink} from './atp-fiscal-link.mjs';
+import {reconcileRestrictedAuthorization} from './national-restricted-evidence.mjs';
+import {validateRestrictedDanfse} from './national-danfse.mjs';
 
 // Internal restricted-environment runner. It never sets the public ATP request
 // to issued: restricted XML/PDF must not be presented as production documents.
@@ -24,24 +26,29 @@ export function createNationalRestrictedWorkflow({repository,works,sequence,clie
    if(old){if(old.draftHash!==digest(draft.xml))throw Error('PREPARATION_CHANGED');return old;}
    const signedXml=await sign(draft.xml);
    if(!Buffer.isBuffer(signedXml)||signedXml.length>1_000_000||!signedXml.toString('utf8').includes(draft.idDps))throw Error('SIGNING_FAILED');
-   const work={workId,requestId,idDps:draft.idDps,profileHash,snapshotHash:provenance.snapshotHash,draftHash:digest(draft.xml),signedHash:digest(signedXml),signedXml,synthetic,environment:'homologacao',state:'prepared',createdAtUtc:now()};
+   const work={workId,requestId,requestHash:r.hash,idDps:draft.idDps,profileHash,emissionAt:assignment.emissionAt,serviceCode:profile.service.cTribNac,snapshotHash:provenance.snapshotHash,draftHash:digest(draft.xml),signedHash:digest(signedXml),signedXml,synthetic,environment:'homologacao',state:'prepared',createdAtUtc:now()};
    // Insert-only durable store. A concurrent conflict requires a read, not a send.
    try{await works.create(work);return work;}catch(e){const current=await works.get(workId);if(current?.draftHash!==work.draftHash||current.signedHash!==work.signedHash)throw e;return current;}
   },
   async run({workId,actor,approvedHash,explicitRestrictedApproval=false}){
    guard(actor);const work=await works.get(workId);
    if(!work||work.environment!=='homologacao'||work.signedHash!==approvedHash||digest(work.signedXml)!==approvedHash||!explicitRestrictedApproval)throw Error('RESTRICTED_APPROVAL_REQUIRED');
-   await eligible(work.requestId);
+   const request=await eligible(work.requestId);
    const p=await repository.getProvenance(workId);
    if(p?.requestId!==work.requestId||p.snapshotHash!==work.snapshotHash)throw Error('PROVENANCE_MISMATCH');
    // submit's durable DPS ledger makes every replay GET-only, including timeout.
    const result=await client.submit({idDps:work.idDps,signedXml:work.signedXml,explicitRestrictedApproval:true});
    if(result.status!=='confirmed_restricted'){const state=result.status==='rejected_restricted'?'rejected_restricted':'uncertain';const diagnostics={...(result.providerHttpStatus?{providerHttpStatus:result.providerHttpStatus,providerErrors:result.providerErrors}: {})};await works.saveResult(workId,{state,...diagnostics,at:now()});return {state,workId,...diagnostics,productionIssued:false};}
-   const xml=result.xml;
-   if(!Buffer.isBuffer(xml)||xml.length<20)throw Error('OFFICIAL_XML_MISSING');
-   let pdf;try{pdf=await client.downloadPdf(result.chaveAcesso);}catch{/* Recovery retries GET only. */}
-   await works.saveResult(workId,{state:'confirmed_restricted',authorityStatus:'unknown',key:result.chaveAcesso,xml,pdf,at:now()});
-   return {state:'confirmed_restricted',authorityStatus:'unknown',requiresReview:true,workId,documents:{xml:true,pdf:!!pdf},productionIssued:false};
+   let evidence;try{evidence=reconcileRestrictedAuthorization({work,request,provenance:p,result,now:Date.parse(now())});}catch{
+    await works.saveResult(workId,{state:'evidence_review_required',reason:'RESTRICTED_XML_BINDING_MISMATCH',key:result.chaveAcesso,unverifiedXmlHash:Buffer.isBuffer(result.xml)?digest(result.xml):null,at:now()});
+    return {state:'evidence_review_required',reason:'RESTRICTED_XML_BINDING_MISMATCH',workId,productionIssued:false,requiresReview:true};
+   }
+   let authority={authorityStatus:'unknown',cancelled:null,substituted:null,requiresReview:true,completeSnapshot:false,reason:'NO_COMPLETE_ADN_STATUS_SNAPSHOT'};
+   try{if(typeof client.consultCancellationState==='function')authority=await client.consultCancellationState(result.chaveAcesso);}catch{}
+   const xml=result.xml;let pdf,pdfProof,pdfReason;
+   try{const bytes=await client.downloadPdf(result.chaveAcesso);pdfProof=await validateRestrictedDanfse(bytes,evidence);pdf=bytes;}catch(e){pdfReason=['INVALID_PDF','INVALID_PDF_STRUCTURE','PDF_ENCODING_REQUIRES_REVIEW','PDF_FONT_REQUIRES_REVIEW','PDF_CONTENT_BINDING_UNVERIFIED','PDF_ACTIVE_CONTENT','PDF_DECODE_LIMIT','PDF_TEXT_LIMIT'].includes(e.code)?e.code:'PDF_UNAVAILABLE';}
+   await works.saveResult(workId,{state:'confirmed_restricted',evidence:{...evidence,authorityStatus:authority.authorityStatus,cancelled:authority.cancelled,substituted:authority.substituted},authority,authorityStatus:authority.authorityStatus,key:result.chaveAcesso,xml,pdf,pdfProof,pdfReason,at:now()});
+   return {state:'confirmed_restricted',number:evidence.number,authorityStatus:authority.authorityStatus,requiresReview:true,workId,documents:{xml:true,pdf:!!pdf},...(pdfReason?{pdfReason}:{}),productionIssued:false};
   },
  };
 }

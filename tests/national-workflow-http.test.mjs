@@ -36,6 +36,9 @@ test('ATP HTTP → proveniencia → DPS → assinatura injetada → SEFIN HTTP s
   assert.equal(result.authorityStatus,'unknown');assert.equal(result.requiresReview,true);
   await run();const after=await (await fetch(base+'/qa/stats')).json();assert.equal(after.posts,before.posts+1);
   assert.ok(Buffer.isBuffer(jobs.get(work.workId).result.xml));assert.ok(Buffer.isBuffer(jobs.get(work.workId).result.pdf));
+  assert.equal(jobs.get(work.workId).result.evidence.number,result.number);assert.equal(jobs.get(work.workId).result.pdfProof.contentVerified,true);
+  await fetch(base+'/qa/mode?name=pdf-wrong');const pendingPdf=await run();assert.equal(pendingPdf.documents.xml,true);assert.equal(pendingPdf.documents.pdf,false);assert.equal(pendingPdf.pdfReason,'PDF_CONTENT_BINDING_UNVERIFIED');
+  await fetch(base+'/qa/mode?name=normal');assert.equal((await run()).documents.pdf,true);assert.equal((await (await fetch(base+'/qa/stats')).json()).posts,before.posts+1);
   assert.equal((await (await fetch(url+'/'+request.id,{headers})).json()).request.status,'pending_review');
   assert.equal((await fetch(url+'/'+request.id+'/documentos/pdf',{headers})).status,409);
   await fetch(url+'/'+request.id+'/revisao-estorno',{method:'POST',headers,body:JSON.stringify({refundId:'QA:refund',reason:'Revisao sintetica'})});

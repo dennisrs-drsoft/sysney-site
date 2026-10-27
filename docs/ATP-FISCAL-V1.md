@@ -773,3 +773,63 @@ ou indicação oficial de cenário habilitado. Não se pede que o suporte defina
 tributação produtiva ATP. Depois dessa confirmação, outro caso QA poderá reservar
 novo número sem apagar a tentativa rejeitada e validar autorização, XML, DANFSe e
 situação global ADN. Até lá não há base para afirmar homologação de emissão concluída.
+
+## Conferência interna do retorno e auditoria municipal — 27/10/2026
+
+O fluxo restrito agora liga o leitor estrutural ao ambiente2 explicitamente; o
+leitor produtivo continua exigindo ambiente1. Reconcilia chave/idDPS/nNFSe,
+emitente/prestador, CPF/CNPJ/tipo do tomador, valor BRUTO, competência/data do
+serviço, descrição, serviço/municípios, instante de emissão/processamento e hash
+canônico do pedido com request/work/paymentId/externalReference/orderId/arenaId e
+proveniência. Namespace/duplicidade/XXE ou outro pedido resultam revisão, não issued.
+Metadados antigos incompletos não são promovidos nem retransmitidos automaticamente.
+
+DANFSe: além de MIME/cabeçalho/EOF, exige estrutura PDF válida e conteúdo de PÁGINA
+vinculado à chave, número, documentos e valor. Chave apenas em metadado não basta.
+Usa pdf-lib já existente, Flate com limites e rejeição de conteúdo ativo. Perfil
+suportado: texto em fontes Type1 padrão/WinAnsi. Type0/CID/ToUnicode/CMap, objetos
+comprimidos e filtros não interpretados ficam em revisão, nunca contentVerified.
+Se o DANFSe oficial usar esses recursos, ampliar o extrator será pendência NOSSA,
+não do suporte. PDFs de teste são sintéticos; nenhum oficial recebido. Erro/vínculo
+divergente preserva XML e recuperação apenas GET, sem novo POST.
+
+Contrato GET específico conferido no Swagger oficial SEFIN em27/10:
+EventosPostResponseSucesso com tipoAmbiente/eventoXmlGZipB64. Normaliza negativas
+101101(cancelamento),105102(substituição) e105104(deferido por análise fiscal),
+conforme XSD20/10, conferindo chave/tipo/sequência/IDs/ambiente. Prova negativa pode
+marcar cancelled/substituted;404/offline não viram cancelledfalse/substitutedfalse.
+Sem snapshot global ADN completo: completeSnapshotfalse, unknown/requiresReview
+quando não há prova negativa. Completude/paginação global ainda é pendência nossa
+antes de produção. Não existe POST de evento nem vínculo produtivo liberado.
+
+Nova confirmação humana autoriza o MESMO serviço municipal SYSNEY atual para ATP:
+03158 e parâmetros existentes, sem6% de outro cliente ou conversão nacional por
+inferência. `lib/atp-municipal-preparation.ts` gera apenas prévia off-line versionada:
+Simples/03158/alíquota municipal0/ISS não retido/sem deduções e retenções/3550308.
+Alíquota municipal0 não significa imposto efetivo do Simples igual a zero. CNPJ/CCM
+vêm do emitente protegido; tomador/endereço/valor/competência/descrição vêm do ATP;
+série/número/data técnicos próprios, sem copiar dados de Compuwise. Não reserva RPS
+ou transmite; não chamar essa prévia de ponte municipal operacional.
+
+Limitações NOSSA identificadas: contrato ATP aceita CPF e nome150; legado
+DadosNotaSP/validarNotaSP exige CNPJ14/nome75/logradouro50/tipo3/número10/
+complemento30/bairro30. Sem truncamento silencioso. XSD municipal admite CPF, mas
+biblioteca XML/cadeia fixa CNPJ/indicador2 e leitor PowerShell retorna apenas
+CPFCNPJTomador.CNPJ. Exige adaptador/assinador/leitor ATP dedicados; não mascarar
+CPF como CNPJ. A rota atual também depende de Plano/Cobrança/E-mail e reserva RPS
+nessa rotina; ATP dedicado não deve criar cobrança/e-mail duplicados. Ponte
+paymentId/proveniência/reserva atômica/ledger/executor ainda é trabalho nosso.
+
+Calendário oficial SP19/10: nacional Simples01/11/2026, municipal para fatos até
+31/10. Orientação de usar automaticamente municipal para competências novembro
+diverge dessa fonte. Gate JÁ EXISTENTE nfse bloqueia Simples com emissão>=01/11;
+não foi removido, nem se criou fallback silencioso; retroativos também requerem
+revisão de roteamento. Nacional continua desativado.
+Fonte: https://notadomilhao.sf.prefeitura.sp.gov.br/noticias/migracao-de-contribuintes-do-simples-nacional-para-o-ambiente-nacional/
+
+Validação local:55 testes Node aprovados, zero falhas/skips, incluindo legado/fila/
+XSD municipal, XML2/pedido, PDF válido/corrompido/vínculo errado/CMap/metadado falso,
+eventos negativos/404/offline, HTTPsim com recuperação sem POST, concorrência e
+Azurite. PowerShell assinatura/XSD e sanitização, TypeScript, buildAPI, bundle do
+runner/dry-run e scanner de segredos aprovados. Nenhum novo POST/DPS oficial,
+implantação, mudança produtiva, RBAC/serviço ou dado real nesta etapa.
