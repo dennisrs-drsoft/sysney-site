@@ -8,6 +8,20 @@ const partitionKey='integracao-fiscal-atp-v1';
 export function createAtpFiscalStore(account){
  if(!/^[a-z0-9]{3,24}$/.test(account||''))throw Error('Storage não configurado.');
  const credential=new DefaultAzureCredential(),table=new TableClient(`https://${account}.table.core.windows.net`,'AdminDocumentos',credential);
+ return createAtpFiscalRepository({table,blobs:new BlobServiceClient(`https://${account}.blob.core.windows.net`,credential)});
+}
+// Uso explícito de teste; não é selecionado por variáveis de produção.
+export function createAtpFiscalEmulatorStore(connectionString){
+ if(typeof connectionString!=='string')throw Error('Conexão local obrigatória.');
+ const parts=Object.fromEntries(connectionString.split(';').filter(Boolean).map(p=>{const at=p.indexOf('=');return [p.slice(0,at),p.slice(at+1)];}));
+ if(parts.AccountName!=='devstoreaccount1'||parts.DefaultEndpointsProtocol!=='http')throw Error('Somente conta pública de desenvolvimento local.');
+ for(const key of ['TableEndpoint','BlobEndpoint']){
+  const url=new URL(parts[key]||'https://invalid');
+  if(url.protocol!=='http:'||url.hostname!=='127.0.0.1'||!url.port||url.username||url.password||url.search||url.hash)throw Error('Endpoint não é loopback isolado.');
+ }
+ return createAtpFiscalRepository({table:TableClient.fromConnectionString(connectionString,'AdminDocumentos'),blobs:BlobServiceClient.fromConnectionString(connectionString)});
+}
+export function createAtpFiscalRepository({table,blobs}){
  const entity=r=>({partitionKey,rowKey:`request-${r.id}`,json:JSON.stringify({...r,etag:undefined})});
  const read=async rowKey=>{try{return await table.getEntity(partitionKey,rowKey);}catch(e){if(e.statusCode===404)return null;throw e;}};
  const get=async id=>{const e=await read(`request-${id}`);return e?{...JSON.parse(e.json),etag:e.etag}:null;};
@@ -23,7 +37,7 @@ export function createAtpFiscalStore(account){
   async saveOfficialDocument(id,format,bytes,sha256){
    if(!/^[a-f0-9]{64}$/.test(id)||!['xml','pdf'].includes(format)||digest(bytes)!==sha256||bytes.length>5_000_000)throw Error('Documento inválido.');
    const path=`integracoes/atp/${id}/${sha256}.${format}`;
-   const blob=new BlobServiceClient(`https://${account}.blob.core.windows.net`,credential).getContainerClient('admin-anexos').getBlockBlobClient(path);
+   const blob=blobs.getContainerClient('admin-anexos').getBlockBlobClient(path);
    try{await blob.uploadData(bytes,{conditions:{ifNoneMatch:'*'},blobHTTPHeaders:{blobContentType:format==='pdf'?'application/pdf':'application/xml'}});}
    catch(e){if(![409,412].includes(e.statusCode))throw e;const saved=await blob.downloadToBuffer();if(saved.length!==bytes.length||digest(saved)!==sha256)throw Error('Arquivo privado divergente.');}
    return {blob:path,size:bytes.length,sha256};
@@ -47,7 +61,7 @@ export function createAtpFiscalStore(account){
    // conferir emitente/tomador/valor, copiar bytes oficiais e guardar SHA-256.
    const d=r.documents?.[format],prefix=`integracoes/atp/${r.id}/`;
    if(!r.invoice||r.invoice.issuerDocument!=='57767099000179'||!d||typeof d.blob!=='string'||!d.blob.startsWith(prefix)||d.blob.includes('..')||!/^[a-f0-9]{64}$/.test(d.sha256)||!Number.isSafeInteger(d.size)||d.size<1||d.size>5_000_000)throw Error('Documento não conferido.');
-   const blob=new BlobServiceClient(`https://${account}.blob.core.windows.net`,credential).getContainerClient('admin-anexos').getBlobClient(d.blob);
+   const blob=blobs.getContainerClient('admin-anexos').getBlobClient(d.blob);
    const stream=await blob.download(),chunks=[];let size=0;
    if(stream.contentLength!==d.size||!stream.readableStreamBody)throw Error('Tamanho divergente.');
    for await(const chunk of stream.readableStreamBody){size+=chunk.length;if(size>d.size){stream.readableStreamBody.destroy();throw Error('Limite excedido.');}chunks.push(chunk);}

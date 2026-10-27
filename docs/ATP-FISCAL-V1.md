@@ -256,3 +256,36 @@ competência/período, tomador e tratamento de estorno. Bloqueios do provedor/in
 schema/assinatura e consulta oficial, habilitação/certificado/DPS, DANFSe, homologação
 e RBAC/storage isolado. Ainda depende de implementação nossa: verificador real,
 conexão da proveniência ao fluxo nacional e rota/modal autenticados após homologação.
+
+## Sessão, rota e modal conectados — homologação continua bloqueada
+
+A rota existente `/api/admin/atp-fiscal?empresa=sysney` agora possui POST conectado
+à fronteira administrativa pelo mesmo mecanismo de sessão/ponte protegida. Exige
+papel administrador, Origin e userId derivado do principal; o corpo não escolhe
+ator/emitente. A capacidade fiscal real está explicitamente `false`: mesmo
+ATP_FISCAL_LINK_ENABLED=true retorna 503 antes de acessar storage ou ler XML.
+Esse gate só deve mudar junto ao verificador real homologado e sua revisão.
+
+GET com `acao=vinculo-capacidades` informa bloqueios sem documentos/dados pessoais.
+O painel ganhou botão Revisar vínculo fiscal, modal detalhado e caminho de prévia/
+confirmação por previewHash/snapshotHash. Enquanto indisponível, apenas explica os
+requisitos; não oferece aprovar. Fixtures não estão ligadas à rota real.
+Teste do handler compilado comprovou 401 sem sessão admin (inclusive Bearer ATP),
+403 para Origin incorreta, 400 para DRSoft e 503 com flag ativa sem homologação.
+Não substitui teste no host Functions/SWA real nem teste visual do navegador.
+
+Correção de paginação: faixa de chaves `request-0` a `request-g` exclui índices
+`request-work-*`; eles não devem ser interpretados como registros JSON de pedidos.
+
+`createAtpFiscalEmulatorStore(connectionString)` permite testar o MESMO repository
+com SDK Table/Blob e credencial pública de desenvolvimento, exclusivamente endpoints
+HTTP em 127.0.0.1/portas explícitas e conta devstoreaccount1. É entrada explícita de
+teste, NÃO fallback/variável de produção. Aguardando endpoints isolados Azurite do
+ATP; nenhuma operação de infraestrutura foi executada nesta etapa.
+
+Validações: TypeScript --noEmit e build da API aprovados. Conjunto de 23 testes
+aprovado incluindo `tests/atp-fiscal-admin-route.test.mjs` após build; zero falhas.
+Comando: `node --test tests/atp-fiscal-admin-route.test.mjs tests/atp-authorized-xml.test.mjs tests/atp-fiscal-admin.test.mjs tests/atp-fiscal-link.test.mjs tests/atp-fiscal-http.test.mjs tests/atp-fiscal-v1.test.mjs`.
+Ainda não verificados: transações/RBAC no Azure ou Azurite, tela em navegador,
+assinatura/schema nacional reais e homologação do provedor. Sem publish, dados
+reais, envio, emissão, cancelamento, cobrança ou mudanças de gates em produção.
