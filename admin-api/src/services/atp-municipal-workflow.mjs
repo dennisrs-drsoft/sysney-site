@@ -1,0 +1,75 @@
+import {digest,validatePreparation} from './atp-fiscal-v1.mjs';
+import {buildAtpMunicipal} from './atp-municipal-model.mjs';
+import {createSupervisedAtpLink} from './atp-fiscal-link.mjs';
+import {reconcileAtpMunicipal,validateAtpMunicipalPdf} from './atp-municipal-evidence.mjs';
+export function saoPauloFiscalDate(instant){
+ const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date(instant));
+ const values=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${values.year}-${values.month}-${values.day}`;
+}
+// Internal on-demand orchestration; no public route, timer or automatic activation.
+export function createAtpMunicipalWorkflow({repository,store,executor,enabled=false,issuanceEnabled=false,now=()=>new Date().toISOString()}){
+ const guard=actor=>{if(enabled!==true||actor?.role!=='administrador'||!actor.id)throw Error('ATP_MUNICIPAL_DISABLED');};
+ const eligible=async(id,allowIssued=false)=>{const r=await repository.getRequest(id);if(!r||r.source!=='ATP'||!(r.status==='pending_review'||allowIssued&&r.status==='issued')||r.reviewStatus!=='none'||r.hash!==digest(JSON.stringify(validatePreparation(r.input))))throw Error('ATP_REQUEST_NOT_ELIGIBLE');return r;};
+ const evidence=work=>work?.result?.evidence?{...work.result.evidence,xml:Buffer.from(work.result.xmlBase64,'base64'),...(work.result.pdfBase64?{pdf:Buffer.from(work.result.pdfBase64,'base64')}: {})}:null;
+ const linker=createSupervisedAtpLink({repository,enabled:true,now,readAuthorizedEvidence:async id=>evidence(await store.get(id))});
+ async function load(workId,allowIssued=false){const w=await store.get(workId);if(!w||w.hash!==digest(w.xml)||w.testHash!==digest(w.testXml))throw Error('ATP_WORK_HASH_MISMATCH');const r=await eligible(w.requestId,allowIssued),p=await repository.getProvenance(workId);if(w.requestHash!==r.hash||p?.snapshotHash!==w.snapshotHash||p.requestId!==r.id)throw Error('ATP_PROVENANCE_MISMATCH');return {w,r,p};}
+ async function reconcile(workId,actor){
+  const {w,r,p}=await load(workId,true);
+  // Always a query by the immutable RPS key. Never trust the send acknowledgement.
+  const response=await executor.execute({action:'consultar',xml:w.queryXml,chain:'',workId,approvedHash:w.hash});
+  let e;
+  try{e=reconcileAtpMunicipal({xml:response.xml,work:w,request:r,provenance:p,receivedAtUtc:now()});}catch{
+   await store.save({...w,state:'reconciliation_required',result:{reason:'ATP_MUNICIPAL_EVIDENCE_MISMATCH'},updatedAtUtc:now()});
+   return {workId,state:'reconciliation_required',issued:false};
+  }
+  let pdf,pdfReason;
+  try{pdf=await executor.downloadPdf(e);await validateAtpMunicipalPdf(pdf,e);}catch{pdf=undefined;pdfReason='PDF_PENDING_REVIEW_OR_DOWNLOAD';}
+  const {xml,...metadata}=e;
+  await store.save({...w,state:'authorized',result:{evidence:{...metadata,...(pdf?{officialPdfHash:digest(pdf)}:{})},xmlBase64:xml.toString('base64'),...(pdf?{pdfBase64:pdf.toString('base64')}:{pdfReason})},updatedAtUtc:now()});
+  if(r.status==='issued'&&pdf)await repository.attachVerifiedMunicipalPdf({requestId:r.id,workId,invoiceIdentity:digest(JSON.stringify(['municipal_sp',e.issuerDocument,e.authorityKey])),xmlHash:digest(xml),pdf,actor,at:now()});
+  return {workId,state:'authorized',number:e.number,documents:{xml:true,pdf:!!pdf},projected:r.status==='issued'};
+ }
+ return {
+  async prepare({requestId,profile,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,actor}){
+   guard(actor);const r=await eligible(requestId);
+   buildAtpMunicipal({input:r.input,profile,series,number:'1',emissionDate});
+   const preparationHash=digest(JSON.stringify({requestHash:r.hash,profile,series,emissionDate}));
+   const a=await store.reserve({requestId,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,issuer:profile.issuer,preparationHash});
+   const d=buildAtpMunicipal({input:r.input,profile,series,number:a.number,emissionDate:a.emissionDate});
+   const workId=digest(JSON.stringify(['atp-municipal-v1',requestId,series,a.number,d.profileHash]));
+   const p=await linker.reserveProvenance({requestId,workId,actor});
+   const old=await store.get(workId);if(old){if(old.hash!==d.hash)throw Error('ATP_PREPARATION_CHANGED');return old;}
+   const w={...d,input:undefined,source:'ATP',workId,requestId,requestHash:r.hash,snapshotHash:p.snapshotHash,testHash:digest(d.testXml),state:'prepared',createdAtUtc:now()};
+   try{await store.create(w);}catch(e){const saved=await store.get(workId);if(saved?.hash!==w.hash)throw e;return saved;}return w;
+  },
+  async test({workId,actor}){
+   guard(actor);const {w}=await load(workId);
+   const result=await executor.execute({action:'testar',xml:w.testXml,chain:w.chain,workId,approvedHash:w.testHash});
+   if(result.success!==true)throw Error('ATP_MUNICIPAL_TEST_REJECTED');
+   await store.save({...w,testedHash:w.hash,testedAtUtc:now()});return {workId,tested:true,issued:false};
+  },
+  async run({workId,actor,approvedHash,confirmed=false}){
+   guard(actor);if(issuanceEnabled!==true||confirmed!==true)throw Error('ATP_MUNICIPAL_ISSUANCE_DISABLED');
+   const {w}=await load(workId);
+   const age=Date.parse(now())-Date.parse(w.testedAtUtc);
+   const civilDate=saoPauloFiscalDate(now());
+   if(w.hash!==approvedHash||w.testedHash!==w.hash||!Number.isFinite(age)||age<0||age>1800000||civilDate!==w.emissionDate||civilDate>='2026-11-01')throw Error('ATP_MUNICIPAL_APPROVAL_REQUIRED');
+   // A timeout after the atomic insert is deliberately GET/query-only forever.
+   const first=await store.claim(workId,w.hash);
+   if(first){
+    try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true});}
+    catch{return {workId,state:'uncertain',issued:false,queryRequired:true};}
+   }
+   return reconcile(workId,actor);
+  },
+  async recover({workId,actor}){guard(actor);return reconcile(workId,actor);},
+  async project({workId,actor,confirmed=false}){
+   guard(actor);const {w,r}=await load(workId,true);if(w.state!=='authorized'||!confirmed)throw Error('ATP_AUTHORIZED_EVIDENCE_REQUIRED');
+   if(r.status==='issued'){
+    const e=evidence(w),identity=digest(JSON.stringify(['municipal_sp',e.issuerDocument,e.authorityKey])),claim=await repository.getInvoiceClaim(identity);
+    if(claim?.requestId!==r.id||claim.approvalHash!==r.linkApprovalHash||r.documents?.xml?.sha256!==e.authorizedXmlHash||r.invoice?.number!==e.number)throw Error('ATP_LINK_REPLAY_MISMATCH');return r;
+   }
+   return linker.approveLink({requestId:w.requestId,workId,expectedSnapshotHash:w.snapshotHash,actor,confirmed});
+  },
+ };
+}

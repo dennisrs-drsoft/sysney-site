@@ -53,6 +53,22 @@ export function createAtpFiscalRepository({table,blobs}){
     ['create',{partitionKey,rowKey:`audit-${claim.approvalHash}`,json:JSON.stringify(audit)}],
    ]);
   },
+  async attachVerifiedMunicipalPdf({requestId,workId,invoiceIdentity,xmlHash,pdf,actor,at}){
+   if(actor?.role!=='administrador'||!actor.id||!Buffer.isBuffer(pdf))throw Error('Aprovação interna obrigatória.');
+   const request=await get(requestId),provenance=await read(`work-${workId}`),claim=await read(`invoice-${invoiceIdentity}`);
+   const p=provenance&&JSON.parse(provenance.json),c=claim&&JSON.parse(claim.json),hash=digest(pdf);
+   if(!request||request.source!=='ATP'||request.status!=='issued'||request.reviewStatus!=='none'||request.invoice?.provider!=='municipal_sp'||request.documents?.xml?.sha256!==xmlHash||p?.requestId!==requestId||p.source!=='ATP'||c?.requestId!==requestId||c.approvalHash!==request.linkApprovalHash||provenance.linkedApprovalHash!==request.linkApprovalHash)throw Error('Associação municipal divergente.');
+   if(request.documents.pdf){if(request.documents.pdf.sha256!==hash)throw Error('PDF já anexado com conteúdo diferente.');return request;}
+   const file=await this.saveOfficialDocument(requestId,'pdf',pdf,hash),auditHash=digest(JSON.stringify(['atp-municipal-pdf',requestId,workId,xmlHash,hash]));
+   const updated={...request,documents:{...request.documents,pdf:file},updatedAtUtc:at};
+   // Preserve the original invoice claim and XML approval. PDF recovery has its own audit.
+   try{await table.submitTransaction([
+    ['update',entity(updated),'Replace',{etag:request.etag}],
+    ['update',{partitionKey,rowKey:`work-${workId}`,pdfAuditHash:auditHash},'Merge',{etag:provenance.etag}],
+    ['create',{partitionKey,rowKey:`audit-${auditHash}`,json:JSON.stringify({action:'recover_same_municipal_pdf',actorId:actor.id,at,requestId,workId,invoiceIdentity,xmlHash,pdfHash:hash})}],
+   ]);}catch(e){const saved=await get(requestId),audit=await read(`audit-${auditHash}`);if(saved?.documents?.pdf?.sha256===hash&&audit)return saved;throw e;}
+   return updated;
+  },
   async byReference(ref){const e=await read(`reference-${digest(ref)}`);return e?get(e.requestId):null;},
   async create(r){await table.submitTransaction([['create',entity(r)],['create',{partitionKey,rowKey:`reference-${digest(r.input.externalReference)}`,requestId:r.id}]]);},
   async replace(r,etag){await table.updateEntity(entity(r),'Replace',{etag});},

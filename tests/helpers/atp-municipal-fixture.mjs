@@ -1,0 +1,12 @@
+import {readFile} from 'node:fs/promises';
+import {validatePreparation} from '../../admin-api/src/services/atp-fiscal-v1.mjs';
+export const input=validatePreparation(JSON.parse(await readFile(new URL('../../postman/fixtures/atp-fiscal-v1.synthetic.json',import.meta.url))));
+export const profile={version:'QA-SINTETICO-SEM-VALIDADE',issuer:{cnpj:'57767099000179',inscricao:'15539300'},regime:'simples',codigoServico:'03158',municipioPrestacao:'3550308',aliquota:'0',issRetido:false};
+export const args={input,profile,series:'ATPQA',number:'1',emissionDate:'2026-10-27'};
+export function officialFixture(work,recipient=input.recipient){return Buffer.from(`<p:RetornoConsulta xmlns:p="http://www.prefeitura.sp.gov.br/nfe"><Cabecalho Versao="1"><Sucesso>true</Sucesso></Cabecalho><NFe><ChaveNFe><InscricaoPrestador>15539300</InscricaoPrestador><NumeroNFe>53</NumeroNFe><CodigoVerificacao>ABCD1234</CodigoVerificacao></ChaveNFe><DataEmissaoNFe>2026-10-27T12:01:00-03:00</DataEmissaoNFe><DataFatoGeradorNFe>2026-10-27T12:01:00-03:00</DataFatoGeradorNFe><OpcaoSimples>4</OpcaoSimples><ChaveRPS><InscricaoPrestador>15539300</InscricaoPrestador><SerieRPS>${work.series}</SerieRPS><NumeroRPS>${work.number}</NumeroRPS></ChaveRPS><DataEmissaoRPS>2026-10-27</DataEmissaoRPS><CPFCNPJPrestador><CNPJ>57767099000179</CNPJ></CPFCNPJPrestador><StatusNFe>N</StatusNFe><TributacaoNFe>T</TributacaoNFe><ValorServicos>199.00</ValorServicos><CodigoServico>03158</CodigoServico><ISSRetido>false</ISSRetido><CPFCNPJTomador><${recipient.documentType}>${recipient.document}</${recipient.documentType}></CPFCNPJTomador><Discriminacao>Assinatura sintética para teste offline</Discriminacao></NFe></p:RetornoConsulta>`);}
+export function memoryTable(){
+ const rows=new Map();let version=0,timeout=false;
+ const key=e=>e.partitionKey+'|'+e.rowKey,err=statusCode=>Object.assign(Error('Table mock'),{statusCode});
+ const apply=(map,op,e,options)=>{const k=key(e),old=map.get(k);if(op==='create'&&old)throw err(409);if(op==='update'&&(!old||old.etag!==options?.etag))throw err(412);map.set(k,{...structuredClone(e),etag:String(++version)});};
+ return {rows,timeoutOnce(){timeout=true;},async getEntity(p,r){const e=rows.get(p+'|'+r);if(!e)throw err(404);return structuredClone(e);},async createEntity(e){apply(rows,'create',e);},async updateEntity(e,mode,o){apply(rows,'update',e,o);},async submitTransaction(ops){const copy=new Map(rows);for(const [op,e,,o] of ops)apply(copy,op,e,o);rows.clear();for(const [k,v] of copy)rows.set(k,v);if(timeout){timeout=false;throw Error('Timeout committed');}}};
+}

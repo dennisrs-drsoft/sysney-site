@@ -1,0 +1,66 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
+import {pathToFileURL} from 'node:url';
+import {TableClient,TableServiceClient} from '@azure/data-tables';
+import {BlobServiceClient} from '@azure/storage-blob';
+import {PDFDocument,StandardFonts} from 'pdf-lib';
+import {createAtpFiscalRepository} from '../admin-api/src/services/atp-fiscal-store.mjs';
+import {createAtpFiscalHandler,validatePreparation} from '../admin-api/src/services/atp-fiscal-v1.mjs';
+import {createAtpMunicipalWorkflow} from '../admin-api/src/services/atp-municipal-workflow.mjs';
+import {createAtpMunicipalQueueExecutor,runNextAtpMunicipalQueueJob} from '../admin-api/src/services/atp-municipal-queue.mjs';
+import {createAtpMunicipalStore} from '../admin-api/src/services/atp-municipal-store.mjs';
+import {digest} from '../admin-api/src/services/atp-fiscal-v1.mjs';
+import {profile,input,officialFixture} from './helpers/atp-municipal-fixture.mjs';
+test('SDK Azure Tables / Azurite: RPS transacional, concorrência, restart, timeout, CAS e chunks',{skip:!process.env.ATP_AZURITE_PACKAGE,timeout:90000},async()=>{
+ const constants=await import(pathToFileURL(process.env.ATP_AZURITE_PACKAGE+'/dist/src/common/utils/constants.js').href);
+ const {EMULATOR_ACCOUNT_NAME:name,EMULATOR_ACCOUNT_KEY:key}=constants,port=process.env.ATP_AZURITE_TABLE_PORT||'11012';
+ assert.equal(name,'devstoreaccount1');assert.match(port,/^\d{4,5}$/);
+ const blobPort=process.env.ATP_AZURITE_BLOB_PORT||'11010';assert.match(blobPort,/^\d{4,5}$/);
+ const connection=`DefaultEndpointsProtocol=http;AccountName=${name};AccountKey=${Buffer.from(key).toString('base64')};TableEndpoint=http://127.0.0.1:${port}/${name};BlobEndpoint=http://127.0.0.1:${blobPort}/${name};`;
+ const tableName='AtpMunicipalQa'+randomUUID().replaceAll('-','');assert.match(tableName,/^AtpMunicipalQa[a-f0-9]{32}$/);
+ const service=TableServiceClient.fromConnectionString(connection,{allowInsecureConnection:true}),client=()=>TableClient.fromConnectionString(connection,tableName,{allowInsecureConnection:true});
+ const containerName='atpmunicipalqa'+randomUUID().replaceAll('-',''),container=BlobServiceClient.fromConnectionString(connection).getContainerClient(containerName);let containerCreated=false;
+ let created=false;
+ try{
+  await service.createTable(tableName);created=true;const t=client(),store=createAtpMunicipalStore(t),a={requestId:digest('first'),series:'ATPQA',preparationHash:digest('profile+request'),emissionDate:'2026-10-27',issuer:profile.issuer,initialNumber:'1',exclusiveSeriesConfirmed:true};
+  const repeated=await Promise.all(Array.from({length:6},()=>createAtpMunicipalStore(client()).reserve(a)));assert.ok(repeated.every(v=>v.number==='1'));
+  const unique=await Promise.all(Array.from({length:8},(_,i)=>createAtpMunicipalStore(client()).reserve({...a,requestId:digest('unique'+i)})));assert.deepEqual(unique.map(x=>Number(x.number)).sort((x,y)=>x-y),[2,3,4,5,6,7,8,9]);
+  const restarted=createAtpMunicipalStore(client());assert.deepEqual(await restarted.reserve(a),repeated[0]);await assert.rejects(restarted.reserve({...a,preparationHash:digest('changed')}),/CONFLICT/);
+  let lost=true;const timeout=createAtpMunicipalStore({getEntity:(...args)=>t.getEntity(...args),submitTransaction:async operations=>{const r=await t.submitTransaction(operations);if(lost){lost=false;throw Error('Timeout after commit');}return r;}});
+  const after=await timeout.reserve({...a,requestId:digest('timeout')});assert.equal(after.number,'10');assert.equal((await restarted.reserve({...a,requestId:digest('timeout')})).number,'10');
+  // Atomic ledger races across independent real SDK clients: one winner only.
+  const id=digest('work'),hash=digest('approved');const winners=await Promise.all(Array.from({length:6},()=>createAtpMunicipalStore(client()).claim(id,hash)));assert.equal(winners.filter(Boolean).length,1);assert.equal(await restarted.claim(id,hash),false);
+  await assert.rejects(restarted.claim(id,digest('different')),/CONFLICT/);
+  let queueCalls=0;
+  const queue=createAtpMunicipalQueueExecutor({table:t,enabled:true,wait:async()=>{await runNextAtpMunicipalQueueJob({table:t,enabled:true,executor:{execute:async()=>{queueCalls++;return {success:true,xml:Buffer.from('<Retorno>QA</Retorno>')};}}});}});
+  const queued=await queue.execute({action:'consultar',workId:digest('SDK-queue'),xml:'<QuerySintetica/>',chain:''});assert.equal(queued.xml.toString(),'<Retorno>QA</Retorno>');assert.equal(queueCalls,1);
+  assert.equal((await runNextAtpMunicipalQueueJob({table:t,enabled:true,executor:{execute:async()=>{throw Error('Must not execute');}}})).state,'no_eligible_job');
+  const largeWork={workId:id,state:'prepared',data:'á'.repeat(150000)};await store.create(largeWork);await assert.rejects(restarted.create(largeWork));
+  const current=await restarted.get(id);assert.equal(current.data,largeWork.data);
+  await store.save({...current,state:'tested'});await assert.rejects(restarted.save({...current,state:'stale'}));assert.equal((await restarted.get(id)).state,'tested');
+  const pointer=await t.getEntity('atp-municipal-v1','work-'+id),rowKey=`content-${pointer.hash}-0000`,chunk=await t.getEntity('atp-municipal-v1',rowKey);
+  await t.updateEntity({partitionKey:'atp-municipal-v1',rowKey,data:'AAAA'},'Replace',{etag:chunk.etag});await assert.rejects(restarted.get(id),/CORRUPT/);
+  // Complete late-PDF recovery against the real repository/Blob SDK and facade.
+  await container.create();containerCreated=true;
+  let loseAttach=false;
+  const repoTable={getEntity:(...a)=>t.getEntity(...a),createEntity:(...a)=>t.createEntity(...a),updateEntity:(...a)=>t.updateEntity(...a),submitTransaction:async a=>{const r=await t.submitTransaction(a);if(loseAttach){loseAttach=false;throw Error('Synthetic timeout after PDF commit');}return r;}};
+  const repository=createAtpFiscalRepository({table:repoTable,blobs:{getContainerClient:n=>{assert.equal(n,'admin-anexos');return container;}}});
+  const i=validatePreparation({...input,paymentId:'QA-late-pdf',externalReference:'ATP:QA-late-pdf'}),requestId=digest(i.paymentId);
+  await repository.create({id:requestId,source:'ATP',hash:digest(JSON.stringify(i)),input:i,status:'pending_review',reviewStatus:'none',documents:{},createdAtUtc:'2026-10-27T15:00:00Z'});
+  const pdf=await PDFDocument.create(),font=await pdf.embedFont(StandardFonts.Helvetica);pdf.addPage().drawText(`Numero da NFS-e: 53 ABCD1234 57767099000179 ${i.recipient.document} R$ 199,00`,{font,size:10});const pdfBytes=Buffer.from(await pdf.save({useObjectStreams:false}));
+  let work,pdfReady=false,wrongPdf=false,emits=0,clock='2026-10-27T15:00:00Z';
+  const executor={async execute(p){if(p.action==='emitir'){emits++;clock='2026-10-27T15:02:00Z';}return {success:true,xml:p.action==='consultar'?officialFixture(work,i.recipient):Buffer.from('<Ack/>')};},async downloadPdf(){if(!pdfReady)throw Error('PDF not ready');return wrongPdf?Buffer.from('%PDF-wrong\n%%EOF'):pdfBytes;}};
+  const factory=()=>createAtpMunicipalWorkflow({repository,store:createAtpMunicipalStore(client()),executor,enabled:true,issuanceEnabled:true,now:()=>clock}),workflow=factory(),actor={role:'administrador',id:'QA-ADMIN'};
+  work=await workflow.prepare({requestId,profile,series:'ATPQB',initialNumber:'1',exclusiveSeriesConfirmed:true,emissionDate:'2026-10-27',actor});await workflow.test({workId:work.workId,actor});
+  assert.equal((await workflow.run({workId:work.workId,actor,approvedHash:work.hash,confirmed:true})).documents.pdf,false);
+  await workflow.project({workId:work.workId,actor,confirmed:true});const original=await repository.getRequest(requestId),invoiceIdentity=digest(JSON.stringify(['municipal_sp','57767099000179','15539300:53:ABCD1234'])),claimBefore=await repository.getInvoiceClaim(invoiceIdentity);
+  const token='q'.repeat(48),handler=createAtpFiscalHandler({storeFactory:()=>repository,config:()=>({enabled:'true',token})});
+  const publicGet=async format=>{const req=new Request(`http://127.0.0.1/api/integracoes/atp/v1/solicitacoes-fiscais/${requestId}${format?'/documentos/'+format:''}`,{headers:{authorization:'Bearer '+token}});req.params={id:requestId,...(format?{format}:{})};return handler(req);};
+  assert.equal((await publicGet()).jsonBody.request.documents.pdf,'pending');assert.equal((await publicGet('pdf')).status,409);
+  pdfReady=true;wrongPdf=true;await factory().recover({workId:work.workId,actor});assert.equal((await publicGet()).jsonBody.request.documents.pdf,'pending');
+  wrongPdf=false;loseAttach=true;await factory().recover({workId:work.workId,actor});assert.equal((await publicGet()).jsonBody.request.documents.pdf,'available');assert.deepEqual((await publicGet('pdf')).body,pdfBytes);
+  await factory().recover({workId:work.workId,actor});await factory().project({workId:work.workId,actor,confirmed:true});assert.equal(emits,1);assert.deepEqual(await repository.getInvoiceClaim(invoiceIdentity),claimBefore);assert.equal((await repository.getRequest(requestId)).linkApprovalHash,original.linkApprovalHash);
+  let pdfAudits=0;for await(const e of t.listEntities({queryOptions:{filter:"PartitionKey eq 'integracao-fiscal-atp-v1'"}}))if(e.rowKey.startsWith('audit-')&&JSON.parse(e.json).action==='recover_same_municipal_pdf')pdfAudits++;assert.equal(pdfAudits,1);
+ }finally{if(containerCreated){assert.match(containerName,/^atpmunicipalqa[a-f0-9]{32}$/);await container.delete();}if(created){assert.match(tableName,/^AtpMunicipalQa[a-f0-9]{32}$/);await service.deleteTable(tableName);}}
+});

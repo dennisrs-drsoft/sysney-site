@@ -5,9 +5,8 @@ const fail=code=>{throw Object.assign(Error(code),{code});};
 const textToken=s=>s[0]==='<'?PDFHexString.of(s.slice(1,-1)).decodeText():PDFString.of(s.slice(1,-1)).decodeText();
 // Conservative content-stream profile, not a general PDF text engine. Unknown
 // CID/CMap/filters/object-streams require review; never guess a document link.
-export async function validateRestrictedDanfse(bytes,evidence){
+export async function readBoundedPdfText(bytes){
  if(!Buffer.isBuffer(bytes)||bytes.length<100||bytes.length>5_000_000||bytes.subarray(0,5).toString()!=='%PDF-'||!bytes.subarray(-1024).includes(Buffer.from('%%EOF')))fail('INVALID_PDF');
- if(!/^\d{50}$/.test(evidence?.authorityKey)||!/^\d+$/.test(evidence?.number)||evidence.environment!=='homologacao')fail('PDF_EXPECTED_IDENTITY_REQUIRED');
  const raw=bytes.toString('latin1').replace(/#([\da-f]{2})/gi,(_,hex)=>String.fromCharCode(parseInt(hex,16)));
  if(/\/Encrypt\b|\/ObjStm\b|\/Type\s*\/XRef\b/.test(raw))fail('PDF_ENCODING_REQUIRES_REVIEW');
  let doc;try{doc=await PDFDocument.load(bytes,{ignoreEncryption:false,updateMetadata:false,throwOnInvalidObject:true});}catch{fail('INVALID_PDF_STRUCTURE');}
@@ -49,9 +48,13 @@ export async function validateRestrictedDanfse(bytes,evidence){
    }
   }
  }
- const normalized=text.normalize('NFKD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' '),digits=normalized.replace(/\D/g,'');
+ return {normalized:text.normalize('NFKD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' '),pages:doc.getPageCount()};
+}
+export async function validateRestrictedDanfse(bytes,evidence){
+ if(!/^\d{50}$/.test(evidence?.authorityKey)||!/^\d+$/.test(evidence?.number)||evidence.environment!=='homologacao')fail('PDF_EXPECTED_IDENTITY_REQUIRED');
+ const {normalized,pages}=await readBoundedPdfText(bytes),digits=normalized.replace(/\D/g,'');
  const numberMatch=normalized.match(/Numero\s+da\s+NFS[ -]?e\s*:?\s*(\d+)/i);
  const amount=(evidence.amountCentsBRL/100).toFixed(2),brl=amount.replace('.',','),grouped=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(evidence.amountCentsBRL/100);
  if(!digits.includes(evidence.authorityKey)||!digits.includes(evidence.issuerDocument)||!digits.includes(evidence.recipientDocument)||!numberMatch||BigInt(numberMatch[1])!==BigInt(evidence.number)||![brl,amount,grouped].some(a=>normalized.includes(a)))fail('PDF_CONTENT_BINDING_UNVERIFIED');
- return {sha256:digest(bytes),size:bytes.length,authorityKey:evidence.authorityKey,number:evidence.number,pages:doc.getPageCount(),contentVerified:true,method:'bounded-content-stream-profile',environment:'homologacao'};
+ return {sha256:digest(bytes),size:bytes.length,authorityKey:evidence.authorityKey,number:evidence.number,pages,contentVerified:true,method:'bounded-content-stream-profile',environment:'homologacao'};
 }
