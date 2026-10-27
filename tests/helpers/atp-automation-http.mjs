@@ -52,7 +52,7 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
       const record={requestId:work.requestId,rps:r,number:String(9000000+records.size+1),verification:('QA'+String(records.size+1).padStart(6,'0')),authorized:now()};records.set(key,record);
       if(mode(work.requestId)==='timeout'){res.destroy();return;}return reply(res,200,{success:true,xml:'<Acknowledgement/>'});
      }
-     if(p.action==='consultar'){stats.queries++;const record=records.get(key);if(!record)return reply(res,404,{error:'QA_RPS_NOT_FOUND'});return reply(res,200,{success:true,xml:makeReturn(record)});}
+     if(p.action==='consultar'){stats.queries++;const record=records.get(key);if(!record)return reply(res,404,{error:'QA_RPS_NOT_FOUND'});return reply(res,200,{success:true,xml:(mode(record.requestId)==='query-format-changed'?'\n':'')+makeReturn(record)});}
      throw Error('QA_ACTION_INVALID');
     }
     const record=[...records.values()].find(r=>String(r.number)===url.searchParams.get('number'));
@@ -66,7 +66,7 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
     if(!same(req.headers.authorization||'','Bearer '+token))return reply(res,401,{error:'QA_UNAUTHORIZED'});
     if(url.pathname==='/qa/stats')return reply(res,200,{...stats,invoices:records.size,mode:defaultMode,clockUtc:now(),notBeforeUtc:policy.notBeforeUtc,storage:'azurite-loopback',production:false});
     if(url.pathname==='/qa/job')return reply(res,200,await jobs.get(url.searchParams.get('requestId'))||{state:'missing'});
-    if(url.pathname==='/qa/mode'&&req.method==='POST'){const b=await body(req);if(!['normal','timeout','pdf-unavailable','pdf-wrong','cancelled','substituted'].includes(b.name))return reply(res,400,{error:'QA_MODE_INVALID'});if(b.requestId)modes.set(b.requestId,b.name);else defaultMode=b.name;return reply(res,200,{mode:b.name,requestId:b.requestId||null});}
+    if(url.pathname==='/qa/mode'&&req.method==='POST'){const b=await body(req);if(!['normal','timeout','pdf-unavailable','pdf-wrong','cancelled','substituted','query-format-changed'].includes(b.name))return reply(res,400,{error:'QA_MODE_INVALID'});if(b.requestId)modes.set(b.requestId,b.name);else defaultMode=b.name;return reply(res,200,{mode:b.name,requestId:b.requestId||null});}
     if(url.pathname==='/qa/tick'&&req.method==='POST'){const b=await body(req),steps=Math.max(1,Math.min(12,b.steps||1)),concurrency=Math.max(1,Math.min(4,b.concurrency||1)),results=[];for(let i=0;i<steps;i++)results.push(...await Promise.all(Array.from({length:concurrency},()=>automation.tick({limit:20}))));return reply(res,200,{results});}
     return reply(res,404,{error:'QA_NOT_FOUND'});
    }

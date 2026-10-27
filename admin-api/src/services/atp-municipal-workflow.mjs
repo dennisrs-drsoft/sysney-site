@@ -32,7 +32,14 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   if(r.status==='issued'&&r.documents?.pdf){
    if(w.result?.pdfBase64){pdf=Buffer.from(w.result.pdfBase64,'base64');if(digest(pdf)!==r.documents.pdf.sha256)throw Error('ATP_STORED_PDF_HASH_MISMATCH');}
   }else try{pdf=await executor.downloadPdf(e);await validateAtpMunicipalPdf(pdf,e);}catch{pdf=undefined;pdfReason='PDF_PENDING_REVIEW_OR_DOWNLOAD';}
-  const {xml,...metadata}=e;
+  let {xml,...metadata}=e;
+  // A later official query may serialize the same invoice differently. Keep
+  // the immutable bytes already linked publicly; late PDF is not a new XML.
+  if(r.status==='issued'){
+   const originalXml=Buffer.from(w.result?.xmlBase64||'','base64');
+   if(!originalXml.length||digest(originalXml)!==r.documents?.xml?.sha256||w.result?.evidence?.authorityKey!==e.authorityKey)throw Error('ATP_ORIGINAL_XML_BINDING_REQUIRED');
+   xml=originalXml;metadata={...w.result.evidence,authorizedXmlHash:digest(originalXml)};
+  }
   await store.save({...w,state:'authorized',result:{evidence:{...metadata,...(pdf?{officialPdfHash:digest(pdf)}:{})},xmlBase64:xml.toString('base64'),...(pdf?{pdfBase64:pdf.toString('base64')}:{pdfReason})},updatedAtUtc:now()});
   if(r.status==='issued'&&pdf&&!r.documents?.pdf)await repository.attachVerifiedMunicipalPdf({requestId:r.id,workId,invoiceIdentity:digest(JSON.stringify(['municipal_sp',e.issuerDocument,e.authorityKey])),xmlHash:digest(xml),pdf,actor,at:now()});
   return {workId,state:'authorized',number:e.number,documents:{xml:true,pdf:!!pdf||!!r.documents?.pdf},projected:r.status==='issued'};
