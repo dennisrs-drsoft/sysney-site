@@ -13,7 +13,7 @@ export async function GET(req:NextRequest){
  const remote=await encaminharAdmin(req);if(remote)return remote;
  if(!usuarioAdministrador(req))return reply({erro:'Não autorizado.'},401);
  if(req.nextUrl.searchParams.get('empresa')!=='sysney')return reply({erro:'Solicitações ATP pertencem ao emitente SYSNEY.'},400);
- if(req.nextUrl.searchParams.get('acao')==='vinculo-capacidades')return reply({disponivel:false,motivos:['Validação XSD e assinatura fiscal nacional ainda não homologadas.','Consulta oficial de autorização/cancelamento ainda não conectada.','Proveniência ainda não ligada ao fluxo nacional de emissão.'],emissaoReal:false});
+ if(req.nextUrl.searchParams.get('acao')==='vinculo-capacidades')return reply({disponivel:false,motivos:['Consulta autenticada e arquivos do emissor nacional ainda não homologados.','Confirmação oficial de autorização/cancelamento ainda não conectada.','Proveniência ainda não ligada ao fluxo nacional de emissão.'],emissaoReal:false});
  const cursor=req.nextUrl.searchParams.get('cursor')||undefined;
  if(cursor&&(cursor.length>4096||/[\x00-\x1f]/.test(cursor)))return reply({erro:'Cursor inválido.'},400);
  try{
@@ -36,7 +36,7 @@ export async function POST(req:NextRequest){
  // Só mudar esta capacidade junto ao adaptador homologado e sua revisão.
  const verificacaoFiscalRealHomologada=false;
  const enabled=process.env.ATP_FISCAL_LINK_ENABLED==='true'&&verificacaoFiscalRealHomologada;
- if(!enabled)return reply({erro:'Vínculo bloqueado: faltam schema, assinatura, autorização oficial e proveniência nacional homologados.'},503);
+ if(!enabled)return reply({erro:'Vínculo bloqueado: faltam consulta autenticada, arquivos oficiais e proveniência nacional homologados.'},503);
  const encoded=req.headers.get('x-ms-client-principal');
  if(!encoded)return reply({erro:'Identidade administrativa obrigatória.'},401);
  try{

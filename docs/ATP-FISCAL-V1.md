@@ -322,3 +322,58 @@ inclusão. Atomicidade no Azurite não substitui homologação Azure real/RBAC/K
 Continuam bloqueados: schema/assinatura/autorização nacional confiáveis, código e
 enquadramento aprovados pelo contador, emissão real, rota/modal com capacidade real
 e revisão pré-publicação. Nenhum desses gates foi habilitado.
+
+## Simplificação aprovada: parâmetros externos e consulta oficial confiável
+
+A orientação posterior do titular separa definição tributária externa da operação
+do software. Não implementar campo de parecer contábil, chamada ao contador nem
+aprovação contábil por nota. O sistema exige parâmetros técnicos preenchidos e
+coerentes (emitente, código nacional, tributação, competência etc.), não um documento
+de aprovação de contador. Não inferir código/alíquota; fornecer configuração por
+serviço/emitente com versão e vigência quando os valores forem informados.
+As listas anteriores de pendências contábeis são orientação externa, não gates de
+workflow ou pré-requisito de integração com outro serviço de contabilidade.
+
+Novo caminho preferido `createOfficialQueryEvidenceReader` usa consulta privada
+autenticada ao emissor oficial e os próprios bytes devolvidos por ele. Dispensa
+serviço customizado de assinatura e flags signatureValid/schemaValid desse caminho.
+Continua exigindo chave exata, ambiente, situação autorizada e estado conhecido de
+cancelamento/substituição, confirmação recente, bytes/hash consistentes e identidade
+do emitente/tomador/valor correlacionada pelo núcleo. Upload arbitrário não é fonte.
+
+consultOfficial é interface INTERNA normalizada, não contrato HTTP oficial inventado:
+o cliente autenticado ainda precisa ser implementado/homologado com resposta e
+eventos reais do provedor. `status=unknown`, apenas HTTP200, campo ausente ou
+consulta desatualizada não autorizam vínculo. Teste usa substituto sintético explícito,
+sem afirmar que houve consulta oficial mTLS. O caminho antigo de verificador fica
+como alternativa interna, não como exigência operacional/serviço a contratar.
+
+Capacidades nacionais efetivamente existentes: preparação/pendências, formador do
+identificador DPS, leitor estrutural restrito e núcleo/fachada ATP testados. Há script
+operacional antigo de diagnóstico GET no checkout principal (não versionado nessa
+branch), mas não prova emissão nacional. Não existem ainda transmissão DPS nacional,
+assinatura DPS e consulta de eventos/DANFSe homologadas ou automação real ATP.
+
+Configuração técnica pendente: seleção do certificado fiscal válido/acesso à chave
+privada no processo seguro, cliente autenticado oficial para ambiente restrito e
+produção, confirmação de acesso do emitente, schemas/layout efetivamente usados,
+código e parâmetros informados externamente, série/sequência DPS própria e persistida,
+normalização de resposta/eventos e recuperação de DANFSe. Não foi comprovada a
+necessidade de contratar serviço terceiro ou obter nova API key comercial. Não
+reutilizar série/cadeia/códigos municipais por inferência.
+
+Homologação nacional significa TESTE TÉCNICO no ambiente de produção restrita:
+enviar DPS sintética adequada, receber aceitação/rejeição, consultar a mesma DPS/chave,
+conferir documento e PDF, eventos e recuperação após timeout, sem duplicação. Não é
+uma contratação nem parecer contábil; condições cadastrais de acesso podem existir,
+mas precisam ser verificadas em vez de presumidas. Esses testes não foram executados
+contra a Receita nesta etapa e produção fiscal permanece fechada.
+
+Draft.2 público e credenciais permanecem inalterados. Nenhuma aprovação contábil
+foi adicionada ao sistema; mensagens dos gates passaram a descrever as capacidades
+técnicas oficiais ainda ausentes, não a contratação de um verificador customizado.
+
+Rodada desta simplificação: 25 testes aprovados, zero falhas/skips, incluindo
+Azurite isolado e handlers administrativos compilados. TypeScript --noEmit e
+build da API aprovados. Cliente nacional real não foi chamado nos testes; a
+consulta oficial normalizada é substituída por evidência sintética controlada.

@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {inspectNationalXml,createNationalEvidenceReader} from '../admin-api/src/services/atp-authorized-xml.mjs';
+import {inspectNationalXml,createNationalEvidenceReader,createOfficialQueryEvidenceReader} from '../admin-api/src/services/atp-authorized-xml.mjs';
 import {digest} from '../admin-api/src/services/atp-fiscal-v1.mjs';
 const key='1'.repeat(50),workId='a'.repeat(64),requestId='b'.repeat(64);
 // Estrutura reduzida nacional simulada, NÃO documento autorizado ou XSD válido.
@@ -10,6 +10,15 @@ test('rejeita DTD/XXE, duplicidade, namespace divergente e XML grande',()=>{
  const xml=synthetic().toString();
  for(const v of [xml.replace('<NFSe ','<!DOCTYPE x [<!ENTITY p SYSTEM "file:///secret">]><NFSe '),xml.replace('<nNFSe>1</nNFSe>','<nNFSe>1</nNFSe><nNFSe>2</nNFSe>'),xml.replace('<emit>','<emit xmlns="https://evil.invalid">'),xml.replace('Id="DPS-SINTETICA"',`Id="NFS${key}"`),xml.replace('<tpAmb>1</tpAmb>','<tpAmb>2</tpAmb>')])assert.throws(()=>inspectNationalXml(Buffer.from(v)));
  assert.throws(()=>inspectNationalXml(Buffer.alloc(1_000_001)));
+});
+
+test('consulta oficial normalizada dispensa verificador customizado, mas exige status e bytes exatos',async()=>{
+ const xml=synthetic(),work={source:'ATP',requestId,provider:'national',status:'issued',test:false,authorityKey:key,authorizedXmlHash:digest(xml),provenance:{requestId,servicePeriod:{startDate:'2026-10-01',endDate:'2026-10-31'}}};
+ const response={provider:'national',environment:'production',authorityKey:key,status:'authorized',cancelled:false,substituted:false,checkedAtUtc:'2026-10-27T12:02:00Z',xml};
+ const reader=changes=>createOfficialQueryEvidenceReader({loadWork:async()=>work,consultOfficial:async requested=>{assert.equal(requested,key);return {...response,...changes};},now:()=>Date.parse('2026-10-27T12:02:00Z')});
+ assert.equal((await reader({})(workId)).authorizedXmlHash,digest(xml));
+ for(const change of [{status:'unknown'},{status:'cancelled',cancelled:true},{substituted:true},{authorityKey:'2'.repeat(50)},{environment:'homologation'},{checkedAtUtc:'2026-10-27T10:00:00Z'},{xml:Buffer.from('<Outro>SEM VALIDADE</Outro>')}])await assert.rejects(reader(change)(workId));
+ await assert.rejects(createOfficialQueryEvidenceReader({loadWork:async()=>work})(workId));
 });
 test('leitor falha fechado sem schema/assinatura/confirmacao real; verifier sintetico explicito',async()=>{
  const xml=synthetic(),w={source:'ATP',requestId,provider:'national',status:'issued',test:false,xml,authorizedXmlHash:digest(xml),provenance:{requestId,servicePeriod:{startDate:'2026-10-01',endDate:'2026-10-31'}}};

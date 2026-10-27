@@ -53,3 +53,23 @@ export function createNationalEvidenceReader({loadWork,verifyAuthorization,now=D
   return {workId,source:'ATP',requestId:work.requestId,status:'issued',test:false,provider:'national',...result,servicePeriod:work.provenance.servicePeriod,xml:work.xml,authorizedXmlVerified:true,authorizedXmlHash:result.xmlHash,...(work.pdf?{pdf:work.pdf,officialPdfHash:work.officialPdfHash}:{})};
  };
 }
+
+// Caminho preferido: a própria consulta autenticada do emissor oficial fornece
+// os bytes e a situação atual. Não exige um serviço customizado de assinatura.
+// consultOfficial é dependência PRIVADA de servidor, nunca corpo/upload da UI.
+// Seu transporte mTLS, contrato HTTP e normalização de eventos ainda precisam
+// ser homologados; esta função não transforma um HTTP 200 genérico em autorização.
+export function createOfficialQueryEvidenceReader({loadWork,consultOfficial,now=Date.now}){
+ return async workId=>{
+  if(typeof consultOfficial!=='function'||!/^[a-f0-9]{64}$/.test(workId))fail();
+  const work=await loadWork(workId);
+  if(!work||work.source!=='ATP'||work.provider!=='national'||work.status!=='issued'||work.test!==false||work.provenance?.requestId!==work.requestId||!/^\d{50}$/.test(work.authorityKey||''))fail();
+  const official=await consultOfficial(work.authorityKey);
+  if(!official||official.provider!=='national'||official.environment!=='production'||official.authorityKey!==work.authorityKey||official.status!=='authorized'||official.cancelled!==false||official.substituted!==false||!Buffer.isBuffer(official.xml))fail();
+  const checked=Date.parse(official.checkedAtUtc),clock=now();
+  if(!Number.isFinite(checked)||clock-checked>300000||checked-clock>30000)fail();
+  const fields=inspectNationalXml(official.xml);
+  if(fields.authorityKey!==work.authorityKey||fields.issuerDocument!=='57767099000179'||fields.xmlHash!==work.authorizedXmlHash||Date.parse(fields.authorizedAtUtc)-clock>30000)fail();
+  return {workId,source:'ATP',requestId:work.requestId,status:'issued',test:false,provider:'national',...fields,servicePeriod:work.provenance.servicePeriod,xml:official.xml,authorizedXmlVerified:true,authorizedXmlHash:fields.xmlHash,...(work.pdf?{pdf:work.pdf,officialPdfHash:work.officialPdfHash}:{})};
+ };
+}
