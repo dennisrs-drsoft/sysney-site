@@ -1,8 +1,19 @@
 import {PDFDocument,PDFName,PDFRawStream,PDFArray,PDFDict,PDFString,PDFHexString} from 'pdf-lib';
-import {inflateSync} from 'node:zlib';
+import {inflateSync,inflateRawSync} from 'node:zlib';
 import {digest} from './atp-fiscal-v1.mjs';
 const fail=code=>{throw Object.assign(Error(code),{code});};
-const textToken=s=>s[0]==='<'?PDFHexString.of(s.slice(1,-1)).decodeText():PDFString.of(s.slice(1,-1)).decodeText();
+const textToken=(s,winAnsi=false)=>{const token=s[0]==='<'?PDFHexString.of(s.slice(1,-1)):PDFString.of(s.slice(1,-1));return winAnsi?new TextDecoder('windows-1252',{fatal:true}).decode(token.asBytes()):token.decodeText();};
+function boundedFlate(input){
+ try{return inflateSync(input,{maxOutputLength:1_000_000});}catch(e){
+  // The municipal producer observed offline writes a valid zlib header and
+  // COMPLETE raw DEFLATE but omits Adler32. Never accept truncated DEFLATE,
+  // bad checksum, dictionaries, extra bytes, unknown filters or unbounded data.
+  const b=Buffer.from(input);
+  if(e.code!=='Z_BUF_ERROR'||b.length<3||(b[0]&15)!==8||((b[0]<<8)+b[1])%31!==0||(b[1]&32))throw e;
+  const r=inflateRawSync(b.subarray(2),{maxOutputLength:1_000_000,info:true});
+  if(r.engine.bytesWritten!==b.length-2)throw e;return r.buffer;
+ }
+}
 // Conservative content-stream profile, not a general PDF text engine. Unknown
 // CID/CMap/filters/object-streams require review; never guess a document link.
 export async function readBoundedPdfText(bytes){
@@ -24,12 +35,19 @@ export async function readBoundedPdfText(bytes){
  for(const [,object] of doc.context.enumerateIndirectObjects())inspect(object);
  let text='',decodedSize=0;
  for(const page of doc.getPages()){
+  let winAnsi=false;
   const resources=page.node.Resources(),fonts=resources?.lookupMaybe(PDFName.of('Font'),PDFDict);
   if(fonts)for(const [,ref] of fonts.entries()){
    const font=doc.context.lookup(ref);if(!(font instanceof PDFDict))fail('PDF_FONT_REQUIRES_REVIEW');
    const subtype=String(font.get(PDFName.of('Subtype'))||''),encoding=String(font.get(PDFName.of('Encoding'))||'');
-   if(font.has(PDFName.of('ToUnicode'))||font.has(PDFName.of('DescendantFonts'))||subtype!=='/Type1'||!['','/WinAnsiEncoding','/StandardEncoding'].includes(encoding))fail('PDF_FONT_REQUIRES_REVIEW');
-   if(!/^\/(Helvetica|Times-(Roman|Bold|Italic|BoldItalic)|Courier)(-Bold|-Oblique|-BoldOblique)?$/.test(String(font.get(PDFName.of('BaseFont'))||'')))fail('PDF_FONT_REQUIRES_REVIEW');
+   if(font.has(PDFName.of('ToUnicode'))||font.has(PDFName.of('DescendantFonts')))fail('PDF_FONT_REQUIRES_REVIEW');
+   if(subtype==='/TrueType'&&encoding==='/WinAnsiEncoding'){
+    const descriptor=font.lookupMaybe(PDFName.of('FontDescriptor'),PDFDict),flags=Number(String(descriptor?.get(PDFName.of('Flags'))||'0'));
+    if(!(flags&32)||flags&4)fail('PDF_FONT_REQUIRES_REVIEW');winAnsi=true;
+   }else{
+    if(subtype!=='/Type1'||!['','/WinAnsiEncoding','/StandardEncoding'].includes(encoding))fail('PDF_FONT_REQUIRES_REVIEW');
+    if(!/^\/(Helvetica|Times-(Roman|Bold|Italic|BoldItalic)|Courier)(-Bold|-Oblique|-BoldOblique)?$/.test(String(font.get(PDFName.of('BaseFont'))||'')))fail('PDF_FONT_REQUIRES_REVIEW');
+   }
   }
   const value=page.node.Contents();if(!value)continue;
   const items=value instanceof PDFArray?value.asArray():[value];
@@ -37,12 +55,12 @@ export async function readBoundedPdfText(bytes){
    const stream=doc.context.lookup(item);if(!(stream instanceof PDFRawStream))fail('PDF_ENCODING_REQUIRES_REVIEW');
    const filter=stream.dict.get(PDFName.of('Filter')),name=String(filter||'');
    let content;
-   try{if(!filter)content=stream.getContents();else if(name==='/FlateDecode')content=inflateSync(stream.getContents(),{maxOutputLength:1_000_000});else fail('PDF_ENCODING_REQUIRES_REVIEW');}catch{fail('PDF_ENCODING_REQUIRES_REVIEW');}
+   try{if(!filter)content=stream.getContents();else if(name==='/FlateDecode')content=boundedFlate(stream.getContents());else fail('PDF_ENCODING_REQUIRES_REVIEW');}catch{fail('PDF_ENCODING_REQUIRES_REVIEW');}
    decodedSize+=content.length;if(decodedSize>5_000_000)fail('PDF_DECODE_LIMIT');
    for(const block of Buffer.from(content).toString('latin1').matchAll(/\bBT\b([\s\S]*?)\bET\b/g)){
     for(const op of block[1].matchAll(/(\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]*>)\s*(?:Tj|'|")|\[([^\]]*)\]\s*TJ/g)){
      const tokens=op[1]?[op[1]]:[...op[2].matchAll(/\((?:\\.|[^\\()])*\)|<[\da-fA-F\s]*>/g)].map(m=>m[0]);
-     for(const token of tokens)text+=textToken(token);text+=' ';
+     for(const token of tokens)text+=textToken(token,winAnsi);text+=' ';
      if(text.length>100000)fail('PDF_TEXT_LIMIT');
     }
    }

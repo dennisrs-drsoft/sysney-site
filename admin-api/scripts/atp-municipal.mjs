@@ -9,6 +9,7 @@ import {createAtpMunicipalExecutor} from '../src/services/atp-municipal-executor
 import {createAtpMunicipalWorkflow,saoPauloFiscalDate} from '../src/services/atp-municipal-workflow.mjs';
 import {createAtpMunicipalQueueExecutor,runAtpMunicipalQueueJob,runNextAtpMunicipalQueueJob} from '../src/services/atp-municipal-queue.mjs';
 import {readAtpMunicipalReadiness} from '../src/services/atp-municipal-readiness.mjs';
+import {createAtpWorkerAuthority} from '../src/services/atp-municipal-worker-authority.mjs';
 const [action='dry-run',configPath,id,approvedHash]=process.argv.slice(2);
 if(action==='dry-run')console.log(JSON.stringify({source:'ATP',municipalExecutorEnabled:false,issuanceEnabled:false,nationalEnabled:false,storageTouched:false,certificateRead:false,transmitted:false}));
 else if(action==='readiness'){
@@ -26,7 +27,7 @@ else{
  const actor={id:c.actorId,role:'administrador'},credential=new DefaultAzureCredential(),queue=new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'FiscalFila',credential);
  const native=createAtpMunicipalExecutor({enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',issuanceEnabled:process.env.ATP_MUNICIPAL_ISSUANCE_ENABLED==='true',thumbprint:c.certificateThumbprint});
  if(action==='worker'){
-  const options={table:queue,jobId:id,executor:native,enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true'};
+  const options={table:queue,jobId:id,executor:native,enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',authorizeAutomation:createAtpWorkerAuthority({documents:new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'AdminDocumentos',credential),config:c})};
   console.log(JSON.stringify(await(id==='next'?runNextAtpMunicipalQueueJob(options):runAtpMunicipalQueueJob(options))));
  }else{
  const repository=createAtpFiscalStore(c.storageAccount),table=new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'AdminDocumentos',credential);

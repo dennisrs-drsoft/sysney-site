@@ -1,13 +1,15 @@
 openapi: 3.1.0
 info:
   title: SYSNEY — preparação fiscal ATP
-  version: 1.0.0-draft.2
+  version: 1.0.0-draft.3
   description: |
-    Contrato fechado para implementação local; NÃO publicado. Fase 1 não transmite
-    notas, cria cobranças ou envia e-mails. Origem ATP e emitente SYSNEY definidos
-    pelo servidor. Adaptador nacional pendente. Polling, sem callbacks nesta fase.
+    Fachada publicada de preparação/consulta, sem rota de emissão para o Bearer ATP.
+    automaticIssuance=false descreve a permissão do chamador, não o processamento
+    privado posterior. Automação municipal interna exige política versionada e gates
+    separados, desligados por padrão. Origem ATP e emitente SYSNEY são do servidor.
+    Nacional desabilitado. E-mail pertence ao ATP; polling sem callback.
 servers:
-  - url: https://fiscal.example.invalid
+  - url: https://sysney-admin-api-2602.azurewebsites.net
 security:
   - AtpBearer: []
 paths:
@@ -190,7 +192,7 @@ components:
           required: [documentType, document, legalName, confirmed, address]
           properties:
             documentType: {type: string, enum: [CNPJ, CPF]}
-            document: {type: string, pattern: '^(\d{11}|\d{14})$', description: Tipo e dígitos verificadores validados; CPF aceito na preparação, não suportado no adaptador municipal atual}
+            document: {type: string, pattern: '^(\d{11}|\d{14})$', description: Tipo e dígitos verificadores validados; CPF/CNPJ tipados no adaptador municipal dedicado ATP}
             legalName: {type: string, minLength: 1, maxLength: 150}
             confirmed: {type: boolean, const: true, description: Tomador confirmado separadamente do titular do cartão}
             address:
@@ -227,7 +229,7 @@ components:
             amountCentsBRL: {type: integer}
             competence: {type: string}
             status: {type: string, enum: [pending_review, prepared, transmitting, uncertain, rejected, issued]}
-            reviewStatus: {type: string, enum: [none, refund_review_required]}
+            reviewStatus: {type: string, enum: [none, refund_review_required, fiscal_review_required], description: Revisão bloqueia disponibilidade/download/envio; fiscal_review_required não implica reembolso}
             createdAtUtc: {type: string, format: date-time}
             updatedAtUtc: {type: string, format: date-time}
             capabilities:
@@ -235,7 +237,7 @@ components:
               additionalProperties: false
               required: [automaticIssuance, nationalAdapterReady, emailHandledBy]
               properties:
-                automaticIssuance: {type: boolean, const: false}
+                automaticIssuance: {type: boolean, const: false, description: Permissão do chamador; Bearer só prepara/consulta, nunca invoca emissão}
                 nationalAdapterReady: {type: boolean, const: false}
                 emailHandledBy: {type: string, const: ATP}
             invoice:

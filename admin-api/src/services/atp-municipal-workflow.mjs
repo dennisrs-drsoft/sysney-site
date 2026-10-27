@@ -18,16 +18,24 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   // Always a query by the immutable RPS key. Never trust the send acknowledgement.
   const response=await executor.execute({action:'consultar',xml:w.queryXml,chain:'',workId,approvedHash:w.hash});
   let e;
-  try{e=reconcileAtpMunicipal({xml:response.xml,work:w,request:r,provenance:p,receivedAtUtc:now()});}catch{
+  try{e=reconcileAtpMunicipal({xml:response.xml,work:w,request:r,provenance:p,receivedAtUtc:now(),allowCancelled:true});}catch{
    await store.save({...w,state:'reconciliation_required',result:{reason:'ATP_MUNICIPAL_EVIDENCE_MISMATCH'},updatedAtUtc:now()});
    return {workId,state:'reconciliation_required',issued:false};
   }
+  const originalAuthorityKey=w.result?.evidence?.authorityKey;
+  if(e.status==='cancelled'||originalAuthorityKey&&originalAuthorityKey!==e.authorityKey){
+   await repository.markMunicipalFiscalReview({requestId:r.id,workId,evidence:e,originalAuthorityKey,actor,at:now()});
+   await store.save({...w,state:e.status==='cancelled'?'cancelled':'fiscal_review_required',fiscalReviewEvidence:{reason:e.status==='cancelled'?'official_cancellation':'official_identity_changed',authorityKey:e.authorityKey,cancelledAtUtc:e.cancelledAtUtc,xmlBase64:response.xml.toString('base64'),sha256:digest(response.xml)},updatedAtUtc:now()});
+   return {workId,state:e.status==='cancelled'?'cancelled':'fiscal_review_required',reviewRequired:true,documents:{xml:false,pdf:false}};
+  }
   let pdf,pdfReason;
-  try{pdf=await executor.downloadPdf(e);await validateAtpMunicipalPdf(pdf,e);}catch{pdf=undefined;pdfReason='PDF_PENDING_REVIEW_OR_DOWNLOAD';}
+  if(r.status==='issued'&&r.documents?.pdf){
+   if(w.result?.pdfBase64){pdf=Buffer.from(w.result.pdfBase64,'base64');if(digest(pdf)!==r.documents.pdf.sha256)throw Error('ATP_STORED_PDF_HASH_MISMATCH');}
+  }else try{pdf=await executor.downloadPdf(e);await validateAtpMunicipalPdf(pdf,e);}catch{pdf=undefined;pdfReason='PDF_PENDING_REVIEW_OR_DOWNLOAD';}
   const {xml,...metadata}=e;
   await store.save({...w,state:'authorized',result:{evidence:{...metadata,...(pdf?{officialPdfHash:digest(pdf)}:{})},xmlBase64:xml.toString('base64'),...(pdf?{pdfBase64:pdf.toString('base64')}:{pdfReason})},updatedAtUtc:now()});
-  if(r.status==='issued'&&pdf)await repository.attachVerifiedMunicipalPdf({requestId:r.id,workId,invoiceIdentity:digest(JSON.stringify(['municipal_sp',e.issuerDocument,e.authorityKey])),xmlHash:digest(xml),pdf,actor,at:now()});
-  return {workId,state:'authorized',number:e.number,documents:{xml:true,pdf:!!pdf},projected:r.status==='issued'};
+  if(r.status==='issued'&&pdf&&!r.documents?.pdf)await repository.attachVerifiedMunicipalPdf({requestId:r.id,workId,invoiceIdentity:digest(JSON.stringify(['municipal_sp',e.issuerDocument,e.authorityKey])),xmlHash:digest(xml),pdf,actor,at:now()});
+  return {workId,state:'authorized',number:e.number,documents:{xml:true,pdf:!!pdf||!!r.documents?.pdf},projected:r.status==='issued'};
  }
  return {
   async prepare({requestId,profile,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,actor}){
@@ -44,13 +52,16 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   },
   async test({workId,actor}){
    guard(actor);const {w}=await load(workId);
+   const age=Date.parse(now())-Date.parse(w.testedAtUtc);
+   if(w.testedHash===w.hash&&Number.isFinite(age)&&age>=0&&age<1800000)return {workId,tested:true,issued:false,replayed:true};
    const result=await executor.execute({action:'testar',xml:w.testXml,chain:w.chain,workId,approvedHash:w.testHash});
    if(result.success!==true)throw Error('ATP_MUNICIPAL_TEST_REJECTED');
    await store.save({...w,testedHash:w.hash,testedAtUtc:now()});return {workId,tested:true,issued:false};
   },
-  async run({workId,actor,approvedHash,confirmed=false}){
+  async run({workId,actor,approvedHash,confirmed=false,deferReconcile=false}){
    guard(actor);if(issuanceEnabled!==true||confirmed!==true)throw Error('ATP_MUNICIPAL_ISSUANCE_DISABLED');
    const {w}=await load(workId);
+   if(await store.hasClaim?.(workId,w.hash))return deferReconcile?{workId,state:'query_required',issued:false,queryRequired:true}:reconcile(workId,actor);
    const age=Date.parse(now())-Date.parse(w.testedAtUtc);
    const civilDate=saoPauloFiscalDate(now());
    if(w.hash!==approvedHash||w.testedHash!==w.hash||!Number.isFinite(age)||age<0||age>1800000||civilDate!==w.emissionDate||civilDate>='2026-11-01')throw Error('ATP_MUNICIPAL_APPROVAL_REQUIRED');
@@ -60,7 +71,7 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
     try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true});}
     catch{return {workId,state:'uncertain',issued:false,queryRequired:true};}
    }
-   return reconcile(workId,actor);
+   return deferReconcile?{workId,state:'query_required',issued:false,queryRequired:true}:reconcile(workId,actor);
   },
   async recover({workId,actor}){guard(actor);return reconcile(workId,actor);},
   async project({workId,actor,confirmed=false}){

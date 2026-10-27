@@ -43,5 +43,6 @@ export function createAtpMunicipalStore(table,{partitionKey='atp-municipal-v1'}=
    const row='send-'+workId,entity={partitionKey:part,rowKey:row,hash};
    try{await table.createEntity(entity);return true;}catch(e){const old=await read(part,row);if(old){if(old.hash!==hash)throw Error('ATP_SEND_HASH_CONFLICT');return false;}throw e;}
   },
+  async hasClaim(workId,hash){const e=await read(part,'send-'+workId);if(e&&e.hash!==hash)throw Error('ATP_SEND_HASH_CONFLICT');return !!e;},
  };
 }

@@ -16,7 +16,7 @@ export function createAtpMunicipalQueueExecutor({table,downloadPdf,enabled=false
   },downloadPdf,
  };
 }
-export async function runAtpMunicipalQueueJob({table,jobId,executor,enabled=false,now=()=>Date.now()}){
+export async function runAtpMunicipalQueueJob({table,jobId,executor,authorizeAutomation,enabled=false,now=()=>Date.now()}){
  if(enabled!==true)throw Error('ATP_MUNICIPAL_WORKER_DISABLED');
  if(!/^[a-f0-9]{64}$/.test(jobId))throw Error('ATP_QUEUE_JOB_INVALID');
  const store=createAtpMunicipalStore(table,{partitionKey:'atp-municipal-executor-v1'}),job=await store.get(jobId);
@@ -24,7 +24,7 @@ export async function runAtpMunicipalQueueJob({table,jobId,executor,enabled=fals
  if(job.deadline<now()){await store.save({...job,state:'expired'});throw Error('ATP_QUEUE_JOB_NOT_ELIGIBLE');}
  // CAS before touching certificate/network. A crashed job is never reexecuted.
  await store.save({...job,state:'running'});
- try{const result=await executor.execute(job.payload),current=await store.get(jobId);await store.save({...current,state:'complete',success:result.success,xmlBase64:result.xml.toString('base64')});return {jobId,state:'complete'};}
+ try{if(job.payload.automation&&!authorizeAutomation)throw Error('ATP_AUTOMATION_WORKER_AUTH_REQUIRED');if(authorizeAutomation)await authorizeAutomation(job.payload);const result=await executor.execute(job.payload),current=await store.get(jobId);await store.save({...current,state:'complete',success:result.success,xmlBase64:result.xml.toString('base64')});return {jobId,state:'complete'};}
  catch{const current=await store.get(jobId);await store.save({...current,state:'failed'});return {jobId,state:'failed',queryRequired:true};}
 }
 export async function runNextAtpMunicipalQueueJob(options){

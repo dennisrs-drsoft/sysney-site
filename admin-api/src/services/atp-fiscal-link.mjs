@@ -5,7 +5,7 @@ import {digest} from './atp-fiscal-v1.mjs';
 const fail=message=>{throw Error(message);};
 const iso=v=>typeof v==='string'&&Number.isFinite(Date.parse(v));
 const snapshot=r=>digest(JSON.stringify({requestHash:r.hash,paymentId:r.input.paymentId,externalReference:r.input.externalReference,document:r.input.recipient.document,amount:r.input.amountCentsBRL,competence:r.input.competence,period:r.input.servicePeriod,description:r.input.description}));
-function admin(actor){if(!actor||actor.role!=='administrador'||!actor.id||actor.id.length>254)fail('Aprovação administrativa interna obrigatória.');}
+function admin(actor){if(!actor||actor.role!=='administrador'||!actor.id||actor.id.length>254)fail('Aprovação administrativa interna obrigatória.');if(actor.kind==='automation'&&(!/^[a-f0-9]{64}$/.test(actor.policyHash)||typeof actor.policyVersion!=='string'||!actor.policyVersion||actor.policyVersion.length>100))fail('Política de automação obrigatória.');}
 export function createSupervisedAtpLink({repository,readAuthorizedEvidence,enabled=false,now=()=>new Date().toISOString()}){
  const gate=actor=>{if(enabled!==true)fail('Vínculo supervisionado desabilitado.');admin(actor);};
  return {
@@ -46,7 +46,7 @@ export function createSupervisedAtpLink({repository,readAuthorizedEvidence,enabl
    const documents={xml:await repository.saveOfficialDocument(r.id,'xml',e.xml,documentHashes.xml)};
    if(e.pdf)documents.pdf=await repository.saveOfficialDocument(r.id,'pdf',e.pdf,documentHashes.pdf);
    const at=now(),updated={...r,status:'issued',invoice:{number:e.number,issuerDocument:e.issuerDocument,provider:e.provider},documents,linkApprovalHash:approvalHash,updatedAtUtc:at};
-   const audit={actorId:actor.id,at,source:'ATP',requestId,workId,invoiceIdentity,snapshotHash:p.snapshotHash,approvalHash,documentHashes,action:'supervised_link_existing_invoice'};
+   const audit={actorId:actor.id,at,source:'ATP',requestId,workId,invoiceIdentity,snapshotHash:p.snapshotHash,approvalHash,documentHashes,action:actor.kind==='automation'?'policy_automation_link':'supervised_link_existing_invoice',...(actor.kind==='automation'?{policyHash:actor.policyHash,policyVersion:actor.policyVersion}: {})};
    try{await repository.commitLink({request:updated,requestEtag:r.etag,provenance:p,claim:{invoiceIdentity,requestId,approvalHash},audit});}
    catch(error){
     // Timeout após commit: só retornar o resultado comprovadamente persistido.

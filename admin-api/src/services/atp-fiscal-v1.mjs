@@ -36,7 +36,7 @@ export function validatePreparation(v){
  return JSON.parse(canonical(v));
 }
 export const preparationId=paymentId=>digest('ATP\0'+paymentId);
-const projection=r=>({id:r.id,source:'ATP',paymentId:r.input.paymentId,externalReference:r.input.externalReference,orderId:r.input.orderId,arenaId:r.input.arenaId,amountCentsBRL:r.input.amountCentsBRL,competence:r.input.competence,status:r.status,reviewStatus:r.reviewStatus,createdAtUtc:r.createdAtUtc,updatedAtUtc:r.updatedAtUtc,capabilities:{automaticIssuance:false,nationalAdapterReady:false,emailHandledBy:'ATP'},...(r.invoice?{invoice:r.invoice}:{}),documents:{xml:r.documents?.xml?'available':'pending',pdf:r.documents?.pdf?'available':'pending'}});
+const projection=r=>({id:r.id,source:'ATP',paymentId:r.input.paymentId,externalReference:r.input.externalReference,orderId:r.input.orderId,arenaId:r.input.arenaId,amountCentsBRL:r.input.amountCentsBRL,competence:r.input.competence,status:r.status,reviewStatus:r.reviewStatus,createdAtUtc:r.createdAtUtc,updatedAtUtc:r.updatedAtUtc,capabilities:{automaticIssuance:false,nationalAdapterReady:false,emailHandledBy:'ATP'},...(r.invoice?{invoice:r.invoice}:{}),documents:{xml:r.reviewStatus==='none'&&r.documents?.xml?'available':'pending',pdf:r.reviewStatus==='none'&&r.documents?.pdf?'available':'pending'}});
 export function createAtpFiscalHandler({storeFactory,config=()=>({enabled:process.env.ATP_FISCAL_V1_ENABLED,token:process.env.ATP_FISCAL_V1_TOKEN}),limit=async()=>({permitido:true}),now=()=>new Date().toISOString()}){
  return async req=>{
   const requestId=randomUUID();
@@ -55,7 +55,7 @@ export function createAtpFiscalHandler({storeFactory,config=()=>({enabled:proces
     if(id)r=await get(id);else{const url=new URL(req.url);if(url.searchParams.size!==1||!url.searchParams.has('externalReference'))invalid();const ref=url.searchParams.get('externalReference');text(ref,160);r=await store.byReference(ref);if(!r||r.source!=='ATP')throw new FiscalError(404,'NOT_FOUND','Solicitação não encontrada.');}
     if(format){
      if(!['xml','pdf'].includes(format))invalid();
-     if(r.status!=='issued'||!r.documents?.[format])throw new FiscalError(409,'DOCUMENT_NOT_READY','Documento oficial ainda não disponível.',true);
+     if(r.status!=='issued'||r.reviewStatus!=='none'||!r.documents?.[format])throw new FiscalError(409,'DOCUMENT_NOT_READY','Documento oficial ainda não disponível.',true);
      const bytes=await store.download(r,format);
      return {status:200,headers:{...headersPrivados,'X-Request-Id':requestId,'Content-Type':format==='xml'?'application/xml':'application/pdf','Content-Disposition':`attachment; filename="nota-${r.id}.${format}"`},body:bytes};
     }
