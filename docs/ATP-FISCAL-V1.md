@@ -289,3 +289,36 @@ Comando: `node --test tests/atp-fiscal-admin-route.test.mjs tests/atp-authorized
 Ainda não verificados: transações/RBAC no Azure ou Azurite, tela em navegador,
 assinatura/schema nacional reais e homologação do provedor. Sem publish, dados
 reais, envio, emissão, cancelamento, cobrança ou mudanças de gates em produção.
+
+## Armazenamento validado no Azurite isolado
+
+Azurite oficial 3.37.0 disponibilizado pela frente ATP em loopback Blob11000,
+Table11002 (Queue11001 não usado), sem conexão Azure real. Log confirmou listeners
+127.0.0.1; consultas HTTP sem credencial responderam 403 Blob/400 Table, não prova
+isolada de autorização. O teste autenticado usa somente chave pública devstoreaccount1
+lida das constantes do pacote local, sem registrar chave/conexão em logs ou Git.
+
+`tests/atp-fiscal-azurite.test.mjs` usa SDKs reais com tabela/container de nomes QA
+únicos aleatórios. O mesmo repository operacional recebe esses clients isolados.
+Foram verificados:
+
+- criação atômica de solicitação+índice e rollback quando referência conflita;
+- ETag obsoleto recusado, mantendo revisão de estorno;
+- uma única criação concorrente e reserva work/request única;
+- upload imutável/repetição de bytes idênticos, identidade e download por hash;
+- commit transacional de solicitação, proveniência, claim e auditoria;
+- negação de caminho fora do prefixo e detecção de blob adulterado;
+- container privado e negação HTTP anônima para o próprio XML QA.
+
+Recursos QA recém-criados foram removidos no finally, por nomes validados; não se
+apagaram tabelas/containers existentes, pasta do emulador nem recursos ATP/produção.
+O teste é opt-in: ATP_AZURITE_PACKAGE aponta a instalação local oficial; sem essa
+variável é skip explícito, não sucesso de integração.
+
+Rodada conjunta: 24 testes aprovados, zero falhas, zero skips; comando anterior
+ampliado com `tests/atp-fiscal-azurite.test.mjs`, `--test-concurrency=1` e timeout
+120000. Repetição isolada do teste Azurite também valida negação anônima após sua
+inclusão. Atomicidade no Azurite não substitui homologação Azure real/RBAC/Key Vault.
+Continuam bloqueados: schema/assinatura/autorização nacional confiáveis, código e
+enquadramento aprovados pelo contador, emissão real, rota/modal com capacidade real
+e revisão pré-publicação. Nenhum desses gates foi habilitado.
