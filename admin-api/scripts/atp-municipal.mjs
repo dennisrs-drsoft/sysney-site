@@ -8,8 +8,16 @@ import {createAtpMunicipalStore} from '../src/services/atp-municipal-store.mjs';
 import {createAtpMunicipalExecutor} from '../src/services/atp-municipal-executor.mjs';
 import {createAtpMunicipalWorkflow,saoPauloFiscalDate} from '../src/services/atp-municipal-workflow.mjs';
 import {createAtpMunicipalQueueExecutor,runAtpMunicipalQueueJob,runNextAtpMunicipalQueueJob} from '../src/services/atp-municipal-queue.mjs';
+import {readAtpMunicipalReadiness} from '../src/services/atp-municipal-readiness.mjs';
 const [action='dry-run',configPath,id,approvedHash]=process.argv.slice(2);
 if(action==='dry-run')console.log(JSON.stringify({source:'ATP',municipalExecutorEnabled:false,issuanceEnabled:false,nationalEnabled:false,storageTouched:false,certificateRead:false,transmitted:false}));
+else if(action==='readiness'){
+ if(process.env.ATP_MUNICIPAL_READINESS_ENABLED!=='true'||!configPath)throw Error('ATP_READINESS_DISABLED');
+ const bytes=await readFile(configPath);if(bytes.length>16384)throw Error('ATP_READINESS_CONFIG_LIMIT');const c=JSON.parse(bytes);
+ if(!/^[a-z0-9]{3,24}$/.test(c.storageAccount||'')||c.paused!==true||c.issuanceEnabled!==false||c.nationalEnabled!==false)throw Error('ATP_READINESS_PAUSED_CONFIG_REQUIRED');
+ const credential=new DefaultAzureCredential(),base=`https://${c.storageAccount}.table.core.windows.net`;
+ console.log(JSON.stringify(await readAtpMunicipalReadiness({queue:new TableClient(base,'FiscalFila',credential),documents:new TableClient(base,'AdminDocumentos',credential)})));
+}
 else{
  if(process.env.ATP_MUNICIPAL_OPERATOR_ENABLED!=='true')throw Error('ATP_MUNICIPAL_OPERATOR_DISABLED');
  if(!['prepare','test','recover','run','project','worker'].includes(action)||!configPath||!(/^[a-f0-9]{64}$/.test(id||'')||action==='worker'&&id==='next'))throw Error('ATP_OPERATOR_ARGUMENTS_INVALID');
