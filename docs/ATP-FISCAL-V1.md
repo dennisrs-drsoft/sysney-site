@@ -866,3 +866,32 @@ Os testes locais cobrem CPF/CNPJ, data de São Paulo na virada UTC/novembro, sé
 O teste de integração usa SDK Azure Tables e Blob reais contra Azurite loopback, tabela/container QA exclusivos removidos ao final: concorrência de reserva, restart, timeout após commit, CAS, ledger, partes de conteúdo de 300 KB e adulteração, fila/worker por consulta, XML autorizado com PDF indisponível, projeção, PDF errado recusado, recuperação tardia correta, timeout após anexo, contrato/download autenticados e replay com exatamente uma auditoria de PDF e um envio sintético. Os doubles de transporte não são prova de homologação municipal.
 
 Resultado final: **67/67 testes Node passaram, zero skips**, incluindo a regressão fiscal municipal/nacional anterior e HTTP loopback/Postman. Passaram também assinatura municipal CPF/CNPJ, assinatura nacional restrita e sanitização de erros em PowerShell, TypeScript sem emissão de arquivos, build da API e build-only do runner municipal. O dry-run do bundle confirmou storage/certificado/transmissão desabilitados. Artefato local: SHA-256 `2df39ec4e0d8db1447b5b8436bfa5feabeedbe3987396ac582885367a99356fb`, Node 22, 1.804.081 bytes; nenhum upload/instalação.
+
+## Ensaio oficial municipal exclusivamente de teste — 27/10/2026
+
+Após a entrega `b17b66d`, a coordenação ATP solicitou concluir a validação oficial não emissora, dentro do pedido humano de finalizar a homologação que depende de nós. A restrição anterior a mocks locais foi substituída somente para **uma chamada `TesteEnvioLoteRPS`**, com dados fictícios e emissão desabilitada. Não foi autorizada nem executada emissão real, cancelamento, consulta fiscal adicional por POST ou nova transmissão nacional.
+
+Antes de transmitir, foi conferido o [manual municipal atual, versão 3.4](https://notadomilhao.sf.prefeitura.sp.gov.br/nfe_web_service-12/), publicado em 26/10/2026: §§2.1.3 (p.6) e 4.3.4 (p.61) distinguem a validação da conversão efetiva em nota; o método de teste não gera NFS-e. SHA-256 do PDF obtido do endereço oficial: `132c3e56d4643b104c7087be0d4346c5196c2225e062cc19a0118f02f3b1e071`.
+
+O [WSDL oficial](https://nfews.prefeitura.sp.gov.br/lotenfe.asmx?WSDL) respondeu 200 em GET autenticado com o certificado já vinculado na DRServer. Os bindings SOAP 1.1 e 1.2 confirmaram a operação `TesteEnvioLoteRPS` e a action `http://www.prefeitura.sp.gov.br/nfe/ws/testeenvio`. SHA-256 do conteúdo WSDL: `351f04be3ab1cb469bed632fbbd4504c20d494aa96fa18abaee470e896e29a25`. O GET local sem certificado havia retornado 403; não foi contornado o controle, e nenhuma permissão foi alterada.
+
+### Isolamento e dados sanitizados
+
+- Candidato novo: `C:\ProgramData\SYSNEY\MunicipalCandidatos\teste-atp-20261027-b17b66d`. Manifesto de 15 arquivos verificado; legado intocado. O pacote inclui somente assinador dedicado, transporte exclusivo de teste, fixture e schemas. O runtime portátil já existente foi apenas verificado (assinatura Authenticode válida, SHA-256 do executável `dccc52de28d8df2ee22d2062424f8c563070d95d8ad70c54c4bf01d590dec14f`); o ensaio foi executado em PowerShell, sem instalar runtime/PATH/serviço.
+- Emitente SYSNEY/CCM `15539300`, Simples, código municipal `03158`, sem retenções, leiaute 1. Tomador fictício CNPJ `11222333000181`, nome `TESTE SEM VALIDADE FISCAL`; discriminação com o mesmo aviso e indicação expressa de ausência de prestação/pagamento/cobrança/emissão real. Valor fictício R$1,00. Série somente QA `TQA27`, número 1, sem reservar numeração em tabela fiscal ou criar preparação pública ATP.
+- `atp-municipal-test-only.ps1` monta exclusivamente o envelope `TesteEnvioLoteRPSRequest`, com endereço/action constantes e fixture exata. Recusa `emitir`, `consultar`, outro XML, série produtiva, cliente ou valor diferente. `ensaiar-atp-municipal-teste.ps1` aceita apenas ação `testar`, exige gate de teste no processo e emissão explicitamente false. Não utiliza o transporte genérico para emitir.
+- Antes da rede, assinatura com o certificado existente e XSD foram validados na própria VM. Chave privada permaneceu no repositório Windows, sem exportar PFX/chave ou alterar ACL. O XMLDSIG contém apenas os dados públicos normais do certificado.
+- Arquivo de tentativa criado com `FileMode.CreateNew` **antes** do único POST; não há retry/fallback. Artefatos privados de tentativa, XML assinado e retorno oficial permanecem no candidato. Gates anteriores restaurados em `finally`; hash da configuração fiscal permaneceu idêntico. Não houve mudança de serviço, agendamento, grants, firewall, SQL, armazenamento fiscal público, callback ATP ou envio de e-mail.
+
+### Resultado e hashes do ensaio
+
+**HTTP 200; `Sucesso=true`; zero erros; um alerta 1651; zero elementos NFe e zero ChaveNFe no retorno. Exatamente um POST, exclusivamente `testeenvio`.** O alerta refere-se à responsabilidade do emissor pelas datas/requisitos de leiaute e destaque IBS/CBS. Não foi interpretado como autorização para emissão municipal de fatos geradores em novembro ou para dispensar obrigações futuras; os bloqueios existentes permanecem.
+
+| Artefato privado | SHA-256 |
+| --- | --- |
+| ZIP do candidato | `06cd83aae56e15e6edd87f4a3f0054c273eeffd0fbb91c3ab8ffca0e118e8efd` |
+| XML fictício não assinado | `6e7d9f89350e1c7168bcab5a09078767e6bc8afe9ade707876d4ac57f78d9b17` |
+| XML assinado/testado | `be7defd120e4fbebc6f4b4f6b224614418aee0b76b1f8909e38b8021779aed73` |
+| XML oficial de retorno | `d2b830c46ca38aea1275cc2d837cbc41ee93fdee09d8c00b1c7a43aecd44d788` |
+
+O teste local adicional `tests/atp-municipal-official-test-guard.test.ps1` passou: método/URL fixos, rejeição das ações de emissão e consulta, fixture incorreta, XSD e assinatura com certificado sintético. O ensaio oficial comprova comunicação mTLS, assinatura e aceitação da validação municipal atual para este payload CNPJ/perfil `03158`. Não comprova emissão real, CPF em chamada oficial, retorno de uma nota emitida, recuperação de seu PDF, enquadramento jurídico do serviço, competência novembro ou emissor nacional. Essas distinções não foram encobertas pelos mocks. Nenhuma nova tentativa foi feita após o resultado; a ativação de produção continua separada e desligada.
