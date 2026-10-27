@@ -25,4 +25,6 @@ test('cliente nacional real em HTTP/Postman: envio, timeout apos commit, recuper
  await mode('html');await assert.rejects(client.consultInvoice(first.chaveAcesso),{code:'NATIONAL_HTTP_ERROR'});
  await mode('hang');await assert.rejects(client.consultInvoice(first.chaveAcesso));
  await mode('normal');assert.throws(()=>unpackNationalXml('nao-base64'),{code:'INVALID_XML_ENCODING'});
+ await mode('reject');const rejectedId=idDps.slice(0,-1)+'3',rejected=await client.submit({idDps:rejectedId,signedXml:Buffer.from(xml.toString().replaceAll(idDps,rejectedId)),explicitRestrictedApproval:true});
+ assert.equal(rejected.status,'rejected_restricted');assert.equal(rejected.providerHttpStatus,400);assert.equal(rejected.providerErrors[0].code,'E_QA_400');await mode('normal');
 });

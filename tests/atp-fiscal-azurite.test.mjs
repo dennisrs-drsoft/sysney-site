@@ -9,6 +9,7 @@ import {digest} from '../admin-api/src/services/atp-fiscal-v1.mjs';
 import {createRestrictedDpsLedger} from '../admin-api/src/services/national-restricted-ledger.mjs';
 import {createNationalRestrictedWorkStore} from '../admin-api/src/services/national-restricted-work-store.mjs';
 import {createRestrictedDpsSequence} from '../admin-api/src/services/national-restricted-sequence.mjs';
+import {createRestrictedQaTableWorkStore} from '../admin-api/src/services/national-restricted-qa-table-store.mjs';
 
 test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', {skip:!process.env.ATP_AZURITE_PACKAGE,timeout:90000},async()=>{
  const packagePath=process.env.ATP_AZURITE_PACKAGE;
@@ -44,6 +45,11 @@ test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', 
   assert.equal((await restarted.reserve({...firstAssignment,requestId:'2'.repeat(64)})).number,'10');
   assert.equal((await restarted.reserve({...firstAssignment,requestId:'3'.repeat(64),series:'100'})).number,'1');
   const repo=createAtpFiscalRepository({table,blobs:{getContainerClient:n=>{assert.equal(n,'admin-anexos');return container;}}});
+  const qaStore=createRestrictedQaTableWorkStore(table),qaJob={workId:'8'.repeat(64),signedXml:Buffer.alloc(90000,65),environment:'homologacao'};
+  await qaStore.create(qaJob);await assert.rejects(qaStore.create(qaJob));assert.deepEqual((await qaStore.get(qaJob.workId)).signedXml,qaJob.signedXml);
+  await qaStore.saveResult(qaJob.workId,{state:'confirmed_restricted',xml:Buffer.alloc(100000,66)});assert.equal((await qaStore.get(qaJob.workId)).result.xml.chunks,5);
+  const chunkRow=`bytes-${qaJob.workId}-dps-${digest(qaJob.signedXml)}-0`,chunk=await table.getEntity('qa-national-work-bytes-v1',chunkRow);
+  await table.updateEntity({partitionKey:'qa-national-work-bytes-v1',rowKey:chunkRow,data:Buffer.from('changed').toString('base64')},'Replace',{etag:chunk.etag});await assert.rejects(qaStore.get(qaJob.workId),/CHANGED/);
   const ledger=createRestrictedDpsLedger(table),dps='DPS355030825776709900017900099000000000000001';
   const reservation={idDps:dps,hash:digest('dps-qa'),status:'transmitting'};
   await ledger.reserve(reservation);assert.equal((await ledger.get(dps)).hash,reservation.hash);await assert.rejects(ledger.reserve(reservation));

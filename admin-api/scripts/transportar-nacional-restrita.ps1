@@ -2,6 +2,20 @@
 $ErrorActionPreference='Stop'
 [Net.ServicePointManager]::SecurityProtocol=[Net.SecurityProtocolType]::Tls12
 . (Join-Path $PSScriptRoot 'assinar-dps-restrita.ps1')
+function Get-SafeNationalErrors([string]$Raw){
+ if(!$Raw -or $Raw.Length -gt 65536){return ''}
+ try{
+  $parsed=$Raw|ConvertFrom-Json
+  $safe=@($parsed.erros|Select-Object -First 10|ForEach-Object {
+   if($_.codigo -match '^[A-Za-z0-9_]{1,16}$'){
+    $description=[string]$_.descricao -replace '<[^>]*>','' -replace '\d{11,14}','[documento]'
+    @{codigo=$_.codigo;descricao=$description.Substring(0,[Math]::Min($description.Length,320))}
+   }
+  })
+  if($safe.Count){return [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes((@{erros=$safe}|ConvertTo-Json -Depth 4 -Compress)))}
+ }catch{}
+ return ''
+}
 function Invoke-NationalRestricted($InputObject){
  if($InputObject.environment -ne 'homologacao' -or $InputObject.service -notin @('sefin','danfse')){throw 'Ambiente ou servico nao permitido.'}
  $method=[string]$InputObject.method;$path=[string]$InputObject.path
@@ -40,7 +54,18 @@ function Invoke-NationalRestricted($InputObject){
  try{$response=Invoke-WebRequest @request;$content=if($response.Content -is [byte[]]){$response.Content}else{[Text.Encoding]::UTF8.GetBytes([string]$response.Content)};if($content.Length -gt 5000000){throw 'Retorno excede limite.'};return @{status=[int]$response.StatusCode;body=[Convert]::ToBase64String($content);encoding='base64';contentType=[string]$response.Headers['Content-Type']}}catch{
   $status=if($_.Exception.Response){[int]$_.Exception.Response.StatusCode}else{0}
   # Não devolver XML/PII ou texto arbitrário de erro do provedor em diagnóstico.
-  return @{status=$status;body='';encoding='base64';resultado='consultar-antes-de-repetir'}
+  $body=''
+  if($status -in @(400,403)){
+   $body=Get-SafeNationalErrors ([string]$_.ErrorDetails.Message)
+   if(!$body){
+   try{
+    $stream=$_.Exception.Response.GetResponseStream();$reader=[IO.StreamReader]::new($stream)
+    try{$raw=$reader.ReadToEnd()}finally{$reader.Dispose()}
+    $body=Get-SafeNationalErrors $raw
+   }catch{}
+   }
+  }
+  return @{status=$status;body=$body;encoding='base64';resultado='consultar-antes-de-repetir'}
  }
 }
 if($MyInvocation.InvocationName -ne '.'){

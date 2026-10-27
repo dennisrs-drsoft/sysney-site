@@ -36,7 +36,7 @@ export function createNationalRestrictedWorkflow({repository,works,sequence,clie
    if(p?.requestId!==work.requestId||p.snapshotHash!==work.snapshotHash)throw Error('PROVENANCE_MISMATCH');
    // submit's durable DPS ledger makes every replay GET-only, including timeout.
    const result=await client.submit({idDps:work.idDps,signedXml:work.signedXml,explicitRestrictedApproval:true});
-   if(result.status!=='confirmed_restricted'){await works.saveResult(workId,{state:'uncertain',at:now()});return {state:'uncertain',workId};}
+   if(result.status!=='confirmed_restricted'){const state=result.status==='rejected_restricted'?'rejected_restricted':'uncertain';const diagnostics={...(result.providerHttpStatus?{providerHttpStatus:result.providerHttpStatus,providerErrors:result.providerErrors}: {})};await works.saveResult(workId,{state,...diagnostics,at:now()});return {state,workId,...diagnostics,productionIssued:false};}
    const xml=result.xml;
    if(!Buffer.isBuffer(xml)||xml.length<20)throw Error('OFFICIAL_XML_MISSING');
    let pdf;try{pdf=await client.downloadPdf(result.chaveAcesso);}catch{/* Recovery retries GET only. */}

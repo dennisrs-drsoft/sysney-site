@@ -12,7 +12,11 @@ export function createNationalRestrictedClient({transport,ledger}){
  async function json(method,path,body){
   const response=await transport({service:'sefin',environment:'homologacao',method,path,body,...(method==='POST'?{explicitRestrictedApproval:true}:{})});
   if(response.status===404)return null;
-  if(![200,201].includes(response.status))fail(response.status===403?'CERTIFICATE_OR_PERMISSION_DENIED':'NATIONAL_HTTP_ERROR');
+  if(![200,201].includes(response.status)){
+   let errors=[];try{const p=JSON.parse(response.body.toString('utf8'));errors=(Array.isArray(p.erros)?p.erros:[]).filter(e=>/^[A-Za-z0-9_]{1,16}$/.test(e.codigo)).slice(0,10).map(e=>({code:e.codigo,description:String(e.descricao||'').replace(/<[^>]*>/g,'').replace(/\d{11,14}/g,'[documento]').slice(0,320)}));}catch{}
+   const code=response.status===403?'CERTIFICATE_OR_PERMISSION_DENIED':'NATIONAL_HTTP_ERROR';
+   throw Object.assign(Error(code),{code,providerHttpStatus:response.status,providerErrors:errors});
+  }
   let data;try{data=JSON.parse(response.body.toString('utf8'));}catch{fail('INVALID_JSON');}
   if(data.tipoAmbiente!==2)fail('WRONG_ENVIRONMENT');return data;
  }
@@ -43,7 +47,7 @@ export function createNationalRestrictedClient({transport,ledger}){
     const data=await json('POST','/nfse',{dpsXmlGZipB64:gzipSync(signedXml).toString('base64')});
     if(!data||data.idDps!==idDps||!validKey(data.chaveAcesso))return {status:'uncertain',idDps};
     return {status:'confirmed_restricted',...data,xml:unpackNationalXml(data.nfseXmlGZipB64)};
-   }catch{return {status:'uncertain',idDps};}
+   }catch(e){return {status:[400,403].includes(e.providerHttpStatus)?'rejected_restricted':'uncertain',idDps,...(e.providerHttpStatus?{providerHttpStatus:e.providerHttpStatus,providerErrors:e.providerErrors}: {})};}
   },
   async consultEvent(key,type,sequence){
    if(!validKey(key)||!/^\d{6}$/.test(type)||!Number.isSafeInteger(sequence)||sequence<1||sequence>999)fail('INVALID_EVENT');

@@ -576,3 +576,99 @@ Prepare/run desabilitados no processo. Esse teste comprova runtime/imports/entra
 não autorização oficial de NFS-e. Perfil/configuração restrita explícita e ensaio
 governamental com XML/PDF/situação ADN seguem pendentes; a cópia do runner/runtime
 e dependências já não é uma pendência. Nenhuma publicação Next/API ou worker instalado.
+
+### Perfil fictício e primeiro POST oficial restrito — 27/10/2026
+
+Novo pedido humano autorizou um cenário próprio FICTÍCIO de homologação, sem
+definir a tributação produtiva ATP. Foi criado o caso isolado
+`homologacao-20261027-001` dentro do candidato da VM; não substitui os arquivos
+originais nem a fixture bloqueada000000/NAO TRANSMITIR.
+
+Conferência útil adicional do financeiro: regime SYSNEY simples vigente desde
+03/10/2026 e três trabalhos municipais com status emitida; seus XMLs oficiais
+trazem OpcaoSimples4, TributacaoT e ISS não retido. Isso confirma o cadastro
+municipal existente, não um código nacional para a assinatura ATP. A lista oficial
+de São Paulo relaciona03158 ao subitem17.02, com várias atividades; a lista nacional
+desdobra essas atividades em mais de um código. Portanto não há conversão produtiva
+única de03158 para ATP. Cadastros/notas existentes não foram alterados.
+
+Fontes primárias consultadas:
+https://www.gov.br/nfse/pt-br/mei-e-demais-empresas/codigos-de-tributacao-nacional-nbs
+e anexo municipal de serviços da IN SF/SUREM8/2011. O portal oficial de São Paulo
+também informa uso obrigatório do Emissor Nacional para Simples a partir de
+01/11/2026 (comunicado13/08/2026):
+https://prefeitura.sp.gov.br/web/fazenda/w/usoemissornacional
+Essa informação não habilita automaticamente qualquer emissão do sistema.
+
+Perfil gravado SOMENTE no caso de homologação:
+
+| Campo | Valor do ensaio | Fundamento/limite |
+| --- | --- | --- |
+| opSimpNac | 3 | Indicador ME/EPP Simples, compatível com cadastro confirmado; não MEI |
+| regApTribSN | 1 | Cenário fictício de apuração federal+municipal no SN; não atestado produtivo |
+| regEspTrib | 0 | Cenário de teste sem regime especial, enum oficial do XSD |
+| cTribNac | 170201 | Digitação no cenário fictício; consta da lista oficial nacional |
+| tribISSQN | 1 | Operação tributável de teste, enum oficial |
+| tpRetISSQN | 1 | Sem retenção no teste, enum oficial; não regra universal de cliente |
+| totTrib | pTotTribSN0.00 | Valor exclusivamente fictício de transparência do ensaio; não alíquota real da SYSNEY |
+| série | 49991 | Série técnica própria da API restrita, separada da RPS municipal |
+
+Prestador/CNPJ/certificado/município usam o vínculo real confirmado SYSNEY. Tomador,
+serviço e valorR$1 são fictícios. Descrição explicita SEM VALIDADE FISCAL, sem
+prestação, cobrança ou pagamento real. Não foram utilizados os6% da Compuwise nem
+se afirmou que esse código é a classificação correta do ATP em produção.
+
+A identidade já existente da VM tem TableContributor apenas em FiscalFila e
+TableReader em AdminDocumentos; não tem BlobContributor. Primeira preparação
+parou com403 ao guardar bytes no blob, ANTES de qualquer POST. Não foram ampliados
+grants. Para o caso QA, `createRestrictedQaTableWorkStore` guarda bytes em chunks
+privados de20KB na partição dedicada `qa-national-work-bytes-v1` de FiscalFila,
+com SHA256, limite5MB, insert-only, conferência após conflito e CAS dos metadados.
+20KB considera o limite UTF-16 de32K caracteres por string Table. O caminho normal
+de blob permanece padrão; a opção Table é explícita no runner interno de QA.
+Não cria endpoint público nem registra estes documentos como notas produtivas.
+
+Repreparação recuperou a MESMA sequência1 e proveniência já reservadas. DPS de teste
+`DPS355030825776709900017949991000000000000001`, assinada/XSD validado com certificado
+SYSNEY sem exportação. A preparação QA está em partição separada de pedidos ATP
+públicos/cobranças, sem recebimento real. Preflight GET dessa DPS respondeu404.
+
+Foi realizado UM POST ao host SEFIN de produção restrita. Resposta oficial:
+
+**HTTP400, E0312**: o código de tributação nacional informado não está administrado
+pelo município de incidência do ISSQN na competência da DPS, conforme lista nacional.
+
+Resultado persistido `rejected_restricted`, não issued. Consulta posterior executou
+somente GET, sem chave/XML autorizado. Nenhuma NFS-e ou DANFSe foi gerada. Não houve
+segundo POST, reset do ledger ou troca de município/código real para contornar a
+rejeição. Essa resposta comprova acesso ao endpoint e recepção da tentativa, não
+homologação bem-sucedida de emissão/assinatura/tributação nem aptidão de produção.
+
+Gates foram habilitados APENAS no processo desse ensaio e restaurados em finally.
+Sem variável global/PATH/registro, sem alteração de FiscalTeste, serviço, SQL,
+MySQL, firewall, ACL ou RBAC. Nenhum e-mail, pagamento, cobrança ou nota em produção.
+Contrato draft2, nationalAdapterReadyfalse e gates produtivos permanecem fechados;
+vendas gerais e cortesia Casa Praia não foram tocadas.
+
+Transporte agora preserva apenas códigos/descrições limitadas dos erros400/403,
+com remoção de HTML/documentos, descartando complemento e corpo arbitrário. HTML,
+erro sem JSON ou resposta grande não vira diagnóstico. Testes finais:31Node sem
+falhas/skips, PowerShell assinatura/XSD e sanitização de erros, TypeScript, buildAPI
+e scanner de segredos aprovados. Nenhuma mudança foi publicada na API ou em main.
+
+Consulta oficial posterior, somente GET, localizou o Swagger atual de parâmetros:
+`https://adn.producaorestrita.nfse.gov.br/parametrizacao/swagger/v1/swagger.json`
+(HTTP200). O caminho legado ParametrosMunicipais no SEFIN foi movido/501. Convênio
+de3550308 respondeu200 com aderenteAmbienteNacional1, aderenteEmissorNacional1 e
+situacaoEmissaoPadraoContribuintesRFB1; isso não comprova serviço/competência.
+Na API de parâmetros, codigoServico exige a máscara `17.02.01.000`: tanto seis
+dígitos quanto nove sem separadores são recusados por400 de formato. Não confundir
+esses400 de consulta com rejeição de emissão ou serviço não administrado.
+
+Na forma aceita, histórico de17.02.01.000 retornou404, histórico não encontrado.
+Como alternativa de cenário fictício justificada pela lista oficial (licença de
+software, não classificação ATP aprovada),01.05.01.000 retornou200, mas só com
+regra IncidenciaSIM/Aliq2.90/DtIni2025-03-17/DtFim2025-03-17. Esse intervalo não
+comprova vigência em27/10/2026. Não foi copiada essa alíquota para o Simples nem
+recuada competência para conseguir emissão. Consultar vigência atual é necessário
+antes de outro caso; não inferir que todos os serviços de SP estejam indisponíveis.

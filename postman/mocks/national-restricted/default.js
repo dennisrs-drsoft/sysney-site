@@ -17,6 +17,7 @@ http.createServer(async(req,res)=>{
   const chunks=[];for await(const c of req)chunks.push(c);
   let dto,xml;try{dto=JSON.parse(Buffer.concat(chunks));xml=gunzipSync(Buffer.from(dto.dpsXmlGZipB64,'base64')).toString();}catch{return send(400,{...prefix,erros:[{codigo:'QA400',descricao:'DPS invalida'}]});}
   const idDps=xml.match(/Id="(DPS\d+)"/)?.[1];if(!idDps)return send(400,{...prefix,erros:[{codigo:'QAID'}]});
+  if(mode==='reject')return send(400,{erros:[{codigo:'E_QA_400',descricao:'Rejeicao sintetica sem validade fiscal'}]});
   posts++;const chaveAcesso=String(records.size+1).padStart(50,'0');
   const record={...prefix,idDps,chaveAcesso,nfseXmlGZipB64:gzipSync(Buffer.from('<NFSeSimulada>SEM VALIDADE FISCAL</NFSeSimulada>')).toString('base64')};records.set(idDps,record);
   if(mode==='timeout-after-commit'){mode='normal';return setTimeout(()=>send(201,record),500);}
