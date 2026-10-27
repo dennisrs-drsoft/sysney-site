@@ -174,9 +174,9 @@ components:
         externalReference: {type: string, minLength: 1, maxLength: 160}
         orderId: {type: string, minLength: 1, maxLength: 160}
         arenaId: {type: string, minLength: 1, maxLength: 160}
-        amountCentsBRL: {type: integer, minimum: 1, maximum: 10000000000, description: Valor bruto recebido em centavos BRL, não líquido após taxas}
+        amountCentsBRL: {type: integer, minimum: 1, maximum: 10000000000, description: 'Valor bruto recebido em centavos BRL, não líquido após taxas'}
         paymentVerifiedAtUtc: {type: string, format: date-time, pattern: 'Z$', description: Hora UTC em que ATP verificou e confirmou o pagamento; não é a hora real do pagamento}
-        paidAtUtc: {type: string, format: date-time, pattern: 'Z$', description: Opcional; somente quando a fonte fornece timestamp real do pagamento, nunca inventar a partir de confirmedDate ou DueDate}
+        paidAtUtc: {type: string, format: date-time, pattern: 'Z$', description: 'Opcional; somente quando a fonte fornece timestamp real do pagamento, nunca inventar a partir de confirmedDate ou DueDate'}
         competence: {type: string, pattern: '^20\d{2}-(0[1-9]|1[0-2])$'}
         servicePeriod:
           type: object
@@ -237,7 +237,7 @@ components:
               additionalProperties: false
               required: [automaticIssuance, nationalAdapterReady, emailHandledBy]
               properties:
-                automaticIssuance: {type: boolean, const: false, description: Permissão do chamador; Bearer só prepara/consulta, nunca invoca emissão}
+                automaticIssuance: {type: boolean, const: false, description: 'Permissão do chamador; Bearer só prepara/consulta, nunca invoca emissão'}
                 nationalAdapterReady: {type: boolean, const: false}
                 emailHandledBy: {type: string, const: ATP}
             invoice:
