@@ -19,12 +19,13 @@ test('gates OFF param antes de storage; simulação não aceita escopo remoto; l
 test('worker relê política, estorno e fence após fila; nada chega ao executor quando divergente',async()=>{
  const table=memoryTable(),id='a'.repeat(64),workId='b'.repeat(64),policyHash='c'.repeat(64),hash='d'.repeat(64),xml='<RPS>QA</RPS>';
  const put=async(part,row,value)=>table.createEntity({partitionKey:part,rowKey:row,json:JSON.stringify(value)});
- const request={source:'ATP',hash,status:'pending_review',reviewStatus:'none'},lease={requestHash:hash,policyHash,claimId:'leaseQA',fence:1,leaseUntil:100};
+ const dispatch={reservationId:'e'.repeat(64),workId,xmlHash:digest(xml),controlFence:1},request={source:'ATP',hash,status:'pending_review',reviewStatus:'none',executionControl:{mode:'automatic',controlFence:1,dispatch}},lease={requestHash:hash,policyHash,claimId:'leaseQA',fence:1,leaseUntil:100};
  await put('integracao-fiscal-atp-v1','request-'+id,request);await put('atp-municipal-automation-v1',id,lease);await put('integracao-fiscal-atp-v1','work-'+workId,{source:'ATP',requestId:id,workId,snapshotHash:'snapshot'});
  await createAtpMunicipalStore(table).create({workId,source:'ATP',requestId:id,requestHash:hash,snapshotHash:'snapshot',xml,hash:digest(xml),chain:'chain'});
  const config={paused:false,allowFiscalCalls:true,automationEnabled:true,nationalEnabled:false,issuanceEnabled:true,approvedPolicyHash:policyHash,approvedPolicyVersion:'QA1'};
- const check=createAtpWorkerAuthority({documents:table,config,now:()=>10}),p={action:'emitir',xml,chain:'chain',workId,approvedHash:digest(xml),automation:{requestId:id,requestHash:hash,policyHash,profileVersion:'QA1',leaseClaimId:'leaseQA',leaseFence:1}};
+ const check=createAtpWorkerAuthority({documents:table,config,now:()=>10}),p={action:'emitir',xml,chain:'chain',workId,approvedHash:digest(xml),dispatch,automation:{requestId:id,requestHash:hash,policyHash,profileVersion:'QA1',leaseClaimId:'leaseQA',leaseFence:1}};
  await check(p);await assert.rejects(check({...p,xml:'<RPS>OTHER</RPS>'}),/BINDING/);
+ await assert.rejects(check({...p,dispatch:undefined}),/PERMIT/);await assert.rejects(check({...p,dispatch:{...dispatch,controlFence:2}}),/PERMIT/);
  const row=await table.getEntity('integracao-fiscal-atp-v1','request-'+id);await table.updateEntity({...row,json:JSON.stringify({...request,reviewStatus:'refund_review_required'})},'Replace',{etag:row.etag});await assert.rejects(check(p),/REVIEW_OR_FENCE/);
  config.issuanceEnabled=false;await assert.rejects(check(p),/ISSUANCE_DISABLED/);
 });

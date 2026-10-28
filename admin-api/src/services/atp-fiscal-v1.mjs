@@ -64,6 +64,12 @@ export function createAtpFiscalHandler({storeFactory,config=()=>({enabled:proces
    if(req.method!=='POST')invalid();
    let body;try{const bytes=await lerCorpoLimitado(req,16384);body=JSON.parse(bytes?.toString('utf8')||'');}catch(e){if(e instanceof ErroRequisicao&&e.status===413)throw new FiscalError(413,'PAYLOAD_TOO_LARGE','Solicitação excede o limite.');invalid();}
    if(id){
+    if(action==='assumir-manual'){
+     object(body,['claimId','externalReference','reason']);text(body.claimId,160);text(body.externalReference,160);text(body.reason,500);
+     if(typeof store.claimManual!=='function')throw new FiscalError(503,'MANUAL_CONTROL_UNAVAILABLE','Controle manual indisponível; não emita outra nota.',true);
+     const result=await store.claimManual({requestId:id,...body,at:now()});
+     return reply(200,{requestId,replayed:result.replayed,request:projection(result.request),manualControl:result.manualControl});
+    }
     if(action!=='revisao-estorno')invalid();object(body,['refundId','reason']);text(body.refundId,160);text(body.reason,500);
     for(let attempt=0;attempt<4;attempt++){
      const r=await get(id),hash=digest(canonical(body)),key=digest(body.refundId);

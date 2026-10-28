@@ -72,10 +72,13 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
    const age=Date.parse(now())-Date.parse(w.testedAtUtc);
    const civilDate=saoPauloFiscalDate(now());
    if(w.hash!==approvedHash||w.testedHash!==w.hash||!Number.isFinite(age)||age<0||age>1800000||civilDate!==w.emissionDate||civilDate>='2026-11-01')throw Error('ATP_MUNICIPAL_APPROVAL_REQUIRED');
+   // This same-row CAS is the handover boundary: no manual ACK can follow it.
+   if(actor.kind==='automation'&&!repository.reserveMunicipalDispatch)throw Error('ATP_DISPATCH_CONTROL_REQUIRED');
+   const dispatch=await repository.reserveMunicipalDispatch?.({requestId:w.requestId,requestHash:w.requestHash,workId,xmlHash:w.hash,actor,at:now()});
    // A timeout after the atomic insert is deliberately GET/query-only forever.
    const first=await store.claim(workId,w.hash);
    if(first){
-    try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true});}
+    try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true,...(dispatch?{dispatch}:{})});}
     catch{return {workId,state:'uncertain',issued:false,queryRequired:true};}
    }
    return deferReconcile?{workId,state:'query_required',issued:false,queryRequired:true}:reconcile(workId,actor);

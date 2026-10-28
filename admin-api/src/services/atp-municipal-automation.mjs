@@ -33,11 +33,11 @@ export function createAtpMunicipalAutomation({repository,works,jobs,executor,con
    if(!lease){summary.busy++;continue;}
    try{
     const fresh=await repository.getRequest(candidate.id);
-    if(fresh.reviewStatus!=='none'){
+    if(fresh.reviewStatus!=='none'||fresh.executionControl&&fresh.executionControl.mode!=='automatic'){
      lease=await jobs.save(lease,{stage:'review_required',reason:fresh.reviewStatus,nextAttemptUtc:null});summary.review++;continue;
     }
     if(lease.stage==='review_required')continue;
-    const guarded={kind:executor.kind,execute:async p=>{await jobs.assert(lease);const r=await repository.getRequest(candidate.id);if(r.reviewStatus!=='none'||r.hash!==lease.requestHash)throw Error('ATP_AUTOMATION_REVIEW_OR_SNAPSHOT_CHANGED');return executor.execute({...p,automation:{requestId:r.id,requestHash:r.hash,policyHash,profileVersion:config.profile.version,leaseClaimId:lease.claimId,leaseFence:lease.fence}});},downloadPdf:async e=>{await jobs.assert(lease);return executor.downloadPdf(e);}};
+    const guarded={kind:executor.kind,execute:async p=>{await jobs.assert(lease);const r=await repository.getRequest(candidate.id);if(r.reviewStatus!=='none'||r.hash!==lease.requestHash||r.executionControl&&r.executionControl.mode!=='automatic')throw Error('ATP_AUTOMATION_REVIEW_OR_SNAPSHOT_CHANGED');return executor.execute({...p,automation:{requestId:r.id,requestHash:r.hash,policyHash,profileVersion:config.profile.version,leaseClaimId:lease.claimId,leaseFence:lease.fence}});},downloadPdf:async e=>{await jobs.assert(lease);return executor.downloadPdf(e);}};
     const workflow=createAtpMunicipalWorkflow({repository,store:works,executor:guarded,enabled:true,issuanceEnabled:true,now});
     let stage=lease.stage,workId=lease.workId;
     if(stage==='new'){

@@ -2,6 +2,7 @@ import {TableClient} from '@azure/data-tables';
 import {DefaultAzureCredential} from '@azure/identity';
 import {BlobServiceClient} from '@azure/storage-blob';
 import {digest} from './atp-fiscal-v1.mjs';
+import {createAtpExecutionControl} from './atp-fiscal-execution-control.mjs';
 
 // Uma transação Table cria documento e índice na mesma partição: ambos ou nenhum.
 const partitionKey='integracao-fiscal-atp-v1';
@@ -26,6 +27,7 @@ export function createAtpFiscalRepository({table,blobs}){
  const read=async rowKey=>{try{return await table.getEntity(partitionKey,rowKey);}catch(e){if(e.statusCode===404)return null;throw e;}};
  const get=async id=>{const e=await read(`request-${id}`);return e?{...JSON.parse(e.json),automationDueUtc:e.automationDueUtc||'',etag:e.etag}:null;};
  return {
+  ...createAtpExecutionControl({table,getRequest:get,requestEntity:entity,partitionKey}),
   get,
   getRequest:get,
   async *automationCandidates({notBeforeUtc,limit=10,nowUtc=new Date().toISOString()}){
@@ -35,7 +37,7 @@ export function createAtpFiscalRepository({table,blobs}){
    let count=0;for await(const e of table.listEntities({queryOptions:{filter}})){if(++count>Math.min(limit,100))break;const r=JSON.parse(e.json);if(r.source==='ATP')yield {...r,etag:e.etag};}
   },
   async deferAutomation(id,dueUtc){
-   for(let i=0;i<4;i++){const r=await get(id);try{await table.updateEntity({partitionKey,rowKey:'request-'+id,automationDueUtc:dueUtc},'Merge',{etag:r.etag});return;}catch(e){if(e.statusCode!==412)throw e;}}
+   for(let i=0;i<4;i++){const r=await get(id);if(r.executionControl&&r.executionControl.mode!=='automatic')return;try{await table.updateEntity({partitionKey,rowKey:'request-'+id,automationDueUtc:dueUtc},'Merge',{etag:r.etag});return;}catch(e){if(e.statusCode!==412)throw e;}}
    throw Error('ATP_AUTOMATION_SCHEDULE_BUSY');
   },
   async markAutomationReview({requestId,requestHash,reason,policyHash,at}){

@@ -22,5 +22,6 @@ for(const [name,route,methods] of [
  ['atp-fiscal-root','integracoes/atp/v1/solicitacoes-fiscais',['GET','POST']],
  ['atp-fiscal-id','integracoes/atp/v1/solicitacoes-fiscais/{id}',['GET']],
  ['atp-fiscal-refund','integracoes/atp/v1/solicitacoes-fiscais/{id}/{action:regex(^revisao-estorno$)}',['POST']],
+ ['atp-fiscal-manual','integracoes/atp/v1/solicitacoes-fiscais/{id}/{action:regex(^assumir-manual$)}',['POST']],
  ['atp-fiscal-document','integracoes/atp/v1/solicitacoes-fiscais/{id}/documentos/{format}',['GET']],
 ])app.http(name,{route,methods,authLevel:'anonymous',handler});

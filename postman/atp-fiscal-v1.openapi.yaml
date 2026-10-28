@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SYSNEY — preparação fiscal ATP
-  version: 1.0.0-draft.3
+  version: 1.0.0-draft.4
   description: |
     Fachada publicada de preparação/consulta, sem rota de emissão para o Bearer ATP.
     automaticIssuance=false descreve a permissão do chamador, não o processamento
@@ -73,6 +73,64 @@ paths:
               schema: {$ref: '#/components/schemas/PreparationResponse'}
         '401': {$ref: '#/components/responses/Error'}
         '404': {$ref: '#/components/responses/Error'}
+        '503': {$ref: '#/components/responses/Error'}
+  /api/integracoes/atp/v1/solicitacoes-fiscais/{id}/assumir-manual:
+    parameters:
+      - {$ref: '#/components/parameters/Id'}
+    post:
+      operationId: assumirEmissaoManualAtp
+      description: |
+        Reserva permanente e idempotente por solicitação/externalReference.
+        Somente200 com manualControl.acknowledged=true e identidade/hash/claim
+        conferidos autoriza o consumidor a emitir/anexar manualmente. Isso confirma
+        exclusão mútua técnica; não aprova enquadramento fiscal ou data/competência.
+        A reserva não expira nem retoma automação. Não há ação de emissão nesta rota.
+        Se houver nota ou intenção durável/ledger de transmissão, retorna409
+        MANUAL_RECONCILIATION_REQUIRED: consultar e revisar, nunca emitir outra nota.
+        Timeout/503/ausência de resposta não são ACK. Repetir exatamente claimId e
+        payload originais; outro claim retorna409 MANUAL_CLAIM_CONFLICT.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [claimId, externalReference, reason]
+              properties:
+                claimId: {type: string, minLength: 1, maxLength: 160}
+                externalReference: {type: string, minLength: 1, maxLength: 160}
+                reason: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        '200':
+          description: Automação impedida de transmitir; repetir preserva a mesma confirmação
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [requestId, replayed, request, manualControl]
+                properties:
+                      requestId: {type: string}
+                      replayed: {type: boolean}
+                      request: {$ref: '#/components/schemas/PreparationResponse/properties/request'}
+                      manualControl:
+                        type: object
+                        additionalProperties: false
+                        required: [claimId, externalReference, acknowledged, automationPaused, requestHash, acknowledgedAtUtc, controlFence, protocolVersion]
+                        properties:
+                          claimId: {type: string}
+                          externalReference: {type: string}
+                          acknowledged: {const: true}
+                          automationPaused: {const: true}
+                          requestHash: {type: string, pattern: '^[a-f0-9]{64}$'}
+                          acknowledgedAtUtc: {type: string, format: date-time}
+                          controlFence: {type: integer, minimum: 1}
+                          protocolVersion: {const: '1'}
+        '400': {$ref: '#/components/responses/Error'}
+        '401': {$ref: '#/components/responses/Error'}
+        '404': {$ref: '#/components/responses/Error'}
+        '409': {$ref: '#/components/responses/Error'}
         '503': {$ref: '#/components/responses/Error'}
   /api/integracoes/atp/v1/solicitacoes-fiscais/{id}/revisao-estorno:
     parameters:
