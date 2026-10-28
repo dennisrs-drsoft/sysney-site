@@ -69,4 +69,12 @@ Fonte `2eee6bf9740d0786c005712d2d98a4a6866bfac0`, branch `codex/atp-manual-contr
 
 O consumidor ATP possui seu próprio ciclo de validação/publicação, documentado naquela frente. Este relatório não afirma que vendas/e-mailsATP foram ativados. Automação municipal não foi liberada: política global ausente e alinhamento fiscal/novembro continuam explícitos; a contingência manual é o caminho preparado para seguir com a operação.
 
-Harness de contingência emloopback4327 disponibilizado ao chatATP com SDKAzurite e governoHTTPstand-in, token sintético em arquivo privado separado. Permanece disponível enquanto o consumidor valida seus testes; não está conectado à produção. O ACK e a limpeza desse ambiente serão registrados quando a frente consumidora concluir. Isso não é pendência do deploy de backend ou autorização para ativar o emissor.
+## ACK do consumidor e encerramento do QA
+
+O chatATP confirmou5/5 testes, zero skips:4SQL/HTTP e1C# interoperável contra a fachada4327. Contadores do arquivo privado `.qa/manual-fiscal-20261028/manual-protocol.trx` foram lidos e conferidos nesta frente: total/executados/aprovados5, falhas/nãoexecutados0. Teste interoperável em `tests/AgoraTemPlay.Api.Tests/FiscalManualHarnessTests.cs`, no repositórioATP.
+
+O ensaio fez PREPARE sintético e perdeu a resposta no cliente **após ACK200 remoto real**. Sem ACK no consumidor, retry com o mesmo claimId recuperou hash/fence/confirmação iguais; replay manteve a identidade. Outro claim409 e revisão de estorno409 bloqueados. Canonicalização de Unicode/acentos/HTML/ampersand coincidiu entre C# e JavaScript. O consumidor declarou nenhuma chamada governamental nesse ensaio; o harness é vinculado somente a endpoints loopback.
+
+Após autorização de limpeza do consumidor: harness4327, Postman5239 e Azurite11010/11011/11012 próprios encerrados; teste TCP confirmou todas essas portas sem listener. Token **sintético** temporário removido, ausência confirmada. Nenhuma configuração, credencial ou serviço de produção foi tocado nesta conclusão. Nenhum token de produção foi recuperado localmente.
+
+A exclusão recursiva da pasta de dados sintéticos do Azurite foi bloqueada pela revisão automática, sem razão específica além de política. A pasta foi preservada; não houve tentativa alternativa de contornar esse bloqueio. Ela não contém credenciais de produção. Relatórios de teste e hashes operacionais foram mantidos fora do Git para rastreabilidade. Não há pendência de execução ou credencial do harness; apenas esses dados locais sintéticos permanecem em disco.
