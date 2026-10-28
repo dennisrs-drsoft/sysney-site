@@ -17,6 +17,7 @@ if($Readiness){
 if($config.paused -eq $true -or $config.allowFiscalCalls -ne $true){[pscustomobject]@{State='paused';Transmitted=$false;FiscalStorageWrites=$false}|ConvertTo-Json -Compress;return}
 if(!$Once){throw 'ATP_WORKER_EXPLICIT_ONCE_REQUIRED'}
 if($config.automationEnabled -ne $true -or $config.approvedPolicyHash -notmatch '^[a-f0-9]{64}$' -or !$config.approvedPolicyVersion){throw 'ATP_WORKER_APPROVED_AUTOMATION_REQUIRED'}
+if($config.requireFreshPayment -ne $true -or $config.issuanceWindowPolicyVersion -cne 'ATP-WAIT-v1' -or $config.paymentGateBaseUrl -notin @('https://api.agoratemplay.com.br','https://api.agoratemplay.com.br/') -or $config.municipalRouting.approved -ne $true){throw 'ATP_WORKER_FRESH_PAYMENT_POLICY_REQUIRED'}
 # Emission additionally requires the private deployment policy and its own gate.
 $names=@('ATP_MUNICIPAL_OPERATOR_ENABLED','ATP_MUNICIPAL_EXECUTOR_ENABLED','ATP_MUNICIPAL_ISSUANCE_ENABLED');$old=@{}
 foreach($name in $names){$old[$name]=[Environment]::GetEnvironmentVariable($name,'Process')}

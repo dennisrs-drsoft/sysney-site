@@ -10,6 +10,7 @@ import {createAtpMunicipalWorkflow,saoPauloFiscalDate} from '../src/services/atp
 import {createAtpMunicipalQueueExecutor,runAtpMunicipalQueueJob,runNextAtpMunicipalQueueJob} from '../src/services/atp-municipal-queue.mjs';
 import {readAtpMunicipalReadiness} from '../src/services/atp-municipal-readiness.mjs';
 import {createAtpWorkerAuthority} from '../src/services/atp-municipal-worker-authority.mjs';
+import {createAtpPaymentGate} from '../src/services/atp-payment-gate.mjs';
 const [action='dry-run',configPath,id,approvedHash]=process.argv.slice(2);
 if(action==='dry-run')console.log(JSON.stringify({source:'ATP',municipalExecutorEnabled:false,issuanceEnabled:false,nationalEnabled:false,storageTouched:false,certificateRead:false,transmitted:false}));
 else if(action==='readiness'){
@@ -25,9 +26,10 @@ else{
  const bytes=await readFile(configPath);if(bytes.length>16384)throw Error('ATP_OPERATOR_CONFIG_LIMIT');const c=JSON.parse(bytes);
  if(!/^[a-z0-9]{3,24}$/.test(c.storageAccount||'')||typeof c.actorId!=='string'||!c.actorId||c.actorId.length>254)throw Error('ATP_OPERATOR_CONFIG_INVALID');
  const actor={id:c.actorId,role:'administrador'},credential=new DefaultAzureCredential(),queue=new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'FiscalFila',credential);
- const native=createAtpMunicipalExecutor({enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',issuanceEnabled:process.env.ATP_MUNICIPAL_ISSUANCE_ENABLED==='true',thumbprint:c.certificateThumbprint});
+ const native=createAtpMunicipalExecutor({enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',issuanceEnabled:process.env.ATP_MUNICIPAL_ISSUANCE_ENABLED==='true',thumbprint:c.certificateThumbprint,municipalRouting:c.municipalRouting,approvedPolicyHash:c.approvedPolicyHash,requireFreshPayment:c.requireFreshPayment===true});
  if(action==='worker'){
-  const options={table:queue,jobId:id,executor:native,enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',authorizeAutomation:createAtpWorkerAuthority({documents:new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'AdminDocumentos',credential),config:c})};
+  const paymentGate=c.requireFreshPayment===true?createAtpPaymentGate({baseUrl:c.paymentGateBaseUrl}):undefined;
+  const options={table:queue,jobId:id,executor:native,enabled:process.env.ATP_MUNICIPAL_EXECUTOR_ENABLED==='true',authorizeAutomation:createAtpWorkerAuthority({documents:new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'AdminDocumentos',credential),config:c,paymentGate})};
   console.log(JSON.stringify(await(id==='next'?runNextAtpMunicipalQueueJob(options):runAtpMunicipalQueueJob(options))));
  }else{
  const repository=createAtpFiscalStore(c.storageAccount),table=new TableClient(`https://${c.storageAccount}.table.core.windows.net`,'AdminDocumentos',credential);

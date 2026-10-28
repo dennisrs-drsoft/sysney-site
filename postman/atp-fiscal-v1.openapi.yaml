@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: SYSNEY — preparação fiscal ATP
-  version: 1.0.0-draft.4
+  version: 1.0.0-draft.5
   description: |
     Fachada publicada de preparação/consulta, sem rota de emissão para o Bearer ATP.
     automaticIssuance=false descreve a permissão do chamador, não o processamento
@@ -235,6 +235,19 @@ components:
         amountCentsBRL: {type: integer, minimum: 1, maximum: 10000000000, description: 'Valor bruto recebido em centavos BRL, não líquido após taxas'}
         paymentVerifiedAtUtc: {type: string, format: date-time, pattern: 'Z$', description: Hora UTC em que ATP verificou e confirmou o pagamento; não é a hora real do pagamento}
         paidAtUtc: {type: string, format: date-time, pattern: 'Z$', description: 'Opcional; somente quando a fonte fornece timestamp real do pagamento, nunca inventar a partir de confirmedDate ou DueDate'}
+        issuanceWindow:
+          type: object
+          additionalProperties: false
+          required: [notBeforeUtc, fiscalDeadlineUtc, policyVersion]
+          description: |
+            Janela imutável do servidor ATP; integra o hash canônico. Início posterior
+            à primeira confirmação e até24h depois. ATP-WAIT-v1 usa24h completas.
+            Se início ultrapassar prazo/competência/validade, revisão sem reservarRPS.
+            Sem este campo mantém consulta/contingência; automação produtiva não emite.
+          properties:
+            notBeforeUtc: {type: string, format: date-time, pattern: 'Z$'}
+            fiscalDeadlineUtc: {type: string, format: date-time, pattern: 'Z$'}
+            policyVersion: {type: string, minLength: 1, maxLength: 100}
         competence: {type: string, pattern: '^20\d{2}-(0[1-9]|1[0-2])$'}
         servicePeriod:
           type: object

@@ -2,15 +2,16 @@ import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import {digest} from './atp-fiscal-v1.mjs';
 // On-demand Windows process, not an installed service. Fixed official origins only.
-export function createAtpMunicipalExecutor({enabled=false,issuanceEnabled=false,thumbprint,powershell='powershell.exe',spawnProcess=spawn,fetchPdf=fetch}={}){
+export function createAtpMunicipalExecutor({enabled=false,issuanceEnabled=false,thumbprint,municipalRouting,approvedPolicyHash,requireFreshPayment=false,powershell='powershell.exe',spawnProcess=spawn,fetchPdf=fetch}={}){
  const gate=()=>{if(enabled!==true)throw Error('ATP_MUNICIPAL_EXECUTOR_DISABLED');};
  return {
   async execute(input){
    gate();if(!['testar','emitir','consultar'].includes(input.action)||!/^[a-f0-9]{64}$/.test(input.workId)||typeof input.xml!=='string'||input.xml.length>1_000_000)throw Error('ATP_EXECUTOR_INPUT_INVALID');
    if(input.action==='emitir'&&(issuanceEnabled!==true||input.confirmed!==true||digest(input.xml)!==input.approvedHash))throw Error('ATP_MUNICIPAL_ISSUANCE_DISABLED');
+   if(input.action==='emitir'&&requireFreshPayment===true&&(input.paymentClearance?.authorized!==true||Date.parse(input.paymentClearance.expiresAtUtc)<=Date.now()))throw Error('ATP_PAYMENT_CLEARANCE_REQUIRED');
    if(!/^[a-fA-F0-9]{40}$/.test(thumbprint||''))throw Error('ATP_CERT_BINDING_REQUIRED');
    return new Promise((resolve,reject)=>{
-    const child=spawnProcess(powershell,['-NoProfile','-NonInteractive','-File',fileURLToPath(new URL('../../scripts/executar-atp-municipal.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,ATP_MUNICIPAL_EXECUTOR_ENABLED:'true',ATP_MUNICIPAL_ISSUANCE_ENABLED:issuanceEnabled===true?'true':'false',ATP_MUNICIPAL_CERT_THUMBPRINT:thumbprint}});
+    const child=spawnProcess(powershell,['-NoProfile','-NonInteractive','-File',fileURLToPath(new URL('../../scripts/executar-atp-municipal.ps1',import.meta.url))],{windowsHide:true,stdio:['pipe','pipe','pipe'],env:{...process.env,ATP_MUNICIPAL_EXECUTOR_ENABLED:'true',ATP_MUNICIPAL_ISSUANCE_ENABLED:issuanceEnabled===true?'true':'false',ATP_MUNICIPAL_CERT_THUMBPRINT:thumbprint,ATP_MUNICIPAL_VALID_FROM:municipalRouting?.approved===true?municipalRouting.validFromDate:'',ATP_MUNICIPAL_VALID_THROUGH:municipalRouting?.approved===true?municipalRouting.validThroughDate:'',ATP_MUNICIPAL_POLICY_HASH:approvedPolicyHash||'',ATP_MUNICIPAL_FRESH_PAYMENT_REQUIRED:requireFreshPayment===true?'true':'false'}});
     const output=[];let size=0;const timeout=setTimeout(()=>{child.kill();reject(Error('ATP_EXECUTOR_UNCERTAIN'));},60000);
     child.stdout.on('data',b=>{size+=b.length;if(size>1_500_000){child.kill();reject(Error('ATP_EXECUTOR_RESPONSE_LIMIT'));}else output.push(Buffer.from(b));});
     // Never forward native stderr/XML/certificate diagnostics to public callers.

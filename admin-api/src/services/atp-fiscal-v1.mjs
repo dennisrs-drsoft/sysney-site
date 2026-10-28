@@ -21,10 +21,11 @@ function documentValid(value,type){
  return s===value;
 }
 export function validatePreparation(v){
- object(v,['paymentId','externalReference','orderId','arenaId','amountCentsBRL','paymentVerifiedAtUtc','competence','servicePeriod','description','recipient'],['paidAtUtc']);
+ object(v,['paymentId','externalReference','orderId','arenaId','amountCentsBRL','paymentVerifiedAtUtc','competence','servicePeriod','description','recipient'],['paidAtUtc','issuanceWindow']);
  for(const k of ['paymentId','externalReference','orderId','arenaId'])text(v[k],160);
  if(!Number.isSafeInteger(v.amountCentsBRL)||v.amountCentsBRL<1||v.amountCentsBRL>10000000000)invalid();
  timestamp(v.paymentVerifiedAtUtc);if(v.paidAtUtc!==undefined)timestamp(v.paidAtUtc);
+ if(v.issuanceWindow!==undefined){const w=v.issuanceWindow;object(w,['notBeforeUtc','fiscalDeadlineUtc','policyVersion']);timestamp(w.notBeforeUtc);timestamp(w.fiscalDeadlineUtc);text(w.policyVersion,100);const delta=Date.parse(w.notBeforeUtc)-Date.parse(v.paymentVerifiedAtUtc);if(delta<=0||delta>86400000)invalid();}
  if(typeof v.competence!=='string'||!/^20\d{2}-(0[1-9]|1[0-2])$/.test(v.competence))invalid();
  object(v.servicePeriod,['startDate','endDate']);date(v.servicePeriod.startDate);date(v.servicePeriod.endDate);if(v.servicePeriod.endDate<v.servicePeriod.startDate)invalid();text(v.description,1500);
  const r=v.recipient;object(r,['documentType','document','legalName','confirmed','address']);

@@ -10,12 +10,14 @@ import {createAtpFiscalRepository} from '../../admin-api/src/services/atp-fiscal
 import {createAtpFiscalHandler,digest} from '../../admin-api/src/services/atp-fiscal-v1.mjs';
 import {createAtpMunicipalStore} from '../../admin-api/src/services/atp-municipal-store.mjs';
 import {createAtpAutomationStore} from '../../admin-api/src/services/atp-municipal-automation-store.mjs';
-import {createAtpMunicipalAutomation} from '../../admin-api/src/services/atp-municipal-automation.mjs';
+import {createAtpMunicipalAutomation,atpMunicipalPolicyHash} from '../../admin-api/src/services/atp-municipal-automation.mjs';
+import {createAtpPaymentGate} from '../../admin-api/src/services/atp-payment-gate.mjs';
 import {saoPauloFiscalDate} from '../../admin-api/src/services/atp-municipal-workflow.mjs';
 import {createAtpMunicipalQueueExecutor,runNextAtpMunicipalQueueJob} from '../../admin-api/src/services/atp-municipal-queue.mjs';
 const escape=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
 const same=(a,b)=>timingSafeEqual(Buffer.from(digest(a)),Buffer.from(digest(b)));
 export async function startAtpAutomationHarness({token,port=0,azuritePackage=process.env.ATP_AZURITE_PACKAGE,blobPort=11010,tablePort=11012,now=()=>new Date().toISOString()}={}){
+ let paymentGate,ticksStarted=false;
  if(typeof token!=='string'||token.length<43||!azuritePackage)throw Error('QA_CONFIG_REQUIRED');
  const constants=await import(pathToFileURL(azuritePackage+'/dist/src/common/utils/constants.js'));
  const name=constants.EMULATOR_ACCOUNT_NAME,key=Buffer.from(constants.EMULATOR_ACCOUNT_KEY).toString('base64');
@@ -29,7 +31,7 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
  const works=createAtpMunicipalStore(docs),jobs=createAtpAutomationStore(docs,{now:()=>Date.parse(now())}),records=new Map(),modes=new Map();
  const stats={tests:0,emissions:0,queries:0,pdfDownloads:0},govToken=randomBytes(48).toString('hex');let baseUrl,automation,defaultMode='normal';
  const mode=id=>modes.get(id)||defaultMode;
- const handler=createAtpFiscalHandler({storeFactory:()=>repository,config:()=>({enabled:'true',token}),now});
+ const handler=createAtpFiscalHandler({storeFactory:()=>repository,config:()=>({enabled:'true',token}),now:()=>now()});
  const body=async req=>{const parts=[];let n=0;for await(const b of req){n+=b.length;if(n>64000)throw Error('QA_BODY_LIMIT');parts.push(b);}return JSON.parse(Buffer.concat(parts).toString()||'{}');};
  const reply=(res,status,value,type='application/json')=>{res.writeHead(status,{'content-type':type,'cache-control':'no-store'});res.end(Buffer.isBuffer(value)?value:JSON.stringify(value));};
  const makeReturn=record=>{
@@ -48,6 +50,7 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
      if(!keyRps)throw Error('QA_RPS_REQUIRED');const key=JSON.stringify(keyRps),work=await works.get(p.workId);
      if(p.action==='testar'){stats.tests++;return reply(res,200,{success:true,xml:'<RetornoEnvioLoteRPS><Cabecalho><Sucesso>true</Sucesso></Cabecalho></RetornoEnvioLoteRPS>'});}
      if(p.action==='emitir'){
+      if(paymentGate&&p.paymentClearance?.authorized!==true)return reply(res,409,{error:'QA_PAYMENT_CLEARANCE_REQUIRED'});
       stats.emissions++;if(records.has(key))return reply(res,409,{error:'QA_DUPLICATE_EMIT'});
       const record={requestId:work.requestId,rps:r,number:String(9000000+records.size+1),verification:('QA'+String(records.size+1).padStart(6,'0')),authorized:now()};records.set(key,record);
       if(mode(work.requestId)==='timeout'){res.destroy();return;}return reply(res,200,{success:true,xml:'<Acknowledgement/>'});
@@ -65,9 +68,20 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
    if(url.pathname.startsWith('/qa/')){
     if(!same(req.headers.authorization||'','Bearer '+token))return reply(res,401,{error:'QA_UNAUTHORIZED'});
     if(url.pathname==='/qa/stats')return reply(res,200,{...stats,invoices:records.size,mode:defaultMode,clockUtc:now(),notBeforeUtc:policy.notBeforeUtc,storage:'azurite-loopback',production:false});
+    if(url.pathname==='/qa/clock'&&req.method==='POST'){const b=await body(req);if(b.utc==='system')now=()=>new Date().toISOString();else if(typeof b.utc==='string'&&Number.isFinite(Date.parse(b.utc)))now=()=>b.utc;else return reply(res,400,{error:'QA_CLOCK_INVALID'});return reply(res,200,{clockUtc:now(),production:false});}
+    if(url.pathname==='/qa/payment-gate'&&req.method==='POST'){
+     if(ticksStarted)return reply(res,409,{error:'QA_POLICY_ALREADY_STARTED'});
+     const b=await body(req);if(typeof b.token!=='string'||b.token.length<43)return reply(res,400,{error:'QA_CALLBACK_TOKEN_REQUIRED'});
+     const u=new URL(b.baseUrl);if(u.protocol!=='http:'||u.hostname!=='127.0.0.1'||!u.port)return reply(res,400,{error:'QA_LOOPBACK_REQUIRED'});
+     paymentGate=createAtpPaymentGate({baseUrl:u.origin,mode:'simulation',tokenProvider:async()=>b.token,now:()=>Date.parse(now())});
+     policy.issuanceWindowPolicyVersion='ATP-WAIT-v1';policy.municipalRouting=b.municipalRouting||{approved:true,version:'QA-EXPLICIT-MUNICIPAL',periodMeaning:'access',validFromDate:'2026-10-01',validThroughDate:'2026-11-09'};
+     if(b.notBeforeUtc){if(!Number.isFinite(Date.parse(b.notBeforeUtc)))return reply(res,400,{error:'QA_CUTOFF_INVALID'});policy.notBeforeUtc=b.notBeforeUtc;}
+     automation=createAtpMunicipalAutomation({repository,works,jobs,executor:queued,paymentGate,config:policy,simulationScope:{endpoint:baseUrl,storage:'azurite-loopback'},now:()=>now()});
+     return reply(res,200,{configured:true,policyHash:atpMunicipalPolicyHash(policy),clockUtc:now(),production:false});
+    }
     if(url.pathname==='/qa/job')return reply(res,200,await jobs.get(url.searchParams.get('requestId'))||{state:'missing'});
     if(url.pathname==='/qa/mode'&&req.method==='POST'){const b=await body(req);if(!['normal','timeout','pdf-unavailable','pdf-wrong','cancelled','substituted','query-format-changed','query-malformed'].includes(b.name))return reply(res,400,{error:'QA_MODE_INVALID'});if(b.requestId)modes.set(b.requestId,b.name);else defaultMode=b.name;return reply(res,200,{mode:b.name,requestId:b.requestId||null});}
-    if(url.pathname==='/qa/tick'&&req.method==='POST'){const b=await body(req),steps=Math.max(1,Math.min(12,b.steps||1)),concurrency=Math.max(1,Math.min(4,b.concurrency||1)),results=[];for(let i=0;i<steps;i++)results.push(...await Promise.all(Array.from({length:concurrency},()=>automation.tick({limit:20}))));return reply(res,200,{results});}
+    if(url.pathname==='/qa/tick'&&req.method==='POST'){ticksStarted=true;const b=await body(req),steps=Math.max(1,Math.min(12,b.steps||1)),concurrency=Math.max(1,Math.min(4,b.concurrency||1)),results=[];for(let i=0;i<steps;i++)results.push(...await Promise.all(Array.from({length:concurrency},()=>automation.tick({limit:20}))));return reply(res,200,{results});}
     return reply(res,404,{error:'QA_NOT_FOUND'});
    }
    const prefix='/api/integracoes/atp/v1/solicitacoes-fiscais',suffix=url.pathname.startsWith(prefix)?url.pathname.slice(prefix.length):null,params={};
@@ -79,9 +93,9 @@ export async function startAtpAutomationHarness({token,port=0,azuritePackage=pro
  });
  await new Promise((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});baseUrl=`http://127.0.0.1:${server.address().port}`;
  const transport={kind:'loopback_standin',async execute(p){const r=await fetch(baseUrl+'/qa/gov/fiscal',{method:'POST',headers:{'x-qa-government-token':govToken,'content-type':'application/json'},body:JSON.stringify(p)});if(!r.ok)throw Error('QA_GOV_UNCONFIRMED');const v=await r.json();return {...v,xml:Buffer.from(v.xml)};},async downloadPdf(e){const r=await fetch(baseUrl+'/qa/gov/pdf?number='+encodeURIComponent(e.number),{headers:{'x-qa-government-token':govToken}});if(!r.ok)throw Error('QA_PDF_UNAVAILABLE');return Buffer.from(await r.arrayBuffer());}};
- const queued=createAtpMunicipalQueueExecutor({table:queue,enabled:true,downloadPdf:e=>transport.downloadPdf(e),wait:async()=>{await runNextAtpMunicipalQueueJob({table:queue,executor:transport,enabled:true,authorizeAutomation:async p=>{const r=await repository.get(p.automation.requestId),j=await jobs.get(r.id),c=r.executionControl;if(r.reviewStatus!=='none'||r.hash!==p.automation.requestHash||j.claimId!==p.automation.leaseClaimId||j.fence!==p.automation.leaseFence||c&&c.mode!=='automatic'||p.action==='emitir'&&(!p.dispatch||c?.dispatch?.reservationId!==p.dispatch.reservationId||c?.controlFence!==p.dispatch.controlFence))throw Error('QA_REFUND_OR_FENCE_CHANGED');}});}});queued.kind='loopback_standin';
+ const queued=createAtpMunicipalQueueExecutor({table:queue,enabled:true,downloadPdf:e=>transport.downloadPdf(e),wait:async()=>{await runNextAtpMunicipalQueueJob({table:queue,executor:transport,enabled:true,authorizeAutomation:async p=>{const r=await repository.get(p.automation.requestId),j=await jobs.get(r.id),c=r.executionControl;if(r.reviewStatus!=='none'||r.hash!==p.automation.requestHash||j.claimId!==p.automation.leaseClaimId||j.fence!==p.automation.leaseFence||c&&c.mode!=='automatic'||p.action==='emitir'&&(!p.dispatch||c?.dispatch?.reservationId!==p.dispatch.reservationId||c?.controlFence!==p.dispatch.controlFence))throw Error('QA_REFUND_OR_FENCE_CHANGED');if(p.action==='emitir'&&paymentGate)return paymentGate.consume({permit:p.paymentPermit,executionId:p.queueExecutionId,request:r,workId:p.workId,xmlHash:p.approvedHash,dispatch:p.dispatch,policyHash:p.automation.policyHash});}});}});queued.kind='loopback_standin';
  const day=saoPauloFiscalDate(now()),policy={mode:'simulation',automationEnabled:true,issuanceEnabled:false,nationalEnabled:false,approved:true,exclusiveSeriesConfirmed:true,series:'ATPQA',initialNumber:'1',notBeforeUtc:day+'T00:00:00Z',recheckMs:0,pdfRetryMs:0,profile:{version:'QA-AUTOMATION-SEM-VALIDADE',issuer:{cnpj:'57767099000179',inscricao:'15539300'},regime:'simples',codigoServico:'03158',municipioPrestacao:'3550308',aliquota:'0',issRetido:false}};
- automation=createAtpMunicipalAutomation({repository,works,jobs,executor:queued,config:policy,simulationScope:{endpoint:baseUrl,storage:'azurite-loopback'},now});
+ automation=createAtpMunicipalAutomation({repository,works,jobs,executor:queued,config:policy,simulationScope:{endpoint:baseUrl,storage:'azurite-loopback'},now:()=>now()});
  return {baseUrl,repository,works,jobs,stats,policy,automation,async close(){await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});await container.delete();await service.deleteTable(docsName);await service.deleteTable(queueName);}};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){

@@ -1,9 +1,12 @@
 import {randomUUID} from 'node:crypto';
 import {digest} from './atp-fiscal-v1.mjs';
 import {saoPauloFiscalDate,createAtpMunicipalWorkflow} from './atp-municipal-workflow.mjs';
+import {inspectIssuanceWindow} from './atp-issuance-window.mjs';
+import {validateMunicipalRouting} from './atp-municipal-model.mjs';
 // The trusted policy replaces per-note UI approval, not invoice provenance.
 // No bearer route invokes this; the private runtime owns policy and both gates.
-export function createAtpMunicipalAutomation({repository,works,jobs,executor,config,simulationScope,now=()=>new Date().toISOString(),owner=randomUUID()}){
+export const atpMunicipalPolicyHash=config=>digest(JSON.stringify({profile:config.profile,series:config.series,initialNumber:config.initialNumber,notBeforeUtc:config.notBeforeUtc,mode:config.mode,...(config.municipalRouting?{municipalRouting:config.municipalRouting}:{}),...(config.issuanceWindowPolicyVersion?{issuanceWindowPolicyVersion:config.issuanceWindowPolicyVersion}:{})}));
+export function createAtpMunicipalAutomation({repository,works,jobs,executor,paymentGate,config,simulationScope,now=()=>new Date().toISOString(),owner=randomUUID()}){
  const serviceIdentity={id:'SYSNEY-ATP-AUTOMATION',role:'administrador',kind:'automation'};
  const policy=()=>{
   if(config.automationEnabled!==true)return null;
@@ -11,8 +14,9 @@ export function createAtpMunicipalAutomation({repository,works,jobs,executor,con
    const u=new URL(simulationScope?.endpoint||'https://invalid');
    if(simulationScope?.storage!=='azurite-loopback'||executor.kind!=='loopback_standin'||u.protocol!=='http:'||u.hostname!=='127.0.0.1')throw Error('ATP_SIMULATION_SCOPE_REQUIRED');
   }else if(config.mode!=='production'||config.issuanceEnabled!==true)return null;
+  if(config.mode==='production'&&(!paymentGate||config.issuanceWindowPolicyVersion!=='ATP-WAIT-v1'||!config.municipalRouting))throw Error('ATP_FRESH_PAYMENT_POLICY_REQUIRED');
   if(config.nationalEnabled!==false||config.approved!==true||config.exclusiveSeriesConfirmed!==true||!/^ATP[A-Z0-9]{0,2}$/.test(config.series)||!/^\d{1,12}$/.test(config.initialNumber)||!config.profile?.version||!Number.isFinite(Date.parse(config.notBeforeUtc)))throw Error('ATP_AUTOMATION_APPROVED_POLICY_REQUIRED');
-  return digest(JSON.stringify({profile:config.profile,series:config.series,initialNumber:config.initialNumber,notBeforeUtc:config.notBeforeUtc,mode:config.mode}));
+  return atpMunicipalPolicyHash(config);
  };
  return {async tick({limit=5}={}){
   const policyHash=policy();if(!policyHash)return {state:'disabled',visited:0,advanced:0};
@@ -25,7 +29,7 @@ export function createAtpMunicipalAutomation({repository,works,jobs,executor,con
    if(existing?.stage==='review_required'||candidate.status==='issued'&&!existing)continue;
    if(existing?.nextAttemptUtc&&Date.parse(existing.nextAttemptUtc)>Date.parse(now()))continue;
    let lease;
-   try{lease=await jobs.acquire({requestId:candidate.id,owner,requestHash:candidate.hash,policyHash,seed:{stage:'new',emissionDate:saoPauloFiscalDate(now()),createdAtUtc:now(),attempts:0}});}catch(e){
+   try{lease=await jobs.acquire({requestId:candidate.id,owner,requestHash:candidate.hash,policyHash,seed:{stage:'new',createdAtUtc:now(),attempts:0,...(candidate.input?.issuanceWindow?{issuanceWindow:candidate.input.issuanceWindow}:{})}});}catch(e){
     if(e.message==='ATP_AUTOMATION_POLICY_CHANGED_REVIEW'){await repository.markAutomationReview({requestId:candidate.id,requestHash:candidate.hash,reason:e.message,policyHash,at:now()});summary.review++;}
     else{await repository.deferAutomation(candidate.id,new Date(Date.parse(now())+60000).toISOString());summary.errors++;}
     continue;
@@ -38,15 +42,21 @@ export function createAtpMunicipalAutomation({repository,works,jobs,executor,con
     }
     if(lease.stage==='review_required')continue;
     const guarded={kind:executor.kind,execute:async p=>{await jobs.assert(lease);const r=await repository.getRequest(candidate.id);if(r.reviewStatus!=='none'||r.hash!==lease.requestHash||r.executionControl&&r.executionControl.mode!=='automatic')throw Error('ATP_AUTOMATION_REVIEW_OR_SNAPSHOT_CHANGED');return executor.execute({...p,automation:{requestId:r.id,requestHash:r.hash,policyHash,profileVersion:config.profile.version,leaseClaimId:lease.claimId,leaseFence:lease.fence}});},downloadPdf:async e=>{await jobs.assert(lease);return executor.downloadPdf(e);}};
-    const workflow=createAtpMunicipalWorkflow({repository,store:works,executor:guarded,enabled:true,issuanceEnabled:true,now});
+    const workflow=createAtpMunicipalWorkflow({repository,store:works,executor:guarded,paymentGate,paymentPolicyHash:policyHash,requireFreshPayment:config.mode==='production',enabled:true,issuanceEnabled:true,now});
     let stage=lease.stage,workId=lease.workId;
-    if(stage==='new'){
+    if(stage==='new'||stage==='waiting'){
      if(Date.parse(fresh.input.paymentVerifiedAtUtc)<Date.parse(config.notBeforeUtc)||fresh.input.paidAtUtc&&Date.parse(fresh.input.paidAtUtc)<Date.parse(config.notBeforeUtc))throw Error('ATP_HISTORICAL_PAYMENT_REVIEW_REQUIRED');
-     if(lease.emissionDate>='2026-11-01'||fresh.input.competence>='2026-11'||fresh.input.servicePeriod.endDate>='2026-11-01')throw Error('ATP_NOVEMBER_ROUTING_REVIEW_REQUIRED');
-     const w=await workflow.prepare({requestId:fresh.id,profile:config.profile,series:config.series,initialNumber:config.initialNumber,exclusiveSeriesConfirmed:true,emissionDate:lease.emissionDate,actor});workId=w.workId;stage='prepared';
+     const window=inspectIssuanceWindow({input:fresh.input,config,nowUtc:now()});
+     if(window.state==='waiting'){lease=await jobs.save(lease,{stage:'waiting',issuanceWindow:fresh.input.issuanceWindow,nextAttemptUtc:window.notBeforeUtc});await repository.deferAutomation(candidate.id,window.notBeforeUtc);summary.advanced++;continue;}
+     if(lease.emissionDate&&lease.emissionDate!==window.emissionDate)throw Error('ATP_FISCAL_DATE_REVIEW_REQUIRED');
+     validateMunicipalRouting(window.emissionDate,config.municipalRouting);
+     lease=await jobs.save(lease,{emissionDate:window.emissionDate});
+     const w=await workflow.prepare({requestId:fresh.id,profile:config.profile,series:config.series,initialNumber:config.initialNumber,exclusiveSeriesConfirmed:true,emissionDate:window.emissionDate,municipalRouting:config.municipalRouting,actor});workId=w.workId;stage='prepared';
     }else if(stage==='prepared'){
+     if(inspectIssuanceWindow({input:fresh.input,config,nowUtc:now()}).state!=='ready')throw Error('ATP_WINDOW_NOT_READY');
      await workflow.test({workId,actor});stage='tested';
     }else if(stage==='tested'){
+     if(inspectIssuanceWindow({input:fresh.input,config,nowUtc:now()}).state!=='ready')throw Error('ATP_WINDOW_NOT_READY');
      const result=await workflow.run({workId,actor,approvedHash:(await works.get(workId)).hash,confirmed:true,deferReconcile:true});stage='query_required';void result;
     }else if(stage==='query_required'||stage==='pdf_pending'||stage==='complete'){
      const r=await workflow.recover({workId,actor});

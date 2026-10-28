@@ -1,5 +1,5 @@
 import {digest,validatePreparation} from './atp-fiscal-v1.mjs';
-import {buildAtpMunicipal} from './atp-municipal-model.mjs';
+import {buildAtpMunicipal,validateMunicipalRouting} from './atp-municipal-model.mjs';
 import {createSupervisedAtpLink} from './atp-fiscal-link.mjs';
 import {reconcileAtpMunicipal,validateAtpMunicipalPdf} from './atp-municipal-evidence.mjs';
 export function saoPauloFiscalDate(instant){
@@ -7,7 +7,7 @@ export function saoPauloFiscalDate(instant){
  const values=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${values.year}-${values.month}-${values.day}`;
 }
 // Internal on-demand orchestration; no public route, timer or automatic activation.
-export function createAtpMunicipalWorkflow({repository,store,executor,enabled=false,issuanceEnabled=false,now=()=>new Date().toISOString()}){
+export function createAtpMunicipalWorkflow({repository,store,executor,paymentGate,paymentPolicyHash,requireFreshPayment=false,enabled=false,issuanceEnabled=false,now=()=>new Date().toISOString()}){
  const guard=actor=>{if(enabled!==true||actor?.role!=='administrador'||!actor.id)throw Error('ATP_MUNICIPAL_DISABLED');};
  const eligible=async(id,allowIssued=false)=>{const r=await repository.getRequest(id);if(!r||r.source!=='ATP'||!(r.status==='pending_review'||allowIssued&&r.status==='issued')||r.reviewStatus!=='none'||r.hash!==digest(JSON.stringify(validatePreparation(r.input))))throw Error('ATP_REQUEST_NOT_ELIGIBLE');return r;};
  const evidence=work=>work?.result?.evidence?{...work.result.evidence,xml:Buffer.from(work.result.xmlBase64,'base64'),...(work.result.pdfBase64?{pdf:Buffer.from(work.result.pdfBase64,'base64')}: {})}:null;
@@ -45,12 +45,14 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   return {workId,state:'authorized',number:e.number,documents:{xml:true,pdf:!!pdf||!!r.documents?.pdf},projected:r.status==='issued'};
  }
  return {
-  async prepare({requestId,profile,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,actor}){
+  async prepare({requestId,profile,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,municipalRouting,actor}){
    guard(actor);const r=await eligible(requestId);
-   buildAtpMunicipal({input:r.input,profile,series,number:'1',emissionDate});
-   const preparationHash=digest(JSON.stringify({requestHash:r.hash,profile,series,emissionDate}));
+   buildAtpMunicipal({input:r.input,profile,series,number:'1',emissionDate,municipalRouting});
+   if(requireFreshPayment&&!paymentGate)throw Error('ATP_PAYMENT_GATE_REQUIRED_REVIEW_REQUIRED');
+   if(paymentGate)await paymentGate.authorize({phase:'prepare',request:r,policyHash:paymentPolicyHash});
+   const preparationHash=digest(JSON.stringify({requestHash:r.hash,profile,series,emissionDate,...(municipalRouting?{municipalRouting}:{})}));
    const a=await store.reserve({requestId,series,initialNumber,exclusiveSeriesConfirmed,emissionDate,issuer:profile.issuer,preparationHash});
-   const d=buildAtpMunicipal({input:r.input,profile,series,number:a.number,emissionDate:a.emissionDate});
+   const d=buildAtpMunicipal({input:r.input,profile,series,number:a.number,emissionDate:a.emissionDate,municipalRouting});
    const workId=digest(JSON.stringify(['atp-municipal-v1',requestId,series,a.number,d.profileHash]));
    const p=await linker.reserveProvenance({requestId,workId,actor});
    const old=await store.get(workId);if(old){if(old.hash!==d.hash)throw Error('ATP_PREPARATION_CHANGED');return old;}
@@ -67,18 +69,23 @@ export function createAtpMunicipalWorkflow({repository,store,executor,enabled=fa
   },
   async run({workId,actor,approvedHash,confirmed=false,deferReconcile=false}){
    guard(actor);if(issuanceEnabled!==true||confirmed!==true)throw Error('ATP_MUNICIPAL_ISSUANCE_DISABLED');
-   const {w}=await load(workId);
+   const {w,r}=await load(workId);
    if(await store.hasClaim?.(workId,w.hash))return deferReconcile?{workId,state:'query_required',issued:false,queryRequired:true}:reconcile(workId,actor);
    const age=Date.parse(now())-Date.parse(w.testedAtUtc);
    const civilDate=saoPauloFiscalDate(now());
-   if(w.hash!==approvedHash||w.testedHash!==w.hash||!Number.isFinite(age)||age<0||age>1800000||civilDate!==w.emissionDate||civilDate>='2026-11-01')throw Error('ATP_MUNICIPAL_APPROVAL_REQUIRED');
+   validateMunicipalRouting(civilDate,w.municipalRouting);
+   if(w.hash!==approvedHash||w.testedHash!==w.hash||!Number.isFinite(age)||age<0||age>1800000||civilDate!==w.emissionDate)throw Error('ATP_MUNICIPAL_APPROVAL_REQUIRED');
+   if(requireFreshPayment&&!paymentGate)throw Error('ATP_PAYMENT_GATE_REQUIRED_REVIEW_REQUIRED');
+   const expectedDispatch={workId,xmlHash:w.hash,dispatchReservationId:digest(JSON.stringify(['atp-dispatch-v1',w.requestId,w.requestHash,workId,w.hash])),controlFence:r.executionControl?.controlFence||1};
+   const paymentPermit=paymentGate?await paymentGate.authorize({phase:'dispatch',request:r,policyHash:paymentPolicyHash,dispatch:expectedDispatch}):undefined;
    // This same-row CAS is the handover boundary: no manual ACK can follow it.
    if(actor.kind==='automation'&&!repository.reserveMunicipalDispatch)throw Error('ATP_DISPATCH_CONTROL_REQUIRED');
    const dispatch=await repository.reserveMunicipalDispatch?.({requestId:w.requestId,requestHash:w.requestHash,workId,xmlHash:w.hash,actor,at:now()});
+   if(paymentPermit&&(dispatch?.reservationId!==paymentPermit.dispatchReservationId||dispatch?.controlFence!==paymentPermit.controlFence))throw Error('ATP_PAYMENT_GATE_BINDING_REVIEW_REQUIRED');
    // A timeout after the atomic insert is deliberately GET/query-only forever.
    const first=await store.claim(workId,w.hash);
    if(first){
-    try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true,...(dispatch?{dispatch}:{})});}
+    try{await executor.execute({action:'emitir',xml:w.xml,chain:w.chain,workId,approvedHash:w.hash,confirmed:true,...(dispatch?{dispatch}:{}),...(paymentPermit?{paymentPermit}:{})});}
     catch{return {workId,state:'uncertain',issued:false,queryRequired:true};}
    }
    return deferReconcile?{workId,state:'query_required',issued:false,queryRequired:true}:reconcile(workId,actor);

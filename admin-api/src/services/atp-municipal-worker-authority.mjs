@@ -1,8 +1,9 @@
 import {digest} from './atp-fiscal-v1.mjs';
 import {createAtpMunicipalStore} from './atp-municipal-store.mjs';
+import {inspectIssuanceWindow} from './atp-issuance-window.mjs';
 // Run on the VM immediately before native execution, using its existing table
 // Reader permission. Recheck refund/policy/fence after waiting in the queue.
-export function createAtpWorkerAuthority({documents,config,now=()=>Date.now()}){
+export function createAtpWorkerAuthority({documents,config,paymentGate,now=()=>Date.now()}){
  const read=async(part,row)=>documents.getEntity(part,row),works=createAtpMunicipalStore(documents);
  return async p=>{
   const a=p.automation;
@@ -17,5 +18,10 @@ export function createAtpWorkerAuthority({documents,config,now=()=>Date.now()}){
   const expected=p.action==='testar'?work.testXml:p.action==='consultar'?work.queryXml:work.xml;
   if(digest(p.xml)!==digest(expected)||p.approvedHash!==(p.action==='testar'?work.testHash:work.hash)||p.action!=='consultar'&&p.chain!==work.chain)throw Error('ATP_WORKER_XML_BINDING_CHANGED');
   if(p.action==='emitir'&&(request.status!=='pending_review'||p.approvedHash!==work.hash||digest(p.xml)!==work.hash))throw Error('ATP_WORKER_XML_BINDING_CHANGED');
+  if(p.action==='emitir'&&(config.requireFreshPayment===true||p.paymentPermit)){
+   if(!paymentGate||!p.queueExecutionId||!p.paymentPermit)throw Error('ATP_WORKER_PAYMENT_PERMISSION_REQUIRED');
+   if(inspectIssuanceWindow({input:request.input,config:{mode:'production',municipalRouting:config.municipalRouting,issuanceWindowPolicyVersion:config.issuanceWindowPolicyVersion},nowUtc:new Date(now()).toISOString()}).state!=='ready')throw Error('ATP_WORKER_PAYMENT_WINDOW_REQUIRED');
+   return paymentGate.consume({permit:p.paymentPermit,executionId:p.queueExecutionId,request,workId:p.workId,xmlHash:p.approvedHash,dispatch:p.dispatch,policyHash:a.policyHash});
+  }
  };
 }
