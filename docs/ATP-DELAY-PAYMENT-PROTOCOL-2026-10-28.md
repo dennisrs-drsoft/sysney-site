@@ -106,3 +106,15 @@ Prova série: contador local ATP01 ausente; ConsultaNFe oficial SOMENTE LEITURA 
 ## Validação final SYSNEY
 
 234/234 testes Node aprovados, zero skips; Next16.4.3 build aprovado; API e runner compilados; testes PowerShell municipais (XSD/assinatura CPF e CNPJ/guard oficial) e nacional restrito aprovados com certificados sintéticos em memória e sem rede. Runner novo SHA256 ad64ad3dc30c6e50274a538506eb11448c99b5624404114d42984b2a7982e105. Wire final exige policyHash em authorize e consume e phase=consume na resposta consume; authorizationId32hex e permitToken64Base64URL.
+
+## Publicação/CONFIGURAÇÃO EM ANDAMENTO — pronto para callback ATP
+
+Commit `3ee75e6dbe198643a24e5ae63d84da1fad5fb8e0` publicado origin/main; CI40789783740 em andamento. API deploy131d60f7-8e28-49fc-b1e4-c900b93867fc status4. GLOBAL criada com sucesso, leitura de retorno confirmou policyHash `c7cf721120f39b3f7fa240e2592b91cacfac0d22515a2b9218a48cd70c4f2281`; cutoff `2026-10-29T00:00:00.000Z`. Série ATP01 reservada atomicamente (createEntity, sem upsert), proprietárioATP e próximo1; nenhuma numeração de nota consumida. Worker atualizado ainda em execução de deployment PAUSADO. Emissão API/worker continuamOFF. Frente ATP pode configurar AutomaticPreflightPolicyHash/cutoff do callback e confirmar ACK final; SYSNEY só ativa após esse ACK e confirmar worker/CI.
+
+Worker publicado e confirmado PAUSADO/Disabled no SHA3ee75e6; pacote SHA27406c07d588fd55da3f69bc3c68646fdc6b2b44727387593ca6cbf7fcefe80a. SDK MI antes/depois: fila0/preparações0; nenhuma chamada fiscal. Certificado válido até10/11/2026 22:39:49UTC. Config/ACL legado e raiz preservados. API timer permaneceDisabled confirmado após deploy. CI40789783740 ainda em andamento. Aguardando ACK callback ATP com hash/cutoff acima; script de ativação preparado, NÃO executado.
+
+## Saúde pós-deploy
+
+Site público e /admin HTTP200; API /api/financeiro/health200; endpoint callback ATP existe (GET405, método correto POST). Nenhuma autenticação produtiva usada para simular operação fiscal. npm audit produção: raiz4low/3moderate/API3moderate, zero high/critical; nenhuma dependência alterada neste escopo. Gates API confirmados aindaOFF e nacionalfalse. CI passou security_checks, deploySWA em andamento. Confirmação final callbackATP ainda pendente, portanto ativação não executada.
+
+CI40789783740 concluído SUCCESS (site e /admin da mesma main3ee75e6). Comparação pós-deploy das38configurações foraSYSNEY_DEPLOY_COMMIT: SHA25691b8ea0a8401a9452912b01457fd6da7aa7409f5dafd6fccf930bf4178911992, idêntico à baseline; nenhum segredo/configuração alheia alterado. API e worker prontos; falta somente ACK callback ligado para política final. Nenhuma pendência cadastral externa restante para ATP01/1/perfil atual; certificado requer renovação antes10/11 e política deliberadamente encerra09/11.
