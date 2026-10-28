@@ -53,4 +53,20 @@ Havendo qualquer tentativa/dúvida, usar consulta por externalReference e claim 
 -229/229 na regressão Node completa, zero falhas/skips. BuildNext16.4.3/Turbopack/TypeScript e API/runner aprovados. Dependências físicas do checkoutQA usadas sem modificar os node_modules compartilhados.
 - Audit de produção: raiz/API zero altos/críticos; raiz4baixos/3moderados e API3moderados transitivos. Não alegar ausência total de vulnerabilidades.
 
-Todos os ensaios usam identidades/arquivos sintéticos e endpoints loopback. Nenhuma nota fictícia oficial, TesteEnvio, emissão nacional, cobrança ou e-mail real. Segredos, certificados, PDF/XML, scripts operacionais e artefatos ficam fora do Git. Hashes/publicação/provas finais serão registrados após implantação pausada.
+Todos os ensaios usam identidades/arquivos sintéticos e endpoints loopback. Nenhuma nota fictícia oficial, TesteEnvio, emissão nacional, cobrança ou e-mail real. Segredos, certificados, PDF/XML, scripts operacionais e artefatos ficam fora do Git.
+
+## Implantação pausada
+
+Fonte `2eee6bf9740d0786c005712d2d98a4a6866bfac0`, branch `codex/atp-manual-control-20261028`, integrada emmain após229 testes/builds aprovados. [CI40727498239](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/40727498239) **SUCCESS**, incluindo segurança/build/deploy; a frente institucional confirmou ausência de deploy concorrente.
+
+- API `sysney-admin-api-2602`, grupo `sysney`: pacote ZIP SHA256 `ace6aaf11758adc4d2f9aaa8e8fa8ee445f9d96ba9f3be947802c136db8f8c8d`, publicação com build remoto concluída e marcador de fonte2eee6bf. Triggers sincronizados; ARM confirmou `atp-fiscal-manual` ativo e `atp_municipal_automation` Disabled.
+-38 configurações preexistentes, excluindo somente marcador de release, permaneceram idênticas: SHA256 `91b8ea0a8401a9452912b01457fd6da7aa7409f5dafd6fccf930bf4178911992`. Inter/SendGrid/KeyVault e demais rotinas não foram reconfigurados.
+-`ATP_FISCAL_V1_ENABLED=true` para preparar/consultar/assumir manualmente; `ATP_FISCAL_LINK_ENABLED=false`. Todos `ATP_MUNICIPAL_AUTOMATION_ENABLED`, `ATP_MUNICIPAL_QUEUE_ENABLED`, `ATP_MUNICIPAL_EXECUTOR_ENABLED`, `ATP_MUNICIPAL_ISSUANCE_ENABLED`, `ATP_MUNICIPAL_OPERATOR_ENABLED`, `ATP_MUNICIPAL_READINESS_ENABLED` e `SYSNEY_ALLOW_NATIONAL_RESTRICTED_SEND` false. `AzureWebJobs.atp_municipal_automation.Disabled=true`.
+-Health200, fachada semBearer401, POST de controle manual semBearer401. Nenhuma solicitação fictícia em produção para testar o novo controle.
+-Smoke após CI: home/contato200, administração e ponte privada anônimas302 para autenticação. Isso não comprova sessão administradora real nem envio de e-mail; nenhum envio foi usado como teste.
+-Worker DRServer na release `C:\ProgramData\SYSNEY\AtpMunicipal\releases\2eee6bf9740d0786c005712d2d98a4a6866bfac0`; ZIP SHA256 `9f9704fd04c0792f440dacf1a24302d426c8d502d743024fb122abefbcff4cf3`; runner SHA256 `43707481898dcaf056014673b56090e381b8793a3d137046ecf1beb064a883a2`.
+-Readiness real antes/depois: fila0/preparações0/storageWritesfalse/transmittedfalse; `installed_paused`, tarefaDisabled, pausa ativa e todos gates do workerfalse. Hash/ACL da configuração fiscal legada e ACL da raizATP idênticos; nenhum grantRBAC, SQL, firewall ou certificado alterado. Backup privado da configuração anterior preservado.
+
+O consumidor ATP possui seu próprio ciclo de validação/publicação, documentado naquela frente. Este relatório não afirma que vendas/e-mailsATP foram ativados. Automação municipal não foi liberada: política global ausente e alinhamento fiscal/novembro continuam explícitos; a contingência manual é o caminho preparado para seguir com a operação.
+
+Harness de contingência emloopback4327 disponibilizado ao chatATP com SDKAzurite e governoHTTPstand-in, token sintético em arquivo privado separado. Permanece disponível enquanto o consumidor valida seus testes; não está conectado à produção. O ACK e a limpeza desse ambiente serão registrados quando a frente consumidora concluir. Isso não é pendência do deploy de backend ou autorização para ativar o emissor.
