@@ -1,103 +1,129 @@
-# Preparação nacional no administrativo — 02/11/2026
+# NFS-e Nacional no administrativo — implantação de 02/11/2026
 
-## Situação e limite da entrega
+## Resultado e limites
 
-Implementada a preparação de perfil e prévia nacional por cobrança, para SYSNEY
-e DRSoft, reutilizando a autenticação e a proteção de origem do endpoint `nfse`.
-**Não é uma integração de transmissão concluída.** Não foi publicada e nenhum
-documento real foi emitido nos testes. Não ativar um botão de emissão apenas
-porque o XML passa no XSD.
+Implementado o fluxo nacional para SYSNEY e DRSoft: perfil por cliente, prévia,
+reserva DPS transacional por emitente/ambiente, assinatura no Windows, aprovação
+vinculada à versão, transmissão única, consulta após falhas e recuperação de
+XML/DANFSe. O serviço isolado está instalado na DRServer em modo **assinatura e
+consultas**, com envio desabilitado. Isso não equivale a homologação oficial nem
+a liberação de notas reais. A publicação Next/API será registrada na evidência
+de release ao concluir a verificação on-line.
 
-O trabalho anterior de recuperação dos perfis municipais está no commit
-`dfd0b66`. Esta continuação preserva a tela de diagnóstico, os identificadores DPS
-e os bloqueios nacionais existentes, acrescentando preparação utilizável no
-editor da cobrança. Não muda o regime das empresas.
+Os regimes cadastrados foram preservados: SYSNEY Simples Nacional e DRSoft
+Lucro Presumido. Não foram emitidas notas, gerados boletos, enviados e-mails ou
+alterados pagamentos durante a implantação. SQL, MySQL, firewall, certificados,
+serviço municipal e configuração ATP não foram alterados.
 
-## Comportamento implementado
+## Fluxo e armazenamento
 
-- `GET /api/admin/nfse?empresa=...&id=...&emissor=nacional` consulta perfil e prévia
-  privados da empresa e do cliente, sem reservar numeração ou emitir.
-- `POST` no mesmo endpoint, ação `nacional-preparar`, exige confirmação, versão
-  atual da cobrança e ausência de nota/anexo/operação municipal. Identidade do
-  emitente, regime vigente, tomador, descrição e valor vêm do servidor.
-- Perfil nacional em `AdminConfiguracoes/nfse-nacional-perfis-{empresa}/{CNPJ}`;
-  prévia em `AdminDocumentos/nfse-nacional-previas-{empresa}/{idFiscal}`. Escritas
-  existentes usam ETag. Não copiar aprovação, contador, data ou imposto monetário
-  de uma nota anterior. Uma falha na gravação do perfil não autoriza transmissão
-  e a prévia permanece consultável.
-- Referência comercial mensal, data real da competência fiscal e data atual de
-  emissão são campos distintos. Não inferir data fiscal da data de pagamento.
-- O formulário recupera endereço do perfil municipal previamente validado, mas
-  não converte automaticamente código municipal em nacional. Código municipal
-  antigo de cinco dígitos não cabe no complemento municipal nacional de três.
-- Gerador DPS isolado por emitente e ambiente, com escape XML, dados obrigatórios,
-  retenções federais recalculadas sobre o valor atual no perfil Presumido e série
-  independente de RPS. Não reserva DPS e não chama governo.
-- Assinador nativo apenas local, sem rede, com identidade/ambiente esperados,
-  assinatura conferida, IDs únicos, XML sem DTD e validação pelo XSD do ambiente.
-  O certificado deve ser vinculado pelo futuro chamador à configuração protegida
-  do emitente. Esta biblioteca não substitui autorização e vinculação do certificado.
-- Pacotes oficiais de produção e homologação permanecem separados. Produção
-  não aceita `finNFSe` na mesma posição da revisão restrita. O XSD oficial de
-  assinatura de produção contém DOCTYPE; o leitor ignora essa declaração somente
-  no esquema local, sem resolver DTD externa. XML de documentos continua proibindo DTD.
+O endpoint existente `nfse` mantém autenticação administrativa, origem/CSRF e
+respostas privadas. `GET` nacional é somente leitura; as ações `POST` são:
 
-## Regra de transição confirmada
+- `nacional-preparar`: salva perfil e dados atuais da cobrança; não reserva DPS.
+- `nacional-assinar`: exige prévia atual, emitente vigente e confirmação de série
+  exclusiva; reserva número/atribuição atomicamente e solicita assinatura local.
+- `nacional-emitir`: exige assinatura, hash, contexto atual, política fiscal
+  protegida, gate do ambiente e aprovação específica; bloqueia a cobrança por
+  ETag antes de enfileirar. Produção exige homologação do mesmo perfil com XML e PDF.
+- `nacional-resultado`: confere tarefa, tipo, hash, escopo e documentos antes de
+  vincular. A homologação fica no arquivo QA e não vira nota de produção.
+- `nacional-consultar`: recupera a mesma DPS; nunca transmite outro documento.
 
-A orientação oficial de 29/10/2026 define a **competência fiscal** como critério,
-não a data de emissão. Simples Nacional de São Paulo, competência até 31/10/2026:
-emissão municipal retroativa; competência desde 01/11/2026: nacional. Não mudar
-datas para superar a trava. A DRSoft está configurada como Lucro Presumido e sua
-habilitação nacional exige confirmação própria.
+Namespaces separados por empresa, CNPJ e ambiente. Perfis ficam em
+`AdminConfiguracoes/nfse-nacional-perfis-{empresa}`; prévias em
+`AdminDocumentos/nfse-nacional-previas-{empresa}`; trabalhos em
+`nfse-nacional-trabalhos-{empresa}`. A sequência usa transação para contador e
+atribuição estável; não há reset, TTL ou exclusão que permita reutilizar números.
+A fila usa `FiscalFila/nacional-admin-fila-v1`, claim por ETag, expiração antes de
+execução e resultados particionados em chunks com hash/tamanho.
 
-Fontes oficiais consultadas em 02/11/2026:
+O worker lê trabalhos e aprovação da tabela privada, sem receber certificado
+ou credenciais do navegador. O transporte nativo relê aprovação e cobrança
+imediatamente antes do POST e cria um segundo claim durável. Rejeição, timeout,
+queda ou resultado inválido nunca apagam claims para permitir novo POST. Uma
+falha antes/depois de enfileirar pode exigir conciliação; não há desbloqueio
+fiscal automático baseado apenas em ausência de resposta.
+
+Referência comercial, competência fiscal real e emissão atual são distintas.
+Datas/códigos não são trocados para superar regras do governo. XML trata escape,
+centavos, retenções sobre o valor atual e endereço; séries DPS não usam RPS.
+PDF/XML têm armazenamento privado e conteúdo imutável por chave/hash. As telas
+de arquivo, acompanhamento e resumo distinguem a chave nacional do número
+municipal, inclusive quando os números coincidem. Nenhum documento é enviado
+por e-mail sem a revisão/aprovação já existente.
+
+## Serviço Windows
+
+Pasta `C:\ProgramData\SYSNEY\NfseNacional`; tarefa
+`SYSNEY-NFS-e-Nacional-Isolado`, SYSTEM, uma vez por minuto, sem execuções
+sobrepostas. Reutiliza o runtime Node já conferido, sem reinstalá-lo ou mudar
+sua configuração. Manifesto verifica SHA-256 do runner, scripts e XSD; ACL fica
+restrita a SYSTEM/Administradores. Certificados continuam no repositório
+LocalMachine, usando os vínculos já existentes do serviço fiscal. Nenhuma chave
+privada foi exportada. As permissões existentes da identidade gerenciada foram
+reutilizadas; não houve concessão nova de acesso.
+
+Configuração inicial: `paused=false`, `allowSigning=true`, `allowQueries=true`,
+`allowSend=false`, políticas de envio vazias. O gate de produção da API permanece
+desabilitado por padrão. Liberar transmissão exige revisão própria de política
+por emitente/ambiente/perfil, tanto na API quanto na VM. A autorização do usuário
+para implantação não foi interpretada como aprovação de uma nota específica.
+
+Instalador usa TLS 1.2 somente no processo e grava JSON UTF-8 sem BOM; o runner
+também tolera BOM inicial para compatibilidade com PowerShell 5. Não muda TLS,
+DNS, firewall ou configurações globais do Windows.
+
+## Pendências fiscais e de homologação
+
+1. Código municipal 03158 é um agrupamento do item 17.02. A lista nacional separa
+   atividades desse item; não existe autorização para substituir esse código por
+   licenciamento/suporte apenas pela descrição comercial. A correspondência de
+   destino precisa ser conferida com a classificação já adotada pela contabilidade.
+   Não se alterou CNAE, regime ou notas anteriores. Outras correspondências só
+   podem ser preenchidas quando inequívocas e sustentadas por fonte oficial.
+2. Conferir dados nacionais exigidos: enquadramento, apuração, ISS, retenções,
+   transparência e NBS quando aplicável. Validar habilitação específica da DRSoft
+   no nacional; Lucro Presumido não recebe automaticamente a regra do Simples.
+3. Executar teste oficial com perfil real aprovado e conferir retorno, XML,
+   cadeia de confiança e DANFSe de cada emitente. Testes locais/simulações não
+   demonstram aceite do governo. Não foi transmitido documento de homologação
+   oficial nesta implantação.
+4. Só depois habilitar políticas de transmissão e produção correspondentes.
+   Atualização de cancelamento/substituição nacional exige fonte oficial própria;
+   recuperar o XML original não comprova ausência de eventos fiscais posteriores.
+   A situação original arquivada não é certidão de situação fiscal atual.
+5. Certificado SYSNEY verificado com validade até 10/11/2026 (UTC); DRSoft até
+   05/03/2027. Renovação não foi realizada e deve ser acompanhada antes de vencer.
+
+A orientação oficial de 29/10/2026 usa **competência fiscal**, não emissão,
+como critério: Simples em São Paulo até 31/10/2026 permanece municipal; desde
+01/11/2026 segue nacional. Não houve mudança artificial de datas.
+
+Fontes consultadas em 02/11/2026:
 
 - https://www.gov.br/nfse/pt-br/noticias/nfs-e-informa-diretrizes-sobre-a-obrigatoriedade-da-emissao-da-nfs-e-nacional-para-optantes-do-simples-nacional/
 - https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/documentacao-atual
 - https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/apis-prod-restrita-e-producao
 - https://www.gov.br/nfse/pt-br/mei-e-demais-empresas/codigos-de-tributacao-nacional-nbs
-
-## O que ainda falta para emissão real
-
-1. Conferir a classificação nacional dos serviços com o usuário, apuração,
-   transparência, retenções e elegibilidade de cada emitente/competência.
-2. Implementar o ciclo completo de transmissão do painel ao serviço fiscal
-   isolado na VM: aprovação vinculada ao hash/versão, reserva DPS transacional
-   por empresa/ambiente, assinatura com certificado protegido, claim durável
-   antes do POST e consulta após qualquer resultado incerto, sem retransmitir.
-3. Conferir XML autorizado, assinatura oficial, identidade, competência, valor,
-   situação e DANFSe antes de anexar e vincular à cobrança. A biblioteca nacional
-   restrita existente é exclusiva de homologação ATP; não habilitá-la como se
-   fosse automaticamente a integração administrativa de produção.
-4. Homologar com perfis reais aprovados, preservar evidências privadas e só então
-   liberar produção por empresa. Testes sintéticos locais não equivalem a esse
-   aceite. Nenhum teste oficial que crie documento foi executado nesta entrega.
-5. Publicar componentes necessários após autorização específica. Nenhum gate,
-   certificado, serviço da VM, regra de rede, SQL ou MySQL foi alterado aqui.
-
-## Conferência operacional dos perfis pendentes
-
-Consulta privada aos rascunhos e aos planos atuais em 02/11 identificou um cliente
-SYSNEY sem nota no conjunto consultado; o perfil municipal já existia e foi
-preservado. Nenhum outro perfil precisou ser criado nessa consulta. Isso não
-prova ausência de pendências fora desse recorte ou no emissor externo. A rota de
-fallback do commit anterior atende as próximas cobranças ao consultar o XML
-oficial do mesmo tomador e emitente, respeitando o perfil explícito existente.
-
-Nenhuma nota, boleto, baixa bancária, mensagem, sequência ou perfil preexistente
-foi alterado pela conferência. Relatórios com documentos de clientes ficam fora
-do Git.
+- https://prefeitura.sp.gov.br/documents/d/fazenda/in_sf-surem_08_2011_anexo_1_atualiz_at_in_06-2024_1712582812_formatado-pdf
 
 ## Validação
 
-- 245 testes Node aprovados, zero falhas e zero testes ignorados, com Azure SDK
-  contra Azurite isolado e os cenários HTTP nacionais existentes contra a
-  simulação Postman local. Nenhum endpoint fiscal real foi usado nos testes.
-- TypeScript, ESLint dos arquivos alterados, build Next.js e compilação da API
-  administrativa aprovados na cópia física de QA.
-- Assinatura nativa com chave/certificado efêmeros em memória: dois emitentes
-  sintéticos, ambos os ambientes, XSD específico, identidade divergente e
-  adulteração. Nenhum certificado foi instalado ou exportado.
-- Os testes de preparação verificam autenticação, origem, versão antiga,
-  identidade/valor vindos do servidor, nota existente e trabalho municipal;
-  confirmam ausência de reserva DPS, emissão, alteração do e-mail e envio.
+252 testes Node aprovados, zero falhas/ignorados, com SDK Azure contra Azurite e
+SEFIN simulada pelo Postman local. Casos novos: dois emitentes/ambientes,
+concorrência e perda de resposta na reserva, chunks corrompidos, política
+bloqueada, aprovação vencida, cobrança alterada, timeout após commit, recuperação
+sem novo POST, PDF vinculado e notas municipais/nacionais de mesmo número.
+
+TypeScript, ESLint, build Next.js, compilação da API e runner aprovados. Testes
+nativos usaram certificado efêmero em memória, ambos os pacotes XSD oficiais,
+assinatura, adulteração e isolamento. Nenhuma instalação/exportação de
+certificado ou chamada fiscal oficial nos testes. O último reforço de conferência
+do CNPJ vigente também passou nos testes específicos do runtime.
+
+A recuperação de perfis do commit dfd0b66 foi preservada. Consulta privada aos
+rascunhos/planos atuais identificou um cliente SYSNEY sem nota no recorte; seu
+perfil já existia e foi mantido. Isso não comprova inexistência de pendências
+fora do recorte. Evidências com documentos, configurações, SAS e scripts
+operacionais ficam em output privado, fora do Git.

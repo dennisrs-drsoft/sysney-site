@@ -4,7 +4,7 @@ const http=require('node:http'),{gzipSync,gunzipSync}=require('node:zlib');
 const records=new Map();let mode='normal',posts=0;
 function pdf(record){
  const key=mode==='pdf-wrong'?'9'.repeat(50):record.chaveAcesso;
- const content=`BT /F1 10 Tf 20 700 Td (SIMULACAO SEM VALIDADE FISCAL) Tj 0 -20 Td (Chave: ${key}) Tj 0 -20 Td (Numero da NFS-e: ${record.number}) Tj 0 -20 Td (Emitente 57767099000179 Tomador 11222333000181) Tj 0 -20 Td (Valor ${record.amount}) Tj ET`;
+ const content=`BT /F1 10 Tf 20 700 Td (SIMULACAO SEM VALIDADE FISCAL) Tj 0 -20 Td (Chave: ${key}) Tj 0 -20 Td (Numero da NFS-e: ${record.number}) Tj 0 -20 Td (Emitente ${record.issuer} Tomador ${record.recipient}) Tj 0 -20 Td (Valor ${record.amount}) Tj ET`;
  const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 600 800] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>',`<< /Length ${Buffer.byteLength(content)} >>\nstream\n${content}\nendstream`,'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
  let out='%PDF-1.4\n',offsets=[0];objects.forEach((o,i)=>{offsets.push(Buffer.byteLength(out));out+=`${i+1} 0 obj\n${o}\nendobj\n`;});const xref=Buffer.byteLength(out);
  out+='xref\n0 6\n0000000000 65535 f \n'+offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('');out+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;return out;
@@ -28,13 +28,14 @@ http.createServer(async(req,res)=>{
   if(mode==='reject')return send(400,{erros:[{codigo:'E_QA_400',descricao:'Rejeicao sintetica sem validade fiscal'}]});
   posts++;const chaveAcesso=String(posts).padStart(50,'0');
   const number=String(posts),amount=xml.match(/<vServ>([^<]+)/)?.[1]||'0.00';
-  const invoice=`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infNFSe Id="NFS${chaveAcesso}"><nNFSe>${number}</nNFSe><dhProc>${new Date().toISOString()}</dhProc><emit><CNPJ>57767099000179</CNPJ></emit>${xml.replace(/<\?xml[^?]*\?>/,'')}</infNFSe></NFSe>`;
-  const record={...prefix,idDps,chaveAcesso,number,amount,nfseXmlGZipB64:gzipSync(Buffer.from(invoice)).toString('base64')};records.set(idDps,record);
+  const issuer=xml.match(/<prest>[\s\S]*?<CNPJ>(\d{14})/)?.[1],recipient=xml.match(/<toma>[\s\S]*?<(?:CNPJ|CPF)>(\d+)/)?.[1],environment=Number(xml.match(/<tpAmb>([12])/)[1]);
+  const invoice=`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infNFSe Id="NFS${chaveAcesso}"><nNFSe>${number}</nNFSe><dhProc>${new Date().toISOString()}</dhProc><emit><CNPJ>${issuer}</CNPJ></emit>${xml.replace(/<\?xml[^?]*\?>/,'')}</infNFSe></NFSe>`;
+  const record={...prefix,tipoAmbiente:mode==="wrong-environment"?(environment===1?2:1):environment,issuer,recipient,idDps,chaveAcesso,number,amount,nfseXmlGZipB64:gzipSync(Buffer.from(invoice)).toString('base64')};records.set(idDps,record);
   if(mode==='timeout-after-commit'){mode='normal';return setTimeout(()=>send(201,record),500);}
   return send(201,record);
  }
- if(req.method==='GET'&&u.pathname.startsWith('/dps/')){const r=records.get(u.pathname.slice(5));return r?send(200,{...r,tipoAmbiente:prefix.tipoAmbiente}):send(404,{...prefix,erro:{codigo:'QA404'}});}
- if(req.method==='GET'&&/^\/nfse\/\d{50}$/.test(u.pathname)){const r=[...records.values()].find(r=>r.chaveAcesso===u.pathname.slice(6));return r?send(200,{...r,tipoAmbiente:prefix.tipoAmbiente}):send(404,{...prefix,erro:{codigo:'QA404'}});}
+ if(req.method==='GET'&&u.pathname.startsWith('/dps/')){const r=records.get(u.pathname.slice(5));return r?send(200,{...r,tipoAmbiente:mode==="wrong-environment"?(r.tipoAmbiente===1?2:1):r.tipoAmbiente}):send(404,{...prefix,erro:{codigo:'QA404'}});}
+ if(req.method==='GET'&&/^\/nfse\/\d{50}$/.test(u.pathname)){const r=[...records.values()].find(r=>r.chaveAcesso===u.pathname.slice(6));return r?send(200,{...r,tipoAmbiente:mode==="wrong-environment"?(r.tipoAmbiente===1?2:1):r.tipoAmbiente}):send(404,{...prefix,erro:{codigo:'QA404'}});}
  if(req.method==='GET'&&/\/eventos\/\d{6}\/\d+$/.test(u.pathname))return send(404,{...prefix,erro:{codigo:'QA_EVENTO_NAO_ENCONTRADO'}});
  return send(501,{erro:'Operacao nao modelada.'});
 }).listen(process.env.PORT);

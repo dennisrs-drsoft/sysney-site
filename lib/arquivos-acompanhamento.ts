@@ -6,7 +6,7 @@ export function emailsDaCobranca(emails: EmailCobranca[], empresa: Empresa, cobr
   return emails.filter(e => e.empresa === empresa && e.fluxo?.cobrancaId === cobrancaId && !e.aviso);
 }
 
-export function notasDaCobranca<T extends { numero: string }>(notas: T[], numero: string) {
+export function notasDaCobranca<T extends { numero: string; chaveAcesso?:string }>(notas: T[], numero: string,chaveAcesso?:string) {
   const normalizar = (v: string) => v.trim().replace(/^0+(?=\d)/, "");
-  return numero.trim() ? notas.filter(n => normalizar(n.numero) === normalizar(numero)) : [];
+  return numero.trim() ? notas.filter(n => normalizar(n.numero) === normalizar(numero)&&(!chaveAcesso||n.chaveAcesso===chaveAcesso)) : [];
 }

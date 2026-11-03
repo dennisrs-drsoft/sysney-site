@@ -33,7 +33,7 @@ export function candidatosBoletos(cobrancas:Cobranca[],planos:Plano[],banco:Iden
 export type Cobranca = {
   id: string; planoId: string; competencia: string; clienteNome: string;
   email: string; descricao: string; centavos: number; envioPrevisto: string;
-  vencimento: string; nota: string; boleto: string; demonstrativo: boolean;
+  vencimento: string; nota: string; notaEmissor?:"municipal"|"nacional"; notaChave?:string; boleto: string; demonstrativo: boolean;
   eventos: Evento[]; persistida: boolean;
 };
 export function hojeBrasil() {

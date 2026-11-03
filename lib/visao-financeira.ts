@@ -18,7 +18,7 @@ export type LinhaFinanceira = {
   pagamento: string; fontePagamento: "manual" | "banco" | ""; recebidoNominal: boolean;
   emissaoPrevista: string; emissaoNota: string;
 };
-export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string; tributos?: import("./extrato-fiscal-xml").TributosXml; xml?: boolean; pdf?: boolean };
+export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string; tributos?: import("./extrato-fiscal-xml").TributosXml; xml?: boolean; pdf?: boolean; emissor?:string; chaveAcesso?:string };
 export const nomesEstados: Record<EstadoFinanceiro, string> = {
   previsto: "Prevista", aberto: "Em aberto", atrasado: "Vencida", parcial: "Pagamento parcial",
   pago: "Pagamento registrado", cancelado: "Cancelada", expirado: "Expirada", conferir: "Conferir vínculo / situação",
@@ -67,7 +67,8 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
     const emitida = !!(nota || boleto || recebido || envio);
     const estado: EstadoFinanceiro = !emitida ? "previsto" : !saldo ? "pago" : c.vencimento < hoje ? "atrasado" : recebido ? "parcial" : "aberto";
     const documento = planos.find(p => p.id === c.planoId)?.documento || "";
-    const notaFiscal = notas.filter(n => n.situacao !== "C" && numeroBoleto(n.numero) === numeroBoleto(nota) && digitos(n.documento) === digitos(documento) && n.centavos === c.centavos);
+    const chaveFiscal=c.notaChave||e?.fluxo?.notaChave;
+    const notaFiscal = notas.filter(n => (!chaveFiscal||n.chaveAcesso===chaveFiscal)&&n.situacao !== "C" && numeroBoleto(n.numero) === numeroBoleto(nota) && digitos(n.documento) === digitos(documento) && n.centavos === c.centavos);
     const estornados = new Set(c.eventos.filter(v => v.tipo === "estorno").map(v => v.referencia));
     const pagamentos = c.eventos.filter(v => v.tipo === "pagamento" && !estornados.has(v.id)).map(v => data(v.data)).filter(Boolean).sort();
     const recebidoReal=c.eventos.filter(v=>v.tipo==="pagamento"&&!estornados.has(v.id)).reduce((s,v)=>s+(v.recebidoCentavos??v.centavos??0),0);

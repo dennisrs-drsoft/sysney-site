@@ -6,6 +6,10 @@ const js = ts.transpileModule(readFileSync(new URL("../lib/notas-unificadas.ts",
 const {unificarNotas,filtrarNotas} = await import("data:text/javascript;base64," + Buffer.from(js).toString("base64"));
 const email = {id:"e928",empresa:"drsoft",cliente:"TWENTY FOUR SEVEN FRANQUIA LTDA",para:"financeiro@tfseven.com.br",contato:"Álvaro",fluxo:{nota:"928",cobrancaId:"c1"},anexos:[{tipo:"nota"}],atualizadoEm:"2026-10-13T13:35:00Z",competencia:"2026-09",centavos:350000};
 const historica = {numero:"000928",cliente:email.cliente,documento:"12345678000190",emissao:"2026-10-13",centavos:350000,situacao:"C",pdf:false,xml:true,consultadoEm:"2026-10-19"};
+test("notas nacional e municipal com mesmo número permanecem separadas pela chave oficial",()=>{
+ const chave="8".repeat(50),nacional={...historica,emissor:"nacional",chaveAcesso:chave};
+ const rows=unificarNotas([historica,nacional],[email,{...email,id:"nacional",fluxo:{...email.fluxo,notaEmissor:"nacional",notaChave:chave}}],"drsoft");assert.equal(rows.length,2);assert.equal(rows.find(n=>n.chaveAcesso===chave).emailPdf,"nacional");assert.equal(rows.find(n=>!n.chaveAcesso).emailPdf,"e928");
+});
 test("nota928 aparece com PDF sem histórico, sem inventar data ou situação fiscal",()=>{
  const [n]=unificarNotas([], [email], "drsoft");
  assert.equal(n.numero,"928");assert.equal(n.emailPdf,"e928");assert.equal(n.emissao,"");assert.equal(n.situacao,"Registrada na cobrança");assert.equal(n.xml,false);

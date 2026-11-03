@@ -5,9 +5,10 @@ import { nomesAnexos, type EmailCobranca } from "@/lib/emails-cobranca";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { emailsDaCobranca, notasDaCobranca } from "@/lib/arquivos-acompanhamento";
 import { MensagemAdmin } from "./dialogos-admin";
+import {urlArquivoFiscal} from "@/lib/notas-unificadas";
 
 const botao = "inline-flex rounded-xl border border-blue-200 bg-white px-4 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-600";
-type Nota = { numero: string; pdf: boolean; xml: boolean };
+type Nota = { numero: string; pdf: boolean; xml: boolean; chaveAcesso?:string };
 type Estado = { chave: string; emails: EmailCobranca[]; notas: Nota[]; erros: string[] };
 
 export function ArquivosAcompanhamento({ empresa, c }: { empresa: Empresa; c: Cobranca }) {
@@ -28,12 +29,12 @@ export function ArquivosAcompanhamento({ empresa, c }: { empresa: Empresa; c: Co
       if (controller.signal.aborted) return;
       setEstado({ chave,
         emails: emails.status === "fulfilled" ? emailsDaCobranca(emails.value.emails, empresa, c.id) : [],
-        notas: fiscal.status === "fulfilled" ? notasDaCobranca(fiscal.value.notas, c.nota) : [],
+        notas: fiscal.status === "fulfilled" ? notasDaCobranca(fiscal.value.notas, c.nota,c.notaChave) : [],
         erros: [emails.status === "rejected" ? "Não foi possível consultar os anexos da cobrança." : "", fiscal.status === "rejected" ? "Não foi possível consultar o arquivo fiscal." : ""].filter(Boolean),
       });
     });
     return () => controller.abort();
-  }, [empresa, c.id, c.nota, chave]);
+  }, [empresa, c.id, c.nota,c.notaChave, chave]);
   const atual = estado?.chave === chave ? estado : null;
   const anexos = atual?.emails.flatMap(e => e.anexos.map(a => ({ ...a, emailId: e.id }))) || [];
   const nota = atual?.notas.length === 1 ? atual.notas[0] : undefined;
@@ -42,7 +43,7 @@ export function ArquivosAcompanhamento({ empresa, c }: { empresa: Empresa; c: Co
     <p className="mt-2 text-sm leading-6 text-slate-600">Abra a cópia para salvar ou compartilhar com o cliente. Consultar e baixar não emite documentos, não altera o pagamento e não reenvia e-mail.</p>
     {!atual ? <p className="mt-4 text-sm">Consultando documentos vinculados…</p> : <>
       {anexos.map(a => <div key={`${a.emailId}-${a.tipo}`} className="mt-3 rounded-xl border border-blue-100 bg-white p-4"><p className="font-bold">{nomesAnexos[a.tipo]}</p><p className="mt-1 break-words text-xs text-slate-500">{a.nome} · anexo salvo na cobrança</p><a target="_blank" rel="noreferrer" className={`${botao} mt-3`} href={`/api/admin/emails?empresa=${empresa}&id=${encodeURIComponent(a.emailId)}&anexo=${a.tipo}`}>Abrir PDF — {nomesAnexos[a.tipo]}</a></div>)}
-      {nota && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4"><p className="font-bold">NFS-e {nota.numero} · arquivo fiscal</p><div className="mt-3 flex flex-wrap gap-3">{nota.pdf && <a target="_blank" rel="noreferrer" className={botao} href={`/api/admin/nfse?empresa=${empresa}&historico=1&numero=${encodeURIComponent(nota.numero)}&arquivo=pdf`}>Abrir PDF da nota fiscal</a>}{nota.xml && <a className={botao} href={`/api/admin/nfse?empresa=${empresa}&historico=1&numero=${encodeURIComponent(nota.numero)}&arquivo=xml`}>Baixar XML da nota fiscal</a>}</div></div>}
+      {nota && <div className="mt-3 rounded-xl border border-blue-100 bg-white p-4"><p className="font-bold">NFS-e {nota.numero} · arquivo fiscal</p><div className="mt-3 flex flex-wrap gap-3">{nota.pdf && <a target="_blank" rel="noreferrer" className={botao} href={urlArquivoFiscal(empresa,nota,"pdf")}>Abrir PDF da nota fiscal</a>}{nota.xml && <a className={botao} href={urlArquivoFiscal(empresa,nota,"xml")}>Baixar XML da nota fiscal</a>}</div></div>}
       {!anexos.some(a => a.tipo === "nota") && !nota?.pdf && <p className="mt-4 text-sm text-slate-600">{c.nota ? `Nota ${c.nota} registrada, mas sem PDF disponível nesta consulta.` : "Nenhuma nota fiscal vinculada a esta cobrança."} Confira também a seção Notas antigas e XML.</p>}
       {!anexos.some(a => a.tipo === "boleto") && <p className="mt-3 text-sm text-slate-600">{c.boleto ? `Boleto ${c.boleto}: PDF não localizado entre os anexos. Consulte o Histórico do Inter para recuperar a cópia, sem reemitir.` : "Sem boleto registrado. Cobranças pagas via PIX não precisam de boleto."}</p>}
       <MensagemAdmin mensagem={atual.erros.join(" ")} titulo="Consulta de documentos incompleta" subtitulo="Os arquivos disponíveis continuam acessíveis" tom="erro" observacao="Isso não significa que os documentos foram apagados. Atualizar apenas consulta os arquivos; não emite nem envia documentos." aoFechar={() => setEstado(v => v ? {...v, erros: []} : v)} acao={() => setCarga(v => v + 1)} rotuloAcao="Atualizar documentos"/>

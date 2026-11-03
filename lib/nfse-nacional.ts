@@ -57,6 +57,7 @@ export function validarDadosNacionais(d:DadosNacionais,hoje:string){
   if(d.regime==="simples"&&d.competenciaFiscal<"2026-11-01")throw Error("São Paulo mantém a emissão municipal para competências anteriores a novembro/2026. Não altere a competência para liberar o nacional.");
   if(!Number.isSafeInteger(d.centavos)||d.centavos<=0||d.centavos>10000000000||!texto(d.cliente,150)||!texto(d.descricao,1500,true))throw Error("Confira o tomador, o valor e a descrição do serviço.");
   const p=normalizarPerfilNacional(d.perfil),a=d.endereco;
+  if((d.descricao+". Referência comercial: "+d.referencia).length>1500)throw Error("Descrição fiscal com referência excede 1500 caracteres.");
   if(!a||!/^\d{7}$/.test(a.municipio)||!/^\d{8}$/.test(a.cep)||!texto(a.tipo,3)||!texto(a.logradouro,100)||!texto(a.numero,20)||!texto(a.bairro,60)||! /^[A-Z]{2}$/.test(a.uf))throw Error("Complete o endereço fiscal do tomador.");
   if(a.complemento!==undefined)texto(a.complemento,60);
   if(d.regime==="simples"&&(!p.apuracaoSimples||p.federais))throw Error("Confirme o regime de apuração do Simples; retenções federais especiais exigem revisão.");
@@ -67,7 +68,7 @@ export function montarDpsNacional(d:DadosNacionais,numero:string,instante:string
   const p=validarDadosNacionais(d,d.emissao);
   if(!/^[1-9]\d{0,14}$/.test(numero)||!/^20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-03:00$/.test(instante)||!Number.isFinite(Date.parse(instante))||instante.slice(0,10)!==d.emissao||!["homologacao","producao"].includes(ambiente))throw Error("Identidade e instante da DPS inválidos.");
   const tag=(k:string,v:string)=>`<${k}>${esc(v)}</${k}>`,opt=(k:string,v:string)=>v?tag(k,v):"",a=d.endereco;
-  const money=(v:number)=>(v/100).toFixed(2),valor=(t:string)=>money(Number((BigInt(d.centavos)*BigInt(Math.round(Number(t)*100))+5000n)/10000n));
+  const money=(v:number)=>(v/100).toFixed(2),valor=(t:string)=>money(Number((BigInt(d.centavos)*BigInt(Math.round(Number(t)*100))+BigInt(5000))/BigInt(10000)));
   const id=identificadorDps("3550308",d.cnpj,p.serie,numero);
   const f=p.federais;
   const federal=f?`<tribFed><piscofins>${tag("CST",f.cst)}${tag("vBCPisCofins",money(d.centavos))}${tag("pAliqPis",Number(f.pis).toFixed(2))}${tag("pAliqCofins",Number(f.cofins).toFixed(2))}${tag("vPis",valor(f.pis))}${tag("vCofins",valor(f.cofins))}${tag("tpRetPisCofins",f.retencaoPisCofins)}</piscofins>${tag("vRetCP",valor(f.inss))}${tag("vRetIRRF",valor(f.ir))}${tag("vRetCSLL",valor(f.csll))}</tribFed>`:"";

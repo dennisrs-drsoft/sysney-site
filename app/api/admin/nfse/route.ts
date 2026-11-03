@@ -12,6 +12,7 @@ import {executarNotaSP,executorMunicipalDisponivel} from "@/lib/nfse-sp-executor
 import {recuperarPdfNotaSP} from "@/lib/documentos-pdf";
 import {perfilFiscalDoXml,orientacaoEmissor} from "@/lib/perfil-fiscal-historico";
 import {normalizarPerfilNacional,validarDadosNacionais,type DadosNacionais} from "@/lib/nfse-nacional";
+import {statusNacional,operarNacional} from "@/lib/nfse-nacional-runtime";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const cred=new DefaultAzureCredential();
@@ -69,7 +70,7 @@ export async function GET(req:NextRequest){
       const c=await contexto(emp,id),regime=await regimeEmpresa(emp);
       const perfil=await opcional<{json:string}>(`nfse-nacional-perfis-${emp}`,c.documento,"AdminConfiguracoes");
       const previa=await opcional<{json:string}>(`nfse-nacional-previas-${emp}`,c.idNota);
-      return reply({perfil:perfil?JSON.parse(perfil.json):null,previa:previa?JSON.parse(previa.json):null,regime:regime.vigente?.regime||null,producao:false,mensagem:"Preparação nacional separada do municipal. Transmissão ainda depende de homologação, habilitação do emitente e aprovação específica; salvar não reserva DPS nem emite nota."});
+      return reply({perfil:perfil?JSON.parse(perfil.json):null,previa:previa?JSON.parse(previa.json):null,regime:regime.vigente?.regime||null,...await statusNacional(table,emp,c.idNota,req.nextUrl.searchParams.get("ambiente")||"homologacao"),mensagem:"Preparação nacional separada do municipal. Transmissão depende de homologação, política do emitente e aprovação específica. Salvar a prévia não emite nota."});
     }
     if(req.nextUrl.searchParams.get("pgdas")==="1"){
       const mes=req.nextUrl.searchParams.get("mes");
@@ -88,20 +89,20 @@ export async function GET(req:NextRequest){
       return reply({apuracoes:apuracoes.sort((a,b)=>a.mes.localeCompare(b.mes))});
     }
     if(req.nextUrl.searchParams.get("historico")==="1"){
-      const numero=req.nextUrl.searchParams.get("numero"),arquivo=req.nextUrl.searchParams.get("arquivo");
-      if(numero && arquivo){
-        if(!/^\d{1,15}$/.test(numero)||!["xml","pdf"].includes(arquivo))throw Error("Arquivo fiscal inválido.");
-        const row=await table().getEntity<{json:string}>(`nfse-historico-${emp}`,String(Number(numero)));
+      const numero=req.nextUrl.searchParams.get("numero"),arquivo=req.nextUrl.searchParams.get("arquivo"),chave=req.nextUrl.searchParams.get("chave");
+      if((numero||chave) && arquivo){
+        if((chave?!/^\d{50}$/.test(chave):!/^\d{1,15}$/.test(numero||""))||!["xml","pdf"].includes(arquivo))throw Error("Arquivo fiscal inválido.");
+        const row=await table().getEntity<{json:string}>(`nfse-historico-${emp}`,chave?`N-${chave}`:String(Number(numero)));
         const nota=JSON.parse(row.json),blob=arquivo==="xml"?nota.xmlBlob:nota.pdfBlob;
         if(typeof blob!=="string"||!blob.startsWith(`historico/${emp}/nfse/`))return reply({erro:"Arquivo ainda não importado."},404);
         const conta=process.env.ADMIN_STORAGE_ACCOUNT||(process.env.NODE_ENV!=="production"?"sysneyadm2602":"");
         const bytes=await new BlobServiceClient(`https://${conta}.blob.core.windows.net`,cred).getContainerClient("admin-anexos").getBlockBlobClient(blob).downloadToBuffer();
-        return new NextResponse(new Uint8Array(bytes),{headers:{"Content-Type":arquivo==="xml"?"application/xml; charset=utf-8":"application/pdf","Content-Disposition":`attachment; filename="NFSe_${numero}.${arquivo}"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
+        return new NextResponse(new Uint8Array(bytes),{headers:{"Content-Type":arquivo==="xml"?"application/xml; charset=utf-8":"application/pdf","Content-Disposition":`attachment; filename="NFSe_${chave||numero}.${arquivo}"`,"Cache-Control":"no-store","X-Content-Type-Options":"nosniff"}});
       }
       const notas=[];
       for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'nfse-historico-${emp}'`}})){
         const n=JSON.parse(row.json);
-        notas.push({numero:n.numero,documento:n.documento,cliente:n.cliente,emissao:n.emissao,centavos:n.centavos,situacao:n.situacao,tributos:n.tributos,xml:!!n.xmlBlob,pdf:!!n.pdfBlob,consultadoEm:n.consultadoEm});
+        notas.push({numero:n.numero,documento:n.documento,cliente:n.cliente,emissao:n.emissao,centavos:n.centavos,situacao:n.situacao,tributos:n.tributos,emissor:n.emissor,chaveAcesso:n.chaveAcesso,xml:!!n.xmlBlob,pdf:!!n.pdfBlob,consultadoEm:n.consultadoEm});
       }
       return reply({notas:notas.sort((a,b)=>b.emissao.localeCompare(a.emissao))});
     }
@@ -124,6 +125,10 @@ export async function POST(req:NextRequest){
   try{
     const emp=empresa(req),raw=await req.text();if(raw.length>10000)throw Error("Solicitação muito grande.");
     const body=JSON.parse(raw);
+    if(["nacional-assinar","nacional-emitir","nacional-consultar","nacional-resultado"].includes(body.acao)){
+      const ctx=await contexto(emp,body.id),regime=(await regimeEmpresa(emp)).vigente?.regime||"";
+      return reply(await operarNacional({table,emp,ctx,body,req,regime}));
+    }
     if(body.acao==="nacional-preparar"){
       const c=await contexto(emp,body.id),{email,cobranca,documento,idNota}=c;
       if(body.confirmado!==true||body.atualizadoEm!==email.atualizadoEm)throw Error("Salve a cobrança e confirme o perfil nacional e a competência fiscal.");

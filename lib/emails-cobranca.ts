@@ -15,7 +15,7 @@ export type EmailCobranca = {
   status: "rascunho" | "revisado" | "enviando" | "aceito" | "incerto" | "emitindo_documento";
   anexos: AnexoEmail[]; tentativas: TentativaEmail[]; atualizadoEm: string;
   aprovacaoEnvio?: { hash: string; por: string; em: string; remetente: string };
-  fluxo?: { cobrancaId: string; nota: string; boleto: string; documentos?: {hash: string; por: string; em: string} };
+  fluxo?: { cobrancaId: string; nota: string; notaEmissor?:"municipal"|"nacional"; notaChave?:string; boleto: string; documentos?: {hash: string; por: string; em: string} };
 };
 export function validarPagamento(e:EmailCobranca) {
   if(e.formaPagamento!==undefined && e.formaPagamento!=="boleto" && e.formaPagamento!=="pix")throw new Error("Forma de pagamento inválida.");

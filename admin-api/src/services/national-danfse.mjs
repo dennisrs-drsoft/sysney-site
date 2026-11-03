@@ -68,11 +68,12 @@ export async function readBoundedPdfText(bytes){
  }
  return {normalized:text.normalize('NFKD').replace(/\p{Diacritic}/gu,'').replace(/\s+/g,' '),pages:doc.getPageCount()};
 }
-export async function validateRestrictedDanfse(bytes,evidence){
- if(!/^\d{50}$/.test(evidence?.authorityKey)||!/^\d+$/.test(evidence?.number)||evidence.environment!=='homologacao')fail('PDF_EXPECTED_IDENTITY_REQUIRED');
+export async function validateNationalDanfse(bytes,evidence){
+ if(!/^\d{50}$/.test(evidence?.authorityKey)||!/^\d+$/.test(evidence?.number)||!['homologacao','production'].includes(evidence.environment))fail('PDF_EXPECTED_IDENTITY_REQUIRED');
  const {normalized,pages}=await readBoundedPdfText(bytes),digits=normalized.replace(/\D/g,'');
  const numberMatch=normalized.match(/Numero\s+da\s+NFS[ -]?e\s*:?\s*(\d+)/i);
  const amount=(evidence.amountCentsBRL/100).toFixed(2),brl=amount.replace('.',','),grouped=new Intl.NumberFormat('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2}).format(evidence.amountCentsBRL/100);
  if(!digits.includes(evidence.authorityKey)||!digits.includes(evidence.issuerDocument)||!digits.includes(evidence.recipientDocument)||!numberMatch||BigInt(numberMatch[1])!==BigInt(evidence.number)||![brl,amount,grouped].some(a=>normalized.includes(a)))fail('PDF_CONTENT_BINDING_UNVERIFIED');
- return {sha256:digest(bytes),size:bytes.length,authorityKey:evidence.authorityKey,number:evidence.number,pages,contentVerified:true,method:'bounded-content-stream-profile',environment:'homologacao'};
+ return {sha256:digest(bytes),size:bytes.length,authorityKey:evidence.authorityKey,number:evidence.number,pages,contentVerified:true,method:'bounded-content-stream-profile',environment:evidence.environment};
 }
+export async function validateRestrictedDanfse(bytes,evidence){if(evidence?.environment!=='homologacao')fail('PDF_EXPECTED_IDENTITY_REQUIRED');return validateNationalDanfse(bytes,evidence);}

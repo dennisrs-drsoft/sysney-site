@@ -10,6 +10,7 @@ import {createRestrictedDpsLedger} from '../admin-api/src/services/national-rest
 import {createNationalRestrictedWorkStore} from '../admin-api/src/services/national-restricted-work-store.mjs';
 import {createRestrictedDpsSequence} from '../admin-api/src/services/national-restricted-sequence.mjs';
 import {createRestrictedQaTableWorkStore} from '../admin-api/src/services/national-restricted-qa-table-store.mjs';
+import {createNationalAdminSequence,createNationalAdminQueue} from '../admin-api/src/services/national-admin-store.mjs';
 
 test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', {skip:!process.env.ATP_AZURITE_PACKAGE,timeout:90000},async()=>{
  const packagePath=process.env.ATP_AZURITE_PACKAGE;
@@ -29,6 +30,10 @@ test('Azurite isolado: transacao, ETag, unicidade, documentos privados e hash', 
  let tableCreated=false,containerCreated=false;
  try{
   await service.createTable(tableName);tableCreated=true;await container.create();containerCreated=true;
+  const adminSeq=createNationalAdminSequence(table,{cnpj:'12345678000199',ambiente:'producao'}),adminArgs={workId:'d'.repeat(64),hash:'e'.repeat(64),serie:'777',emissao:'2026-11-02T12:00:00-03:00'};
+  const adminAssigned=await Promise.all(Array.from({length:4},()=>adminSeq.reserve(adminArgs)));assert.ok(adminAssigned.every(a=>a.numero==='1'));
+  const adminQueue=createNationalAdminQueue(table),adminJob=await adminQueue.enqueue({acao:'consultar',workId:adminArgs.workId}),adminRow=await adminQueue.get(adminJob);await adminQueue.claim(adminRow);await assert.rejects(adminQueue.claim(adminRow));
+  await adminQueue.complete(adminJob,{status:'confirmada',privateSynthetic:'A'.repeat(75000)});assert.equal((await adminQueue.result(adminJob)).result.privateSynthetic.length,75000);
   const sequences=[createRestrictedDpsSequence(table),createRestrictedDpsSequence(table)];
   const firstAssignment={requestId:'1'.repeat(64),series:'99',preparationHash:digest('profile+request'),emissionAt:'2026-10-27T12:00:00-03:00'};
   const repeated=await Promise.all(Array.from({length:8},(_,i)=>sequences[i%2].reserve(firstAssignment)));
