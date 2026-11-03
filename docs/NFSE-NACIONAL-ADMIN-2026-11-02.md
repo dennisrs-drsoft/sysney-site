@@ -7,8 +7,8 @@ reserva DPS transacional por emitente/ambiente, assinatura no Windows, aprovaç�
 vinculada à versão, transmissão única, consulta após falhas e recuperação de
 XML/DANFSe. O serviço isolado está instalado na DRServer em modo **assinatura e
 consultas**, com envio desabilitado. Isso não equivale a homologação oficial nem
-a liberação de notas reais. A publicação Next/API será registrada na evidência
-de release ao concluir a verificação on-line.
+a liberação de notas reais. A publicação Next/API e a verificação on-line estão
+registradas em [evidência de release](RELEASE-NFSE-NACIONAL-2026-11-02.md).
 
 Os regimes cadastrados foram preservados: SYSNEY Simples Nacional e DRSoft
 Lucro Presumido. Não foram emitidas notas, gerados boletos, enviados e-mails ou
@@ -110,7 +110,7 @@ Fontes consultadas em 02/11/2026:
 
 ## Validação
 
-252 testes Node aprovados, zero falhas/ignorados, com SDK Azure contra Azurite e
+254 testes Node aprovados, zero falhas/ignorados, com SDK Azure contra Azurite e
 SEFIN simulada pelo Postman local. Casos novos: dois emitentes/ambientes,
 concorrência e perda de resposta na reserva, chunks corrompidos, política
 bloqueada, aprovação vencida, cobrança alterada, timeout após commit, recuperação
