@@ -15,6 +15,10 @@ import {createAtpWorkerAuthority} from '../admin-api/src/services/atp-municipal-
 
 const verified='2026-10-28T12:00:00Z',ready='2026-10-29T12:00:00Z';
 const routing={approved:true,version:'QA-ROUTING',periodMeaning:'access',validFromDate:'2026-10-01',validThroughDate:'2026-11-09'};
+test('política de acesso não autoriza municipal Simples para competência novembro',()=>{
+ const i=validatePreparation({...input,competence:'2026-11',servicePeriod:{startDate:'2026-11-01',endDate:'2026-11-30'}});
+ assert.throws(()=>buildAtpMunicipal({input:i,profile,series:'ATP01',number:'1',emissionDate:'2026-11-02',municipalRouting:routing}),/NATIONAL_ROUTING_REVIEW_REQUIRED/);
+});
 const window={notBeforeUtc:ready,fiscalDeadlineUtc:'2026-10-31T02:59:59Z',policyVersion:'ATP-WAIT-v1'};
 const prepared=()=>validatePreparation({...input,paymentVerifiedAtUtc:verified,servicePeriod:{startDate:'2026-10-28',endDate:'2026-11-28'},issuanceWindow:window});
 const config={mode:'production',automationEnabled:true,issuanceEnabled:true,nationalEnabled:false,approved:true,exclusiveSeriesConfirmed:true,profile,series:'ATPQA',initialNumber:'1',notBeforeUtc:'2026-10-28T00:00:00Z',issuanceWindowPolicyVersion:'ATP-WAIT-v1',municipalRouting:routing};
@@ -78,6 +82,10 @@ test('orquestrador persiste espera sem reservar RPS; só após prazo consulta HT
   const authority=createAtpWorkerAuthority({documents:table,paymentGate:h.gate,config:{paused:false,allowFiscalCalls:true,automationEnabled:true,issuanceEnabled:true,nationalEnabled:false,approvedPolicyHash:policyHash,approvedPolicyVersion:profile.version,requireFreshPayment:true,municipalRouting:routing,issuanceWindowPolicyVersion:'ATP-WAIT-v1'},now:()=>time});
   const payload={action:'emitir',workId:work.workId,xml:work.xml,chain:work.chain,approvedHash:work.hash,dispatch,paymentPermit:permit,queueExecutionId:'QA-job',automation:{requestId:id,requestHash:r.hash,policyHash,profileVersion:profile.version,leaseClaimId:active.claimId,leaseFence:active.fence}};
   assert.equal((await authority(payload)).phase,'consume');h.setMode('deny-consume');await assert.rejects(authority(payload),/NOT_AUTHORIZED/);
+  const beforeNovember=await repository.get(id),callsBeforeNovember=h.calls.length;
+  await repository.replace({...beforeNovember,input:{...beforeNovember.input,competence:'2026-11'}},beforeNovember.etag);
+  await assert.rejects(authority(payload),/NATIONAL_ROUTING_REVIEW_REQUIRED/);assert.equal(h.calls.length,callsBeforeNovember);
+  const november=await repository.get(id);await repository.replace({...november,input:beforeNovember.input},november.etag);
   const latest=await repository.get(id);await repository.replace({...latest,reviewStatus:'refund_review_required'},latest.etag);const count=h.calls.length;await assert.rejects(authority(payload),/REVIEW_OR_FENCE/);assert.equal(h.calls.length,count);
  }finally{await h.close();}
 });

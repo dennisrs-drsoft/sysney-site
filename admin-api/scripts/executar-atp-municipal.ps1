@@ -15,6 +15,7 @@ $explicitRouting=($env:ATP_MUNICIPAL_VALID_FROM -match '^20\d\d-\d\d-\d\d$' -and
 if($e.action -ne 'consultar'){
  if((Get-AtpMunicipalChain $doc) -ne $e.chain){throw 'ATP_CHAIN_MISMATCH'}
  $date=[string]$doc.SelectSingleNode('/*/RPS/DataEmissao').InnerText
+ if($date -ge '2026-11-01'){throw 'ATP_NOVEMBER_NATIONAL_ROUTING_REVIEW_REQUIRED'}
  if($explicitRouting){if($date -lt $env:ATP_MUNICIPAL_VALID_FROM -or $date -gt $env:ATP_MUNICIPAL_VALID_THROUGH){throw 'ATP_MUNICIPAL_ROUTING_REVIEW_REQUIRED'}}elseif($date -ge '2026-11-01'){throw 'ATP_NOVEMBER_ROUTING_REVIEW_REQUIRED'}
 }
 if($e.action -eq 'emitir'){

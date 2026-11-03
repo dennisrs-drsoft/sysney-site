@@ -9,6 +9,8 @@ export function validateMunicipalRouting(emissionDate,routing){
 }
 export function buildAtpMunicipal({input,profile,series,number,emissionDate,municipalRouting}){
  input=validatePreparation(input);
+ // A política operacional de acesso não pode substituir o emissor exigido pela competência fiscal.
+ if(input.competence>='2026-11')fail('ATP_NOVEMBER_NATIONAL_ROUTING_REVIEW_REQUIRED');
  if(!profile?.version||profile.version.length>100||profile.issuer?.cnpj!=='57767099000179'||!/^\d{8}$/.test(profile.issuer.inscricao)||profile.regime!=='simples'||profile.codigoServico!=='03158'||profile.municipioPrestacao!=='3550308'||profile.aliquota!=='0'||profile.issRetido!==false)fail('ATP_MUNICIPAL_PROFILE_REQUIRED');
  if(!/^[A-Z0-9]{1,5}$/.test(series)||!/^\d{1,12}$/.test(number)||BigInt(number)<1n)fail('ATP_RPS_KEY_INVALID');
  if(!/^20\d{2}-\d{2}-\d{2}$/.test(emissionDate)||new Date(emissionDate).toISOString().slice(0,10)!==emissionDate)fail('ATP_EMISSION_DATE_INVALID');

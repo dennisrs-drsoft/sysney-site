@@ -10,6 +10,7 @@ import type {EmailCobranca} from "@/lib/emails-cobranca";
 import {chaveTrabalhoFiscalSP,hashNotaSP,normalizarFiscalSP,montarXmlSP,cadeiaAssinaturaSP,type DadosNotaSP,type TrabalhoSP} from "@/lib/nfse-sp";
 import {executarNotaSP,executorMunicipalDisponivel} from "@/lib/nfse-sp-executor";
 import {recuperarPdfNotaSP} from "@/lib/documentos-pdf";
+import {perfilFiscalDoXml,orientacaoEmissor} from "@/lib/perfil-fiscal-historico";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const cred=new DefaultAzureCredential();
@@ -41,6 +42,22 @@ async function regimeEmpresa(emp:string){
   const historico:HistoricoRegime[]=row?JSON.parse(row.json).historico:[];
   const vigente=historico.filter(x=>x.vigencia<=hojeBrasil()).sort((a,b)=>b.vigencia.localeCompare(a.vigencia))[0];
   return {row,historico,vigente};
+}
+async function sugerirPerfilHistorico(emp:string,documento:string,regime:"simples"|"presumido") {
+  const emitente=await opcional<{cnpj:string;inscricao:string}>("nfse-emitentes",emp,"AdminConfiguracoes");
+  if(!emitente)return null;
+  const candidatas:{numero:string;documento:string;emissao:string;situacao:string;xmlBlob:string}[]=[];
+  for await(const row of table().listEntities<{json:string}>({queryOptions:{filter:`PartitionKey eq 'nfse-historico-${emp}'`,select:["json"]}})){
+    const n=JSON.parse(row.json);
+    if(n.documento===documento&&n.situacao==="N"&&/^\d{1,15}$/.test(n.numero)&&typeof n.emissao==="string"&&typeof n.xmlBlob==="string"&&n.xmlBlob.startsWith(`historico/${emp}/nfse/`))candidatas.push(n);
+  }
+  candidatas.sort((a,b)=>b.emissao.localeCompare(a.emissao)||Number(b.numero)-Number(a.numero));
+  const nota=candidatas[0];if(!nota)return null;
+  const conta=process.env.ADMIN_STORAGE_ACCOUNT||(process.env.NODE_ENV!=="production"?"sysneyadm2602":"");
+  const blob=new BlobServiceClient(`https://${conta}.blob.core.windows.net`,cred).getContainerClient("admin-anexos").getBlobClient(nota.xmlBlob);
+  const properties=await blob.getProperties();if(!properties.contentLength||properties.contentLength>100000)throw Error("XML histórico fora do limite.");
+  const bytes=await blob.downloadToBuffer(0,properties.contentLength,{conditions:{ifMatch:properties.etag}});
+  return perfilFiscalDoXml(bytes.toString("utf8"),{numero:nota.numero,documento,cnpj:process.env[`NFSE_${emp.toUpperCase()}_CNPJ`]||emitente.cnpj,inscricao:process.env[`NFSE_${emp.toUpperCase()}_CCM`]||emitente.inscricao,regime,hoje:hojeBrasil()});
 }
 export async function GET(req:NextRequest){
   const remote=await encaminharAdmin(req);if(remote)return remote;
@@ -81,9 +98,16 @@ export async function GET(req:NextRequest){
       }
       return reply({notas:notas.sort((a,b)=>b.emissao.localeCompare(a.emissao))});
     }
-    let trabalho:TrabalhoSP|null=null,perfil=null,retencoes=null;
-    if(id){const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);const t=await opcional<{json:string}>(`nfse-retencoes-${emp}`,c.documento,"AdminConfiguracoes");if(t)retencoes=JSON.parse(t.json);}
-    return reply({local:executorMunicipalDisponivel(),remoto:process.env.NFSE_SP_WORKER_HABILITADO==="true",producao:executorMunicipalDisponivel()&&(process.env.NFSE_SP_WORKER_HABILITADO!=="true"||process.env.NFSE_SP_VM_PRODUCAO_HABILITADA==="true")&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,retencoes,historicoRegime:(await regimeEmpresa(emp)).historico,regime:(await regimeEmpresa(emp)).vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
+    let trabalho:TrabalhoSP|null=null,perfil=null,retencoes=null,perfilAviso="",orientacao=null;
+    const regime=await regimeEmpresa(emp);
+    if(id){
+      const c=await contexto(emp,id),r=await opcional<{json:string}>(`nfse-sp-${emp}`,c.idNota);if(r)trabalho=JSON.parse(r.json);
+      const p=await opcional<{json:string}>(`nfse-perfil-${emp}`,c.documento,"AdminConfiguracoes");if(p)perfil=JSON.parse(p.json);
+      const t=await opcional<{json:string}>(`nfse-retencoes-${emp}`,c.documento,"AdminConfiguracoes");if(t)retencoes=JSON.parse(t.json);
+      if(!p&&!trabalho&&regime.vigente)try{perfil=await sugerirPerfilHistorico(emp,c.documento,regime.vigente.regime);}catch{perfilAviso="Não foi possível validar o XML mais recente deste cliente. Confira os dados fiscais antes de preparar; nenhum dado de outro emitente será utilizado.";}
+      orientacao=orientacaoEmissor(regime.vigente?.regime||"",c.email.competencia,hojeBrasil());
+    }
+    return reply({local:executorMunicipalDisponivel(),remoto:process.env.NFSE_SP_WORKER_HABILITADO==="true",producao:executorMunicipalDisponivel()&&(process.env.NFSE_SP_WORKER_HABILITADO!=="true"||process.env.NFSE_SP_VM_PRODUCAO_HABILITADA==="true")&&process.env.NFSE_SP_PRODUCAO_HABILITADA==="true",trabalho,perfil,perfilAviso,orientacao,retencoes,historicoRegime:regime.historico,regime:regime.vigente||null,mensagem:"Integração municipal: prepare e teste sem emitir. Produção requer teste aprovado e autorização separada. PDF ainda deve ser obtido no portal e anexado; nenhum e-mail é enviado."});
   }catch(e){return falha(e);}
 }
 export async function POST(req:NextRequest){
@@ -119,7 +143,8 @@ export async function POST(req:NextRequest){
       if(fiscal.regime!==(await regimeEmpresa(emp)).vigente?.regime)throw Error("Salve o regime vigente da empresa antes de preparar a nota.");
       if(Number(fiscal.numeroInicial)>=999999999999)throw Error("Número inicial fora da faixa reservável.");
       if(fiscal.dataEmissao!==hojeBrasil())throw Error("Para esta integração, a data de emissão deve ser a data de hoje. A competência do serviço permanece separada.");
-      if(fiscal.regime==="simples"&&fiscal.dataEmissao>="2026-11-01")throw Error("Simples Nacional: emissão a partir de novembro deve seguir o Emissor Nacional. Integração nacional ainda não liberada.");
+      const orientacao=orientacaoEmissor(fiscal.regime,email.competencia,hojeBrasil());
+      if(orientacao.tipo!=="municipal")throw Error(orientacao.mensagem);
       // Identidade obtida exclusivamente da configuração protegida, nunca do navegador.
       const emitente=await opcional<{cnpj:string;inscricao:string}>("nfse-emitentes",emp,"AdminConfiguracoes");
       const cnpj=process.env[`NFSE_${emp.toUpperCase()}_CNPJ`]||emitente?.cnpj,inscricao=process.env[`NFSE_${emp.toUpperCase()}_CCM`]||emitente?.inscricao;

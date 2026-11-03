@@ -8,6 +8,7 @@ const compile=p=>ts.transpileModule(readFileSync(new URL(p,import.meta.url),"utf
 const impostos=uri(compile("../lib/retencoes-fiscais.ts"));
 const {calcularRetencoes,taxasPlanilha}=await import(impostos);
 const leiaute=uri(compile("../lib/leiaute-nfse-sp.ts"));
+const perfilHistorico=uri(compile("../lib/perfil-fiscal-historico.ts").replaceAll('"fast-xml-parser"',JSON.stringify(import.meta.resolve('fast-xml-parser'))));
 const model=uri(compile("../lib/nfse-sp.ts").replaceAll('"./retencoes-fiscais"',JSON.stringify(impostos)).replaceAll('"./leiaute-nfse-sp"',JSON.stringify(leiaute)));
 const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFiscalSP,leiauteSP}=await import(model);
 // Dados exclusivamente sintéticos: nenhum certificado ou serviço externo é usado.
@@ -79,15 +80,31 @@ test("regime não depende da empresa; Simples sem complementos; impostos recalcu
 const db=uri(`export const records=new Map();export class TableClient{constructor(u,n){this.name=n}key(p,r){return this.name+':'+p+':'+r}async getEntity(p,r){const e=records.get(this.key(p,r));if(!e)throw Object.assign(Error(),{statusCode:404});return structuredClone(e)}async createEntity(e){const k=this.key(e.partitionKey,e.rowKey);if(records.has(k))throw Object.assign(Error(),{statusCode:409});records.set(k,{...e,etag:'1'})}async updateEntity(e,m,o){const k=this.key(e.partitionKey,e.rowKey),old=records.get(k);if(!old||old.etag!==o.etag)throw Object.assign(Error(),{statusCode:412});records.set(k,{...e,etag:String(Number(old.etag)+1)})}async *listEntities(o){const p=o.queryOptions.filter.split("\'")[1];for(const e of records.values())if(e.partitionKey===p)yield structuredClone(e)}}`);
 const exec=uri(`export const state={real:0,testes:0,fail:false,confirmado:false,consultas:0};export const executorMunicipalDisponivel=()=>true;export async function executarNotaSP(acao,d){if(acao==='emitir'){state.real++;if(state.fail)throw Error('timeout')}if(acao==='consultar')state.consultas++;if(acao==='testar')state.testes++;return {sucesso:true,erros:[],alertas:[],xml:'<retorno/>',teste:acao==='testar',...(acao==='consultar'||(acao==='emitir'&&state.confirmado)?{numero:'10',inscricao:d.inscricao,verificacao:'TEST1234',tomador:d.clienteDocumento,valorFinal:(d.centavos/100).toFixed(2),descricao:d.descricao+(d.po?'\\nPO '+d.po:'')}:{})}}`);
 const cobrancas=uri(`export const hojeBrasil=()=> '2026-10-03';export const prevista=(p,competencia)=>({id:p.id+'_'+competencia,competencia,centavos:p.centavos,vencimento:p.vencimento,eventos:[]})`);
-let source=compile("../app/api/admin/nfse/route.ts");
+const blobModule=uri(`export const blobs=new Map();export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({downloadToBuffer:async()=>Buffer.from('<NFe/>')}),getBlobClient:path=>({getProperties:async()=>{const b=blobs.get(path);if(!b)throw Error('missing');return {contentLength:b.length,etag:'test'}},downloadToBuffer:async()=>blobs.get(path)})}}}`);
+let source=compile("../app/api/admin/nfse/route.ts").replaceAll('"@/lib/perfil-fiscal-historico"',JSON.stringify(perfilHistorico));
 source=source.replaceAll('"@/lib/documentos-pdf"',JSON.stringify(uri("export const recuperarPdfNotaSP=async()=>{throw Error('PDF indisponível no teste')};")));
-for(const [name,target] of Object.entries({"next/server":uri("export const NextResponse={json:(d,o)=>Response.json(d,o)}"),"@azure/data-tables":db,"@azure/identity":uri("export class DefaultAzureCredential {}"),"@azure/storage-blob":uri("export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({downloadToBuffer:async()=>Buffer.from('<NFe/>')})}}}"),"../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test')==='yes'"),"../_remote":uri("export const encaminharAdmin=async()=>null"),"@/lib/cobrancas":cobrancas,"@/lib/nfse-sp":model,"@/lib/nfse-sp-executor":exec}))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
+for(const [name,target] of Object.entries({"next/server":uri("export const NextResponse={json:(d,o)=>Response.json(d,o)}"),"@azure/data-tables":db,"@azure/identity":uri("export class DefaultAzureCredential {}"),"@azure/storage-blob":blobModule,"../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test')==='yes'"),"../_remote":uri("export const encaminharAdmin=async()=>null"),"@/lib/cobrancas":cobrancas,"@/lib/nfse-sp":model,"@/lib/nfse-sp-executor":exec}))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source));const {records}=await import(db);const {state}=await import(exec);
 const id="11111111-1111-4111-8111-111111111111",planId="a".repeat(64);
 const email={id,empresa:"drsoft",cliente:dados.clienteNome,competencia:dados.competencia,centavos:dados.centavos,descricao:dados.descricao,po:dados.po,vencimento:"2026-10-10",status:"rascunho",atualizadoEm:"v1",anexos:[],fluxo:{cobrancaId:planId+"_"+dados.competencia}};
 function setup(){records.clear();records.set("AdminConfiguracoes:nfse-regimes:drsoft",{json:JSON.stringify({historico:[{regime:"presumido",vigencia:"2026-01-01"}]}),etag:"1"});state.real=state.testes=0;state.fail=false;process.env.NFSE_DRSOFT_CNPJ=dados.cnpj;process.env.NFSE_DRSOFT_CCM=dados.inscricao;delete process.env.NFSE_SP_PRODUCAO_HABILITADA;records.set(`AdminDocumentos:emails-drsoft:${id}`,{json:JSON.stringify(email),etag:"1"});records.set(`AdminConfiguracoes:cobrancas-drsoft:${planId}`,{json:JSON.stringify({id:planId,documento:dados.clienteDocumento,inicio:"2026-09",centavos:dados.centavos,vencimento:"2026-10-10"}),etag:"1"});}
 function req(body,headers={}){const u=new URL("http://localhost:3100/api/admin/nfse?empresa=drsoft&id="+id);const r=new Request(u,{method:body?"POST":"GET",headers:{origin:u.origin,"x-test":"yes",...headers},body:body?JSON.stringify(body):undefined});r.nextUrl=u;return r;}
 const preparar={acao:"preparar",id,atualizadoEm:"v1",fiscal,confirmarSerie:true};
+
+test("GET recupera perfil do XML da mesma empresa, preserva perfil explícito e não reserva/emite",async()=>{
+ setup();const {blobs}=await import(blobModule);blobs.clear();
+ records.set("AdminConfiguracoes:nfse-emitentes:drsoft",{cnpj:dados.cnpj,inscricao:dados.inscricao});
+ const path="historico/drsoft/nfse/10.xml";
+ const n={numero:"10",documento:dados.clienteDocumento,emissao:"2026-09-01",situacao:"N",xmlBlob:path};
+ records.set("AdminDocumentos:nfse-historico-drsoft:10",{partitionKey:"nfse-historico-drsoft",json:JSON.stringify(n)});
+ const xml=`<NFe><ChaveNFe><NumeroNFe>10</NumeroNFe><InscricaoPrestador>${dados.inscricao}</InscricaoPrestador></ChaveNFe><CPFCNPJPrestador><CNPJ>${dados.cnpj}</CNPJ></CPFCNPJPrestador><CPFCNPJTomador><CNPJ>${dados.clienteDocumento}</CNPJ></CPFCNPJTomador><StatusNFe>N</StatusNFe><CodigoServico>2684</CodigoServico><AliquotaServicos>0.029</AliquotaServicos><ISSRetido>false</ISSRetido><EnderecoTomador><TipoLogradouro>R</TipoLogradouro><Logradouro>Teste</Logradouro><NumeroEndereco>1</NumeroEndereco><Bairro>Centro</Bairro><Cidade>3550308</Cidade><UF>SP</UF><CEP>1000000</CEP></EnderecoTomador></NFe>`;
+ blobs.set(path,Buffer.from(xml));const before=JSON.stringify([...records]);
+ const r=await GET(req());assert.equal(r.status,200);const j=await r.json();assert.equal(j.perfil.fiscal.codigoServico,"02684");assert.equal(j.perfil.notaOrigem,"10");assert.equal(j.perfil.fiscal.serie,undefined);assert.equal(j.perfil.fiscal.ir,undefined);assert.equal(j.orientacao.tipo,"municipal");assert.equal(JSON.stringify([...records]),before);assert.equal(state.real,0);assert.equal(state.testes,0);
+ const explicit={fiscal:{...fiscal,codigoServico:"02800"},fonte:"Revisado"};records.set("AdminConfiguracoes:nfse-perfil-drsoft:"+dados.clienteDocumento,{json:JSON.stringify(explicit)});
+ assert.deepEqual((await(await GET(req())).json()).perfil,explicit);
+ records.delete("AdminConfiguracoes:nfse-perfil-drsoft:"+dados.clienteDocumento);blobs.set(path,Buffer.from(xml.replace(dados.cnpj,"11111111000111")));
+ const invalid=await(await GET(req())).json();assert.equal(invalid.perfil,null);assert.ok(invalid.perfilAviso);assert.equal(state.real,0);
+});
 
 test("arquivo fiscal histórico exige login, separa empresas e bloqueia blob de outra empresa",async()=>{
  setup();
