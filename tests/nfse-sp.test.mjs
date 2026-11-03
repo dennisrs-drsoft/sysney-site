@@ -1,3 +1,4 @@
+import {nationalModelUri} from "./helpers/load-national-model.mjs";
 import {readFileSync} from "node:fs";
 import {spawnSync} from "node:child_process";
 import {test} from "node:test";
@@ -9,7 +10,7 @@ const impostos=uri(compile("../lib/retencoes-fiscais.ts"));
 const {calcularRetencoes,taxasPlanilha}=await import(impostos);
 const leiaute=uri(compile("../lib/leiaute-nfse-sp.ts"));
 const perfilHistorico=uri(compile("../lib/perfil-fiscal-historico.ts").replaceAll('"fast-xml-parser"',JSON.stringify(import.meta.resolve('fast-xml-parser'))));
-const nacional=uri(compile("../lib/nfse-nacional.ts"));
+const nacional=nationalModelUri;
 const model=uri(compile("../lib/nfse-sp.ts").replaceAll('"./retencoes-fiscais"',JSON.stringify(impostos)).replaceAll('"./leiaute-nfse-sp"',JSON.stringify(leiaute)));
 const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFiscalSP,leiauteSP}=await import(model);
 // Dados exclusivamente sintéticos: nenhum certificado ou serviço externo é usado.

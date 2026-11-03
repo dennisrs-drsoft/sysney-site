@@ -1,14 +1,13 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {nationalModel} from './helpers/load-national-model.mjs';
 import {createHash,randomInt} from 'node:crypto';
-import ts from 'typescript';
+
 import {createNationalAdminClient} from '../admin-api/src/services/national-admin-client.mjs';
 import {createNationalAdminSequence,createNationalAdminQueue} from '../admin-api/src/services/national-admin-store.mjs';
 import {memoryTable} from './helpers/atp-municipal-fixture.mjs';
 import {runNationalAdminJob} from '../admin-api/src/services/national-admin-worker.mjs';
-const js=ts.transpileModule(readFileSync(new URL('../lib/nfse-nacional.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText;
-const {montarDpsNacional}=await import('data:text/javascript;base64,'+Buffer.from(js).toString('base64'));
+const {montarDpsNacional}=nationalModel;
 const hash=b=>createHash('sha256').update(b).digest('hex'),base=process.env.NATIONAL_SIM_BASE;
 const p={codigoNacional:'010701',codigoMunicipal:'',nbs:'',serie:'777',regimeEspecial:'0',apuracaoSimples:'1',retencaoIss:'1',aliquotaIss:'',transparencia:{tipo:'naoInformar',percentual:''}};
 const d={empresa:'sysney',cnpj:'12345678000199',regime:'simples',documento:'98765432000199',cliente:'CLIENTE QA',descricao:'SIMULACAO LOCAL NAO TRANSMITIR',centavos:324258,referencia:'2026-10',competenciaFiscal:'2026-11-01',emissao:'2026-11-02',endereco:{tipo:'R',logradouro:'Teste',numero:'1',bairro:'Centro',municipio:'3550308',uf:'SP',cep:'01000000'},perfil:p};

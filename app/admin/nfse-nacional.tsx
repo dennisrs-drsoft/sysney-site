@@ -1,4 +1,4 @@
-import { pendenciasNacionais } from "@/lib/nfse-nacional";
+import { pendenciasNacionais } from "@/lib/nfse-nacional-info";
 
 export function NfseNacional({ empresa }: { empresa: "sysney" | "drsoft" }) {
   return <section className="space-y-5">
