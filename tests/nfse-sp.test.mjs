@@ -9,6 +9,7 @@ const impostos=uri(compile("../lib/retencoes-fiscais.ts"));
 const {calcularRetencoes,taxasPlanilha}=await import(impostos);
 const leiaute=uri(compile("../lib/leiaute-nfse-sp.ts"));
 const perfilHistorico=uri(compile("../lib/perfil-fiscal-historico.ts").replaceAll('"fast-xml-parser"',JSON.stringify(import.meta.resolve('fast-xml-parser'))));
+const nacional=uri(compile("../lib/nfse-nacional.ts"));
 const model=uri(compile("../lib/nfse-sp.ts").replaceAll('"./retencoes-fiscais"',JSON.stringify(impostos)).replaceAll('"./leiaute-nfse-sp"',JSON.stringify(leiaute)));
 const {montarXmlSP,montarConsultaSP,cadeiaAssinaturaSP,hashNotaSP,normalizarFiscalSP,leiauteSP}=await import(model);
 // Dados exclusivamente sintéticos: nenhum certificado ou serviço externo é usado.
@@ -81,7 +82,7 @@ const db=uri(`export const records=new Map();export class TableClient{constructo
 const exec=uri(`export const state={real:0,testes:0,fail:false,confirmado:false,consultas:0};export const executorMunicipalDisponivel=()=>true;export async function executarNotaSP(acao,d){if(acao==='emitir'){state.real++;if(state.fail)throw Error('timeout')}if(acao==='consultar')state.consultas++;if(acao==='testar')state.testes++;return {sucesso:true,erros:[],alertas:[],xml:'<retorno/>',teste:acao==='testar',...(acao==='consultar'||(acao==='emitir'&&state.confirmado)?{numero:'10',inscricao:d.inscricao,verificacao:'TEST1234',tomador:d.clienteDocumento,valorFinal:(d.centavos/100).toFixed(2),descricao:d.descricao+(d.po?'\\nPO '+d.po:'')}:{})}}`);
 const cobrancas=uri(`export const hojeBrasil=()=> '2026-10-03';export const prevista=(p,competencia)=>({id:p.id+'_'+competencia,competencia,centavos:p.centavos,vencimento:p.vencimento,eventos:[]})`);
 const blobModule=uri(`export const blobs=new Map();export class BlobServiceClient {getContainerClient(){return {getBlockBlobClient:()=>({downloadToBuffer:async()=>Buffer.from('<NFe/>')}),getBlobClient:path=>({getProperties:async()=>{const b=blobs.get(path);if(!b)throw Error('missing');return {contentLength:b.length,etag:'test'}},downloadToBuffer:async()=>blobs.get(path)})}}}`);
-let source=compile("../app/api/admin/nfse/route.ts").replaceAll('"@/lib/perfil-fiscal-historico"',JSON.stringify(perfilHistorico));
+let source=compile("../app/api/admin/nfse/route.ts").replaceAll('"@/lib/perfil-fiscal-historico"',JSON.stringify(perfilHistorico)).replaceAll('"@/lib/nfse-nacional"',JSON.stringify(nacional));
 source=source.replaceAll('"@/lib/documentos-pdf"',JSON.stringify(uri("export const recuperarPdfNotaSP=async()=>{throw Error('PDF indisponível no teste')};")));
 for(const [name,target] of Object.entries({"next/server":uri("export const NextResponse={json:(d,o)=>Response.json(d,o)}"),"@azure/data-tables":db,"@azure/identity":uri("export class DefaultAzureCredential {}"),"@azure/storage-blob":blobModule,"../_auth":uri("export const usuarioAdministrador=r=>r.headers.get('x-test')==='yes'"),"../_remote":uri("export const encaminharAdmin=async()=>null"),"@/lib/cobrancas":cobrancas,"@/lib/nfse-sp":model,"@/lib/nfse-sp-executor":exec}))source=source.replaceAll(JSON.stringify(name),JSON.stringify(target));
 const {GET,POST}=await import(uri(source));const {records}=await import(db);const {state}=await import(exec);
@@ -90,6 +91,25 @@ const email={id,empresa:"drsoft",cliente:dados.clienteNome,competencia:dados.com
 function setup(){records.clear();records.set("AdminConfiguracoes:nfse-regimes:drsoft",{json:JSON.stringify({historico:[{regime:"presumido",vigencia:"2026-01-01"}]}),etag:"1"});state.real=state.testes=0;state.fail=false;process.env.NFSE_DRSOFT_CNPJ=dados.cnpj;process.env.NFSE_DRSOFT_CCM=dados.inscricao;delete process.env.NFSE_SP_PRODUCAO_HABILITADA;records.set(`AdminDocumentos:emails-drsoft:${id}`,{json:JSON.stringify(email),etag:"1"});records.set(`AdminConfiguracoes:cobrancas-drsoft:${planId}`,{json:JSON.stringify({id:planId,documento:dados.clienteDocumento,inicio:"2026-09",centavos:dados.centavos,vencimento:"2026-10-10"}),etag:"1"});}
 function req(body,headers={}){const u=new URL("http://localhost:3100/api/admin/nfse?empresa=drsoft&id="+id);const r=new Request(u,{method:body?"POST":"GET",headers:{origin:u.origin,"x-test":"yes",...headers},body:body?JSON.stringify(body):undefined});r.nextUrl=u;return r;}
 const preparar={acao:"preparar",id,atualizadoEm:"v1",fiscal,confirmarSerie:true};
+
+const perfilNacional={codigoNacional:"010701",codigoMunicipal:"",nbs:"",serie:"9",regimeEspecial:"0",apuracaoSimples:"",retencaoIss:"1",aliquotaIss:"2.9",transparencia:{tipo:"naoInformar",percentual:""},federais:{cst:"01",pis:"0.65",cofins:"3",ir:"1.5",csll:"1",inss:"0",retencaoPisCofins:"3"}};
+const prepararNacional={acao:"nacional-preparar",id,atualizadoEm:"v1",confirmado:true,competenciaFiscal:"2026-10-01",perfil:perfilNacional,endereco:fiscal.endereco};
+test("prévia nacional usa identidade/valor do servidor, preserva municipal e não reserva/emite/envia",async()=>{
+ setup();const saved=structuredClone(records.get(`AdminDocumentos:emails-drsoft:${id}`));
+ let r=await POST(req({...prepararNacional,cnpj:"00000000000000",regime:"simples",centavos:1}));assert.equal(r.status,200);const d=await r.json();
+ assert.equal(d.previa.dados.cnpj,dados.cnpj);assert.equal(d.previa.dados.centavos,email.centavos);assert.equal(d.previa.dados.regime,"presumido");assert.equal(d.previa.dados.competenciaFiscal,"2026-10-01");assert.equal(d.previa.dados.emissao,"2026-10-03");assert.equal(d.previa.dados.referencia,"2026-09");assert.equal(d.previa.status,"aguardando-homologacao");assert.equal(d.previa.idDps,undefined);
+ assert.deepEqual(records.get(`AdminDocumentos:emails-drsoft:${id}`),saved);assert.equal(state.real,0);assert.equal(state.testes,0);assert.equal([...records.keys()].filter(k=>k.includes("sequencia")).length,0);
+ const g=req();g.nextUrl.searchParams.set("emissor","nacional");r=await GET(g);const view=await r.json();assert.equal(r.status,200);assert.equal(view.producao,false);assert.equal(view.perfil.perfil.codigoNacional,"010701");assert.equal(view.previa.hash,d.previa.hash);
+});
+test("prévia nacional exige autorização, versão atual e conciliação de qualquer tentativa municipal",async()=>{
+ setup();assert.equal((await POST(req(prepararNacional,{"x-test":"no"}))).status,401);assert.equal((await POST(req(prepararNacional,{origin:"https://outro.invalid"}))).status,403);
+ for(const extra of [{confirmado:false},{atualizadoEm:"antiga"},{competenciaFiscal:"2026-02-30"},{perfil:{...perfilNacional,codigoNacional:"03158"}}])assert.equal((await POST(req({...prepararNacional,...extra}))).status,400);
+ const {chaveTrabalhoFiscalSP}=await import(model),key=chaveTrabalhoFiscalSP(dados.clienteDocumento,dados.competencia,planId+"_"+dados.competencia,false);
+ records.set(`AdminDocumentos:nfse-sp-drsoft:${key}`,{json:JSON.stringify({status:"incerta"}),etag:"1"});
+ assert.match((await (await POST(req(prepararNacional))).json()).erro,/trabalho municipal/);assert.equal([...records.keys()].some(k=>k.includes("nacional-previas")),false);
+ setup();records.get(`AdminDocumentos:emails-drsoft:${id}`).json=JSON.stringify({...email,fluxo:{...email.fluxo,nota:"928"}});
+ assert.match((await (await POST(req(prepararNacional))).json()).erro,/Já há nota/);assert.equal(state.real,0);
+});
 
 test("GET recupera perfil do XML da mesma empresa, preserva perfil explícito e não reserva/emite",async()=>{
  setup();const {blobs}=await import(blobModule);blobs.clear();

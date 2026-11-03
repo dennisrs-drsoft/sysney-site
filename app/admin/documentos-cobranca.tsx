@@ -5,6 +5,7 @@ import type {PreviaBoleto} from "@/lib/boleto-painel";
 import {dataBr,moeda} from "@/lib/cobrancas";
 import {lerRespostaAdmin} from "@/lib/admin-resposta";
 import {NotaFiscalCobranca} from "./nota-fiscal-cobranca";
+import {NotaFiscalNacional} from "./nota-fiscal-nacional";
 import {MensagemAdmin,useConfirmarAdmin} from "./dialogos-admin";
 const botao="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-bold text-blue-800 disabled:opacity-40";
 export function DocumentosCobranca({email,alterado,ocupado,onEmail}:{email:EmailCobranca;alterado:boolean;ocupado:boolean;onEmail:(e:EmailCobranca)=>void}) {
@@ -24,6 +25,7 @@ export function DocumentosCobranca({email,alterado,ocupado,onEmail}:{email:Email
   }catch(e){setAviso(e instanceof Error?e.message:"Resultado não confirmado. Consulte antes de repetir.");setPrevia(null);}finally{setBusy(false);}
  }
  return <section className="my-4 space-y-4 rounded-2xl border border-blue-200 bg-slate-50 p-4"><h4 className="font-bold">Gerar documentos desta cobrança</h4><p className="text-sm text-slate-600">Preparar o boleto não emite. A emissão exige uma confirmação separada e não envia e-mail. Se houver dúvida no resultado, consulte antes de repetir.</p>
+ <NotaFiscalNacional key={`nacional-${email.empresa}-${email.id}`} email={email} alterado={alterado} ocupado={ocupado||busy}/>
  <div className="grid gap-3 sm:grid-cols-2"><NotaFiscalCobranca key={`${email.empresa}-${email.id}`} email={email} alterado={alterado} ocupado={ocupado||busy} onEmail={onEmail}/>
  {email.formaPagamento!=="pix" && <div className="rounded-xl border bg-white p-4"><button type="button" className={botao} disabled={!config?.boletoDisponivel||busy||ocupado||alterado||finalizado||email.status==="emitindo_documento"||!!email.fluxo?.boleto||email.anexos.some(a=>a.tipo==="boleto")} onClick={()=>void executar("preparar-boleto")}>Gerar boleto — revisar dados</button><p className="mt-2 text-xs text-slate-600">{config?.motivoBoleto || "Consultando disponibilidade…"}</p>{config && !config.boletoDisponivel && <p className="mt-2 text-xs text-amber-800">Emissão bancária do painel não habilitada neste ambiente.</p>}</div>}{email.formaPagamento==="pix" && <div className="rounded-xl border bg-white p-4"><h5 className="font-bold">Pagamento via PIX</h5><p className="mt-2 text-sm">Sem emissão de boleto. Anexe a ordem de serviço e confira a chave PIX e o beneficiário antes de aprovar.</p></div>}</div>
  <div className="flex flex-wrap gap-3"><button type="button" className={botao} disabled={busy||ocupado||alterado||finalizado||!email.fluxo?.nota} onClick={()=>void executar("baixar-nota")}>{busy?"Consultando…":email.anexos.some(a=>a.tipo==="nota")?"Conferir PDF da nota anexado":"Tentar baixar PDF da nota"}</button>

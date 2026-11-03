@@ -11,6 +11,7 @@ import {chaveTrabalhoFiscalSP,hashNotaSP,normalizarFiscalSP,montarXmlSP,cadeiaAs
 import {executarNotaSP,executorMunicipalDisponivel} from "@/lib/nfse-sp-executor";
 import {recuperarPdfNotaSP} from "@/lib/documentos-pdf";
 import {perfilFiscalDoXml,orientacaoEmissor} from "@/lib/perfil-fiscal-historico";
+import {normalizarPerfilNacional,validarDadosNacionais,type DadosNacionais} from "@/lib/nfse-nacional";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 const cred=new DefaultAzureCredential();
@@ -64,6 +65,12 @@ export async function GET(req:NextRequest){
   if(!usuarioAdministrador(req))return reply({erro:"Não autorizado."},401);
   try{
     const emp=empresa(req),id=req.nextUrl.searchParams.get("id");
+    if(req.nextUrl.searchParams.get("emissor")==="nacional"){
+      const c=await contexto(emp,id),regime=await regimeEmpresa(emp);
+      const perfil=await opcional<{json:string}>(`nfse-nacional-perfis-${emp}`,c.documento,"AdminConfiguracoes");
+      const previa=await opcional<{json:string}>(`nfse-nacional-previas-${emp}`,c.idNota);
+      return reply({perfil:perfil?JSON.parse(perfil.json):null,previa:previa?JSON.parse(previa.json):null,regime:regime.vigente?.regime||null,producao:false,mensagem:"Preparação nacional separada do municipal. Transmissão ainda depende de homologação, habilitação do emitente e aprovação específica; salvar não reserva DPS nem emite nota."});
+    }
     if(req.nextUrl.searchParams.get("pgdas")==="1"){
       const mes=req.nextUrl.searchParams.get("mes");
       if(mes){
@@ -117,6 +124,30 @@ export async function POST(req:NextRequest){
   try{
     const emp=empresa(req),raw=await req.text();if(raw.length>10000)throw Error("Solicitação muito grande.");
     const body=JSON.parse(raw);
+    if(body.acao==="nacional-preparar"){
+      const c=await contexto(emp,body.id),{email,cobranca,documento,idNota}=c;
+      if(body.confirmado!==true||body.atualizadoEm!==email.atualizadoEm)throw Error("Salve a cobrança e confirme o perfil nacional e a competência fiscal.");
+      if(!["rascunho","revisado"].includes(email.status)||email.fluxo?.nota||cobranca.nota||email.anexos.some(a=>a.tipo==="nota"))throw Error("Já há nota ou operação em andamento. Consulte o documento existente, sem emitir novamente.");
+      const municipal=await opcional<{json:string}>(`nfse-sp-${emp}`,idNota);
+      if(municipal)throw Error("Há um trabalho municipal nesta cobrança. Concilie essa tentativa antes de mudar o emissor.");
+      const regime=(await regimeEmpresa(emp)).vigente?.regime;
+      const emitente=await opcional<{cnpj:string}>("nfse-emitentes",emp,"AdminConfiguracoes");
+      const cnpj=process.env[`NFSE_${emp.toUpperCase()}_CNPJ`]||emitente?.cnpj;
+      if(!regime||!cnpj)throw Error("Emitente ou regime vigente não configurado no servidor.");
+      const perfil=normalizarPerfilNacional(body.perfil);
+      const dados:DadosNacionais={empresa:emp,cnpj,regime,documento,cliente:email.cliente,centavos:email.centavos,descricao:email.descricao+(email.po?`. PO ${email.po}`:""),referencia:email.competencia,competenciaFiscal:body.competenciaFiscal,emissao:hojeBrasil(),endereco:body.endereco,perfil};
+      validarDadosNacionais(dados,hojeBrasil());
+      const part=`nfse-nacional-previas-${emp}`,anterior=await opcional<{json:string}>(part,idNota);
+      const previa={dados,status:"aguardando-homologacao",emailId:email.id,emailAtualizadoEm:email.atualizadoEm,atualizadoEm:new Date().toISOString(),hash:createHash("sha256").update(JSON.stringify(dados)).digest("hex"),pendencias:[...(regime==="presumido"?["Confirmar habilitação do Lucro Presumido de São Paulo no Emissor Nacional."]:[]),"Homologar assinatura, XML e consulta oficial para este emitente e perfil.","Habilitar transmissão no serviço fiscal após validação; nenhuma DPS foi reservada."]};
+      const ent={partitionKey:part,rowKey:idNota,json:JSON.stringify(previa)};
+      if(anterior)await table().updateEntity(ent,"Replace",{etag:anterior.etag});else await table().createEntity(ent);
+      // Perfil somente depois de validar o contexto completo. Não copia aprovações,
+      // datas, valores monetários antigos nem sequência municipal para outros clientes.
+      const perfilPart=`nfse-nacional-perfis-${emp}`,salvo=await opcional<{json:string}>(perfilPart,documento,"AdminConfiguracoes");
+      const pe={partitionKey:perfilPart,rowKey:documento,json:JSON.stringify({perfil,atualizadoEm:previa.atualizadoEm,fonte:"Perfil nacional conferido pelo administrador"})};
+      if(salvo)await table("AdminConfiguracoes").updateEntity(pe,"Replace",{etag:salvo.etag});else await table("AdminConfiguracoes").createEntity(pe);
+      return reply({previa,mensagem:"Prévia nacional salva para conferência. Sem reserva de DPS, emissão, boleto ou envio de e-mail. Pendências de habilitação e homologação permanecem visíveis."});
+    }
     if(!["configurarRegime","preparar","testar","emitir","consultar"].includes(body.acao))throw Error("Operação fiscal inválida.");
     const ctx=await contexto(emp,body.id),{email,cobranca,documento,idNota}=ctx;
     if(body.acao==="configurarRegime"){
