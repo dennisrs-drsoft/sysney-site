@@ -91,7 +91,8 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
    return {trabalho:w,email,mensagem:pdf?"Documento de homologação confirmado, com XML e PDF privados. Nenhuma nota de produção ou e-mail emitido.":"Homologação retornou XML, mas o PDF ainda não foi recuperado. Consulte novamente para concluir."};
   }
   if(email.centavos!==w.dados.centavos||email.descricao!==w.emailDescricao||email.fluxo?.nota&&email.fluxo.nota!==fields.number||cobranca.nota&&cobranca.nota!==fields.number)throw Error("Cobrança alterada ou outra nota vinculada. Documento preservado para conciliação.");
-  const hist={numero:fields.number,documento,cliente:email.cliente,emissao:fields.authorizedAtUtc,centavos:fields.amountCentsBRL,situacao:"N",emissor:"nacional",chaveAcesso:fields.authorityKey,xmlBlob:base+".xml",...(pdf?{pdfBlob:base+".pdf"}:{}),consultadoEm:now};
+  const dataEmissaoBrasil=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(fields.authorizedAtUtc));
+  const hist={numero:fields.number,documento,cliente:email.cliente,emissao:dataEmissaoBrasil,autorizadaEmUtc:fields.authorizedAtUtc,centavos:fields.amountCentsBRL,situacao:"N",emissor:"nacional",chaveAcesso:fields.authorityKey,xmlBlob:base+".xml",...(pdf?{pdfBlob:base+".pdf"}:{}),consultadoEm:now};
   const hpart=`nfse-historico-${emp}`,hkey="N-"+fields.authorityKey,old=await get(table(),hpart,hkey),he={partitionKey:hpart,rowKey:hkey,json:JSON.stringify(hist)};if(old)await table().updateEntity(he,"Replace",{etag:old.etag});else await table().createEntity(he);
   if(!["aceito","enviando","incerto"].includes(email.status)){
    const anexo=email.anexos.find(a=>a.tipo==="nota");if(anexo&&anexo.blob!==base+".pdf")throw Error("Outra nota anexada. Concilie os documentos antes de substituir.");

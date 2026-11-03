@@ -19,7 +19,7 @@ function fixture(){
  table().rows.set('emails-sysney|'+email.id,{partitionKey:'emails-sysney',rowKey:email.id,json:JSON.stringify(email),etag:'1'});
  table().rows.set('nfse-nacional-previas-sysney|'+idNota,{partitionKey:'nfse-nacional-previas-sysney',rowKey:idNota,json:JSON.stringify(previa),etag:'1'});
  table('AdminConfiguracoes').rows.set('nfse-emitentes|sysney',{partitionKey:'nfse-emitentes',rowKey:'sysney',cnpj:dados.cnpj,etag:'1'});
- table('FiscalFila').rows.set('servico|nacional-admin',{partitionKey:'servico',rowKey:'nacional-admin',em:new Date(clock).toISOString(),assinatura:true,envio:true,etag:'1'});
+ table('FiscalFila').rows.set('servico|nacional-admin',{partitionKey:'servico',rowKey:'nacional-admin',em:new Date().toISOString(),assinatura:true,envio:true,etag:'1'});
  const args={table,emp:'sysney',ctx,regime:'simples',req:new Request('https://local.invalid'),body:{acao:'nacional-assinar',ambiente:'homologacao',confirmarSerie:true,hash:previa.hash,atualizadoEm:email.atualizadoEm}};
  return {table,databases,ctx,args};
 }
@@ -42,13 +42,15 @@ test('runtime nacional: prévia → reserva transacional → assinatura; servido
  }finally{globalThis.Date=RealDate;}
 });
 test('resultado de produção vincula XML/PDF, separa emissor e preserva pagamento; repetição não duplica',async()=>{
- globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[clock]));}static now(){return clock;}};
+ const lateClock=RealDate.parse('2026-11-03T02:00:00Z');
+ globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[lateClock]));}static now(){return lateClock;}};
  try{
   const f=fixture();await operarNacional({...f.args,body:{...f.args.body,ambiente:'producao'}});const prep=await operarNacional({...f.args,body:{acao:'nacional-consultar',ambiente:'producao'}}),w=prep.trabalho,q=createNationalAdminQueue(f.table('FiscalFila')),jr=await q.get(w.jobId);await q.claim(jr);
-  const key='8'.repeat(50),xml=Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infNFSe Id="NFS${key}"><nNFSe>1</nNFSe><dhProc>2026-11-02T15:00:00Z</dhProc><emit><CNPJ>${w.cnpj}</CNPJ></emit>${w.xml.replace(/<\?xml[^?]*\?>/,'')}</infNFSe></NFSe>`),pdf=Buffer.from('%PDF-1.4\n'+'QA SEM VALIDADE FISCAL '.repeat(10)+'\n%%EOF');
+  const key='8'.repeat(50),xml=Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infNFSe Id="NFS${key}"><nNFSe>1</nNFSe><dhProc>${new Date().toISOString()}</dhProc><emit><CNPJ>${w.cnpj}</CNPJ></emit>${w.xml.replace(/<\?xml[^?]*\?>/,'')}</infNFSe></NFSe>`),pdf=Buffer.from('%PDF-1.4\n'+'QA SEM VALIDADE FISCAL '.repeat(10)+'\n%%EOF');
   await q.complete(w.jobId,{status:'confirmada',xml:xml.toString('base64'),pdf:pdf.toString('base64'),pdfHash:digest(pdf),proof:{xmlHash:digest(xml),schemaValid:true,signatureValid:true,chainValid:true}});
   const first=await operarNacional({...f.args,body:{acao:'nacional-resultado',ambiente:'producao'}});
   assert.equal(first.trabalho.status,'emitida');assert.equal(first.email.fluxo.notaChave,key);assert.equal(first.email.fluxo.notaEmissor,'nacional');assert.equal(first.email.anexos.length,1);assert.equal(first.email.status,'rascunho');assert.equal(globalThis.nationalQaBlobs.size,2);
+  const fiscal=JSON.parse((await f.table().getEntity('nfse-historico-sysney','N-'+key)).json);assert.equal(fiscal.emissao,'2026-11-02');assert.equal(fiscal.autorizadaEmUtc,'2026-11-03T02:00:00.000Z');
   const charge=JSON.parse(f.table().rows.get('cobrancas-sysney|'+f.ctx.cobranca.id).json);assert.equal(charge.notaChave,key);assert.ok(charge.eventos.every(e=>e.tipo==='documentos'));
   const er=await f.table().getEntity('emails-sysney',f.ctx.email.id),cr=await f.table().getEntity('cobrancas-sysney',f.ctx.cobranca.id);
   const next={...f.args,ctx:{...f.ctx,email:JSON.parse(er.json),cobranca:JSON.parse(cr.json),row:er,cr},body:{acao:'nacional-resultado',ambiente:'producao'}};
