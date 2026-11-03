@@ -3,6 +3,18 @@ import {createNationalAdminClient,inspectAdminDps} from './national-admin-client
 import {createNationalAdminQueue} from './national-admin-store.mjs';
 import {validateNationalDanfse} from './national-danfse.mjs';
 const digest=b=>createHash('sha256').update(b).digest('hex');
+export async function runNationalAdminBatch({queueTable,documents,config,native,limit=4,now=()=>Date.now(),execute=runNationalAdminJob}){
+ if(config.paused!==false||config.allowQueries!==true||!Number.isInteger(limit)||limit<1||limit>4)throw Error('NATIONAL_WORKER_PAUSED');
+ const results=[];
+ for await(const row of queueTable.listEntities({queryOptions:{filter:"PartitionKey eq 'nacional-admin-fila-v1' and estado eq 'pendente'"}})){
+  if(!Number.isFinite(Date.parse(row.expira))||Date.parse(row.expira)<=now()){
+   try{await queueTable.updateEntity({partitionKey:'nacional-admin-fila-v1',rowKey:row.rowKey,estado:'expirado'},'Merge',{etag:row.etag});}catch(e){if(![409,412].includes(e.statusCode))throw e;}continue;
+  }
+  if(results.length>=limit)break;
+  try{results.push(await execute({queueTable,documents,config,native,row,now}));}catch{results.push({state:'job_claim_unconfirmed',transmitted:false});}
+ }
+ return results;
+}
 export async function runNationalAdminJob({queueTable,documents,config,native,row,now=()=>Date.now()}){
  if(config.paused!==false||config.allowQueries!==true)throw Error('NATIONAL_WORKER_PAUSED');
  const queue=createNationalAdminQueue(queueTable),p=await queue.claim(row);

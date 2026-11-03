@@ -6,11 +6,18 @@ import {createHash,randomInt} from 'node:crypto';
 import {createNationalAdminClient} from '../admin-api/src/services/national-admin-client.mjs';
 import {createNationalAdminSequence,createNationalAdminQueue} from '../admin-api/src/services/national-admin-store.mjs';
 import {memoryTable} from './helpers/atp-municipal-fixture.mjs';
-import {runNationalAdminJob} from '../admin-api/src/services/national-admin-worker.mjs';
+import {runNationalAdminJob,runNationalAdminBatch} from '../admin-api/src/services/national-admin-worker.mjs';
 const {montarDpsNacional}=nationalModel;
 const hash=b=>createHash('sha256').update(b).digest('hex'),base=process.env.NATIONAL_SIM_BASE;
 const p={codigoNacional:'010701',codigoMunicipal:'',nbs:'',serie:'777',regimeEspecial:'0',apuracaoSimples:'1',retencaoIss:'1',aliquotaIss:'',transparencia:{tipo:'naoInformar',percentual:''}};
 const d={empresa:'sysney',cnpj:'12345678000199',regime:'simples',documento:'98765432000199',cliente:'CLIENTE QA',descricao:'SIMULACAO LOCAL NAO TRANSMITIR',centavos:324258,referencia:'2026-10',competenciaFiscal:'2026-11-01',emissao:'2026-11-02',endereco:{tipo:'R',logradouro:'Teste',numero:'1',bairro:'Centro',municipio:'3550308',uf:'SP',cep:'01000000'},perfil:p};
+test('tarefas expiradas não bloqueiam as próximas nem consomem o limite do worker',async()=>{
+ const table=memoryTable(),ids=[];
+ for(let i=0;i<7;i++)await table.createEntity({partitionKey:'nacional-admin-fila-v1',rowKey:String(i),estado:'pendente',expira:i<5?'2020-01-01T00:00:00Z':'2099-01-01T00:00:00Z'});
+ table.listEntities=async function*(){for(const r of [...table.rows.values()])if(r.estado==='pendente')yield structuredClone(r);};
+ const r=await runNationalAdminBatch({queueTable:table,config:{paused:false,allowQueries:true},limit:1,execute:async({row})=>{ids.push(row.rowKey);return {state:'processed'};}});
+ assert.deepEqual(ids,['5']);assert.equal(r.length,1);assert.equal([...table.rows.values()].filter(r=>r.estado==='expirado').length,5);
+});
 test('contador nacional transacional: concorrência, perda de resposta e isolamento dos emitentes/ambientes',async()=>{
  const table=memoryTable(),args={workId:'a'.repeat(64),hash:'b'.repeat(64),serie:'777',emissao:'2026-11-02T12:00:00-03:00'};
  for(const cnpj of ['12345678000199','11111111000191'])for(const ambiente of ['homologacao','producao']){
