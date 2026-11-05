@@ -1,3 +1,7 @@
+import { SiteHeader } from "../components/site-chrome";
+import "../design-system/studio.css";
+import "../components/solutions.css";
+import "../components/editorial-pages.css";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -26,13 +30,10 @@ function Arrow({ className = "" }: { className?: string }) {
 }
 
 export default function LinksPage() {
-  return <main className="relative min-h-screen overflow-hidden bg-[#06101d] px-5 py-7 text-white sm:px-8 sm:py-10 lg:px-12">
+  return <main className="editorial-page editorial-links relative min-h-screen overflow-hidden bg-[#06101d] px-5 py-7 text-white sm:px-8 sm:py-10 lg:px-12">
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,#1d4ed833,transparent_45%),radial-gradient(ellipse_at_top_right,#0891b222,transparent_45%)]" />
     <div className="relative mx-auto max-w-6xl">
-      <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 pb-6">
-        <Link href="/" aria-label="Acessar o site da SYSNEY Informática" className={`inline-flex items-center gap-4 rounded-lg ${cardFocus}`}><Image src="/logo.png" alt="SYSNEY Informática" width={220} height={220} sizes="96px" preload className="h-auto w-20 sm:w-24" /><span className="border-l border-white/15 pl-4 text-xs font-black uppercase tracking-[0.18em] text-slate-300">SISBlink<br /><span className="mt-1 block text-[10px] font-medium tracking-wider text-slate-500">Tecnologia para moda</span></span></Link>
-        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/5 px-3 py-2 text-xs font-semibold text-emerald-200"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-emerald-300" />Links oficiais</span>
-      </header>
+      <SiteHeader />
 
       <section aria-labelledby="links-title" className="pb-8 pt-9 sm:pb-10 sm:pt-12">
         <p className="text-[11px] font-black uppercase tracking-[0.26em] text-sky-300">SYSNEY · SISBlink</p>

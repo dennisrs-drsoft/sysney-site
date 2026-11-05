@@ -1,3 +1,7 @@
+import { SiteHeader } from "../components/site-chrome";
+import "../design-system/studio.css";
+import "../components/solutions.css";
+import "../components/editorial-pages.css";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,11 +24,11 @@ const differentiators = [
 ];
 
 export default function Page() {
-  return <main className="min-h-screen bg-white text-slate-950">
+  return <main className="editorial-page editorial-sisblink-em-acao min-h-screen bg-white text-slate-950">
     <section className="relative overflow-hidden bg-[#07111f] px-6 text-white lg:px-10">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,#155e7566,transparent_60%)]" />
       <div className="relative mx-auto max-w-[1600px]">
-        <header className="flex flex-wrap items-center justify-between gap-4 py-7"><Link href="/" aria-label="SYSNEY — página inicial"><Image src="/logo.png" alt="SYSNEY Informática" width={150} height={150} className="h-auto w-28" /></Link><nav aria-label="Navegação da demonstração" className="flex flex-wrap items-center gap-5 text-sm font-bold"><Link href="/sistema-pedidos-confeccao-moda" className="text-slate-300 hover:text-sky-300">Pedidos para moda</Link><Link href="/contato" className="rounded-full bg-blue-500 px-5 py-3 hover:bg-blue-400">Solicitar demonstração</Link></nav></header>
+        <SiteHeader />
         <div className="pb-12 pt-12 sm:pt-16"><p className="text-sm font-black uppercase tracking-[0.25em] text-emerald-300">SISBlink em ação · Tecnologia SYSNEY</p><h1 className="mt-5 max-w-5xl text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">Uma coleção bem apresentada.<br /><span className="text-sky-300">Um pedido bem conduzido.</span></h1><p className="mt-7 max-w-3xl text-lg leading-8 text-slate-300">Do catálogo digital de moda ao pedido por grade, o SISBlink combina apresentação visual, controle comercial e atendimento ao vivo. Veja o funcionamento e descubra o que faz diferença na rotina de marcas, representantes e lojistas.</p><div className="mt-8 flex flex-wrap gap-3"><Link href="#telas" className="rounded-full bg-emerald-400 px-7 py-4 font-black text-slate-950 hover:bg-emerald-300">Explorar as telas ↓</Link><Link href="/contato?origem=sisblink-em-acao&interesse=avaliacao" className="rounded-full border border-white/30 px-7 py-4 font-black hover:bg-white/10">Avaliar minha operação</Link></div></div>
         <figure className="rounded-t-2xl border border-b-0 border-white/15 bg-white/5 p-2 shadow-2xl sm:p-4"><Image src="/sisblink/telas/catalogo.webp" alt="Tela real do SISBlink com coleção de moda, catálogo visual e montagem por tamanho e prazo" width={1920} height={1080} preload sizes="(min-width: 1600px) 1560px, 100vw" className="h-auto w-full rounded-lg object-contain" /><figcaption className="px-2 py-3 text-xs leading-6 text-slate-400">Captura em 1920 × 1080 do ambiente de demonstração DRSOFT. SISBlink é a plataforma desenvolvida pela SYSNEY.</figcaption></figure>
       </div>

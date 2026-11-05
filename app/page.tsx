@@ -1,3 +1,7 @@
+import { HomeOpening } from "./components/home-opening";
+import "./design-system/studio.css";
+import "./components/solutions.css";
+import "./components/home-redesign.css";
 import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
@@ -73,149 +77,13 @@ const testimonials = [
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white pb-20 text-slate-950 md:pb-0">
-      <section className="relative min-h-screen overflow-hidden bg-[#07111f] text-white">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#2563eb66,transparent_32%),radial-gradient(circle_at_bottom_right,#0ea5e966,transparent_28%),linear-gradient(180deg,#05101f,#07111f)]" />
-        <div className="absolute right-0 top-0 h-full w-1/2 bg-[radial-gradient(circle,#1d4ed855_1px,transparent_1px)] bg-[length:18px_18px] opacity-30" />
-
-        <div className="relative mx-auto max-w-[1600px] px-5 py-6 sm:px-6 lg:px-10 xl:px-12">
-          <header className="flex items-center justify-between gap-6">
-            <div className="flex items-center gap-8">
-              <Link href="/">
-                <Image
-                  src="/logo.png"
-                  alt="SYSNEY Informática"
-                  width={260}
-                  height={260}
-                  sizes="(min-width: 768px) 160px, 128px"
-                  priority
-                  className="h-auto w-32 md:w-40"
-                />
-              </Link>
-
-              <div className="hidden h-12 w-px bg-white/20 lg:block" />
-
-              <div className="hidden lg:block">
-                <p className="text-3xl font-black text-blue-400">SISBLINK</p>
-                <p className="text-sm uppercase tracking-[0.28em] text-sky-300">
-                  Plataforma B2B
-                </p>
-              </div>
-            </div>
-
-            <nav className="hidden items-center gap-4 text-xs font-semibold text-slate-200 lg:flex xl:gap-6 xl:text-sm">
-              <Link href="/sistema-forca-de-vendas" className="hover:text-sky-300">Força de vendas</Link>
-              <Link href="/plataforma-vendas-b2b" className="hover:text-sky-300">Vendas B2B</Link>
-              <Link href="/vendas-para-franquias-e-multimarcas" className="hover:text-sky-300">Franquias</Link>
-              <Link href="/integracoes-erp" className="hover:text-sky-300">Integrações</Link>
-              <a href="#modalidades" className="hover:text-sky-300">Modalidades</a>
-              <a href="#sobre" className="hover:text-sky-300">Sobre</a>
-            </nav>
-
-            <Link
-              href="/contato"
-              className="rounded-full bg-blue-500 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
-            >
-              Demonstração gratuita
-            </Link>
-          </header>
-
-          <div className="grid items-center gap-10 py-10 sm:py-14 lg:min-h-[calc(100vh-112px)] lg:grid-cols-[0.82fr_1.18fr] lg:py-16 xl:gap-16">
-            <div>
-              <div className="mb-6 inline-flex rounded-full border border-sky-400/40 bg-sky-400/10 px-4 py-2 text-sm font-bold uppercase tracking-wide text-sky-200">
-                Plataforma completa para moda e atacado B2B
-              </div>
-
-              <h1 className="max-w-4xl text-5xl font-black leading-[0.98] tracking-tight md:text-7xl">
-                Sistema de força de vendas B2B para moda{" "}
-                <span className="text-blue-400">que conecta toda a operação.</span>
-              </h1>
-
-              <div className="mt-6 h-1 w-20 rounded-full bg-emerald-400" />
-
-              <p className="mt-7 max-w-2xl text-lg leading-8 text-slate-300">
-                O SISBlink centraliza catálogo, pedidos, estoque, clientes,
-                regras comerciais, integrações e dashboards em uma experiência
-                visual criada para marcas que vendem melhor quando têm controle.
-              </p>
-
-              <div className="mt-10 flex flex-col gap-4 sm:flex-row">
-                <Link
-                  href="/contato"
-                  className="rounded-full bg-blue-500 px-8 py-4 text-center font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
-                >
-                  Solicitar demonstração gratuita ↗
-                </Link>
-
-                <a
-                  href="#funcionalidades"
-                  className="rounded-full border border-blue-400/60 px-8 py-4 text-center font-black text-white transition hover:bg-blue-500/10"
-                >
-                  Conhecer o SISBlink
-                </a>
-              </div>
-
-              <p className="mt-4 flex items-center gap-2 text-sm font-semibold text-slate-300">
-                <span className="text-emerald-300">✓</span> Gratuita, personalizada e sem compromisso.
-              </p>
-
-              <Link href="/sistema-vendas-pequenas-marcas" className="mt-5 inline-flex text-sm font-bold leading-6 text-sky-200 underline underline-offset-4 hover:text-white">Sua equipe de vendas é enxuta? Conheça o SISBlink para sua marca →</Link>
-
-              <a href="#criacao-de-sites" className="mt-4 block w-fit text-sm font-bold leading-6 text-emerald-300 underline underline-offset-4 hover:text-white">Precisa de um site? Conheça a criação de sites com IA →</a>
-
-              <a
-                href="#seguranca"
-                aria-label="Conheça os recursos de segurança do SISBlink"
-                className="mt-5 inline-flex items-center gap-3 rounded-xl border border-emerald-300/35 bg-emerald-300/10 px-4 py-3 text-sm font-bold text-emerald-100 shadow-[0_0_0_1px_#34d3990a,0_12px_35px_#052e2b33] backdrop-blur transition hover:border-emerald-300/60 hover:bg-emerald-300/15"
-              >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-300">
-                  <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4 fill-none stroke-current" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 3 5.5 5.6v5.1c0 4.4 2.7 8.2 6.5 10.3 3.8-2.1 6.5-5.9 6.5-10.3V5.6L12 3Z" />
-                    <path d="m9.2 12 1.8 1.8 3.9-4" />
-                  </svg>
-                </span>
-                <span><span className="block">Ambiente seguro</span><span className="block text-[11px] font-medium text-emerald-100/65">Proteção aplicada em toda a operação</span></span>
-                <span aria-hidden="true" className="ml-1 text-emerald-300">→</span>
-              </a>
-
-              <div className="mt-8 grid max-w-2xl grid-cols-3 gap-2 sm:mt-10 sm:gap-4">
-                {metrics.map((item) => (
-                  <div
-                    key={item.value}
-                    className="rounded-2xl border border-white/10 bg-white/5 p-3 shadow-xl shadow-black/10 sm:p-5"
-                  >
-                    <p className="hidden text-2xl sm:block">{item.icon}</p>
-                    <p className="text-2xl font-black sm:mt-2 sm:text-3xl">{item.value}</p>
-                    <p className="mt-1 text-[11px] leading-4 text-slate-300 sm:text-sm sm:leading-5">
-                      {item.label}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="relative min-h-[510px] overflow-hidden rounded-[2rem] border border-white/15 bg-[#102035] shadow-2xl shadow-black/40 sm:min-h-[680px] lg:min-h-[720px] xl:min-h-[760px]">
-              <Image src="/sisblink/catalogo.webp" alt="Ambiente de coleção integrado ao SISBlink" width={1214} height={929} sizes="(min-width: 1024px) 52vw, 100vw" priority className="absolute inset-0 h-full w-full object-cover opacity-25" />
-              <div className="absolute inset-0 bg-[linear-gradient(115deg,#061321_12%,#0d2a3be8_48%,#164e63aa),radial-gradient(circle_at_75%_20%,#38bdf855,transparent_30%)]" />
-              <div className="absolute inset-0 bg-[linear-gradient(#ffffff08_1px,transparent_1px),linear-gradient(90deg,#ffffff08_1px,transparent_1px)] bg-[size:32px_32px]" />
-
-              <div className="absolute left-6 top-6 rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur md:left-8 md:top-8"><p className="text-[10px] font-black uppercase tracking-[0.28em] text-sky-200">SISBlink Web</p><p className="mt-1 text-xs font-bold text-white">Sales platform</p></div>
-              <div className="absolute right-6 top-6 flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-300/10 px-4 py-2 text-xs font-bold text-emerald-100 backdrop-blur"><span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_#6ee7b7]" /> Operação conectada</div>
-
-              <div className="absolute left-7 top-28 max-w-[88%] sm:top-32 md:left-10 md:top-36"><p className="text-xs font-black uppercase tracking-[0.35em] text-sky-200">Coleção atual</p><p className="mt-3 text-3xl font-black uppercase leading-none tracking-[-0.04em] text-white/95 sm:text-4xl md:text-6xl xl:text-7xl">Identidade<br/><span className="text-sky-300">em movimento.</span></p><div className="mt-5 flex gap-2 sm:mt-6" aria-label="Cartela de cores da coleção"><span className="h-5 w-5 rounded-full border border-white/30 bg-[#e8ded0]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#29465b]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#b65b46]"/><span className="h-5 w-5 rounded-full border border-white/30 bg-[#8ba59c]"/></div></div>
-
-              <div className="absolute right-5 top-[330px] hidden w-[42%] rotate-2 overflow-hidden rounded-2xl border border-white/20 bg-white p-2 text-slate-950 shadow-2xl sm:block md:right-8 md:top-[350px] md:w-[36%] xl:top-[380px] xl:w-[34%]"><div className="overflow-hidden rounded-xl bg-slate-50"><Image src="/sisblink/produto-2.png" alt="Produto integrado à coleção no SISBlink" width={1141} height={500} sizes="280px" className="h-28 w-full object-cover object-left md:h-36 xl:h-40" /></div><div className="flex items-center justify-between px-2 pb-1 pt-3"><div><p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Produto conectado</p><p className="text-xs font-black">Cor · Grade · Preço</p></div><span className="rounded-full bg-emerald-100 px-2 py-1 text-[9px] font-black text-emerald-700">Disponível</span></div></div>
-
-              <div className="absolute bottom-6 left-5 right-5 rounded-[1.5rem] border border-white/15 bg-[#07111f]/90 p-5 shadow-2xl backdrop-blur-xl md:bottom-8 md:left-8 md:right-auto md:w-[62%] md:p-6 xl:w-[58%]"><p className="text-[10px] font-black uppercase tracking-[0.3em] text-sky-200">A experiência da marca, com a precisão da operação.</p><p className="mt-3 text-xl font-black leading-tight text-white md:text-2xl">SISBlink Web + coleção da marca</p><p className="mt-3 max-w-lg text-xs leading-5 text-slate-300 md:text-sm">Identidade visual, contexto comercial e controle seguro para conduzir todo o ciclo de vendas.</p><div className="mt-4 flex flex-wrap items-center gap-3 text-[10px] font-bold text-slate-300"><span className="rounded-full border border-white/15 px-3 py-1.5">Catálogo</span><span className="rounded-full border border-white/15 px-3 py-1.5">Pedido</span><span className="rounded-full border border-white/15 px-3 py-1.5">Estoque</span></div></div>
-            </div>
-          </div>
-        </div>
-      </section>
+    <main className="home-redesign min-h-screen pb-32 md:pb-0">
+      <HomeOpening metrics={metrics} />
 
       <WebsiteDesignHighlight />
       <SmallBrandsHighlight />
 
-      <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-12 sm:py-16 lg:px-8">
+      <section id="resultados" aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-12 sm:py-16 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-center text-sm font-black uppercase tracking-[0.3em] text-blue-700">Experiência construída em operações reais</p>
           <h2 className="mx-auto mt-4 max-w-3xl text-center text-3xl font-black tracking-tight md:text-4xl">Marcas reconhecidas presentes em operações atendidas pelo SISBlink.</h2>
@@ -326,7 +194,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-14 sm:py-20 lg:px-8">
+      <section id="solucoes-por-desafio" className="bg-white px-6 py-14 sm:py-20 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Soluções por desafio</p>
           <h2 className="mt-4 max-w-4xl text-4xl font-black tracking-tight md:text-5xl">Tecnologia comercial para vender coleções a franquias, multimarcas e outros clientes B2B.</h2>
@@ -336,7 +204,7 @@ export default function Home() {
               ["Plataforma de vendas B2B", "Transforme a coleção em um showroom digital preparado para o atacado.", "/plataforma-vendas-b2b"],
               ["Franquias e multimarcas", "Atenda diferentes lojas e grupos preservando o contexto de cada pedido.", "/vendas-para-franquias-e-multimarcas"],
               ["Integrações ERP", "Conecte produtos, clientes, preços, estoque e pedidos ao ecossistema da empresa.", "/integracoes-erp"],
-            ].map(([title, text, href]) => <Link key={href} href={href} className="group min-w-[82vw] snap-center rounded-3xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-1 hover:border-blue-300 hover:shadow-xl md:min-w-0"><h3 className="text-xl font-black text-blue-800">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p><span className="mt-5 inline-block font-black text-blue-600 group-hover:text-blue-500">Saiba mais →</span></Link>)}
+            ].map(([title, text, href]) => <Link key={href} href={href} className="solution-link-row"><h3 className="text-xl font-black text-blue-800">{title}</h3><p className="mt-3 leading-7 text-slate-600">{text}</p><span className="mt-5 inline-block font-black text-blue-600 group-hover:text-blue-500">Saiba mais →</span></Link>)}
           </div>
         </div>
       </section>
@@ -383,11 +251,11 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="overflow-hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
+      <section id="desafios" className="overflow-hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
         <div className="mx-auto max-w-[1600px]">
           <div className="max-w-4xl"><p className="text-sm font-black uppercase tracking-[0.35em] text-sky-300">Problemas que custam vendas</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Quando a operação depende de e-mails, planilhas e informações dispersas, o time perde velocidade.</h2><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">O SISBlink foi evoluído a partir da rotina comercial para eliminar atritos que aparecem antes, durante e depois do atendimento.</p></div>
           <div className="-mx-6 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-12 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0">
-            {painPoints.map((pain, index) => <article key={pain.title} className="min-w-[85vw] snap-center rounded-3xl border border-white/10 bg-white/[0.05] p-6 backdrop-blur md:min-w-0 md:p-7"><div className="flex items-start gap-4"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-400/10 font-black text-red-300">0{index + 1}</span><div><h3 className="text-xl font-black">{pain.title}</h3><p className="mt-3 leading-7 text-slate-300">{pain.text}</p><p className="mt-5 border-t border-white/10 pt-4 font-bold text-emerald-300">✓ {pain.result}</p></div></div></article>)}
+            {painPoints.map((pain, index) => <article key={pain.title} className="pain-row" data-reveal><span className="row-index">0{index + 1}</span><h3>{pain.title}</h3><div><p>{pain.text}</p><p className="pain-result"><span aria-hidden="true">↗</span> {pain.result}</p></div></article>)}
           </div>
         </div>
       </section>
@@ -602,7 +470,7 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="bg-white px-6 py-16 sm:py-24 lg:px-8">
+      <section id="depoimentos" className="bg-white px-6 py-16 sm:py-24 lg:px-8">
         <div className="mx-auto max-w-[1600px]"><div className="mx-auto max-w-3xl text-center"><p className="text-sm font-black uppercase tracking-[0.35em] text-blue-700">Quem usa, recomenda</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">A experiência de quem vende todos os dias com o SISBlink.</h2></div>
           <div className="-mx-6 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-12 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0 lg:grid-cols-3">{testimonials.map((item) => <figure key={`${item.name}-${item.company}`} className="flex min-h-60 min-w-[82vw] snap-center flex-col rounded-3xl border border-slate-200 bg-slate-50 p-7 shadow-sm md:min-h-64 md:min-w-0"><div className="text-4xl font-black leading-none text-blue-300">“</div><blockquote className="mt-4 flex-1 text-lg font-bold leading-8 text-slate-800">{item.quote}</blockquote><figcaption className="mt-6 border-t border-slate-200 pt-5"><p className="font-black text-blue-800">{item.name}</p><p className="text-sm text-slate-500">{item.company}</p></figcaption></figure>)}</div>
           <p className="mt-6 text-center text-sm text-slate-500">Depoimentos espontâneos de usuários, reproduzidos com pequenos ajustes de pontuação e clareza.</p>
@@ -639,7 +507,7 @@ export default function Home() {
         </div>
       </section>
 
-      <div className="fixed inset-x-3 bottom-3 z-40 flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-[#07111f]/95 p-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl md:hidden">
+      <div className="home-mobile-action fixed inset-x-3 bottom-3 z-40 flex items-center gap-3 rounded-2xl border border-emerald-300/25 bg-[#07111f]/95 p-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl md:hidden">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2 text-xs font-bold text-emerald-100"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-300/15 text-emerald-300">✓</span><span className="truncate">Ambiente seguro</span></div>
         <Link href="/contato" className="shrink-0 rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30">Demonstração grátis</Link>
       </div>

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { ScrollToTop } from "./components/scroll-to-top";
+import { PublicExperience } from "./components/public-experience";
 
 const siteUrl = "https://www.sysney.com";
 
@@ -23,5 +24,5 @@ const organizationJsonLd = { "@context": "https://schema.org", "@type": "Organiz
 const softwareJsonLd = { "@context": "https://schema.org", "@type": "SoftwareApplication", name: "SISBlink", applicationCategory: "BusinessApplication", operatingSystem: "Web", url: siteUrl, inLanguage: "pt-BR", description: "Sistema de força de vendas B2B com catálogo digital, gestão de clientes e pedidos e integração a ERPs.", publisher: { "@type": "Organization", name: "SYSNEY Informática" } };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="pt-BR"><body><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} />{children}<ScrollToTop /></body></html>;
+  return <html lang="pt-BR"><body><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationJsonLd) }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareJsonLd) }} /><PublicExperience>{children}<ScrollToTop /></PublicExperience></body></html>;
 }

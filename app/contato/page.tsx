@@ -1,3 +1,7 @@
+import { SiteHeader } from "../components/site-chrome";
+import "../design-system/studio.css";
+import "../components/solutions.css";
+import "../components/editorial-pages.css";
 import Link from "next/link";
 import Script from "next/script";
 import type { Metadata } from "next";
@@ -30,7 +34,8 @@ export default async function ContatoPage({ searchParams }: Props) {
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-white">
+    <main className="editorial-page editorial-contato min-h-screen bg-[#07111f] text-white">
+<SiteHeader />
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#2563eb66,transparent_32%),radial-gradient(circle_at_bottom_left,#0ea5e955,transparent_28%),linear-gradient(180deg,#05101f,#07111f)]" />
 
@@ -111,7 +116,7 @@ export default async function ContatoPage({ searchParams }: Props) {
               </div>
             )}
 
-            <h2 className="text-3xl font-black">{avaliacao ? "Conversar sobre meu fluxo de pedidos" : "Solicitar demonstração"}</h2>
+            <h2 className="text-3xl font-black">{criacaoSites ? "Solicitar orçamento do meu site" : avaliacao ? "Conversar sobre meu fluxo de pedidos" : "Solicitar demonstração"}</h2>
             <p className="mt-2 text-slate-600">
               {avaliacao ? "Conte sua principal dificuldade e qual sistema utiliza. Podemos começar pela avaliação do seu cenário, sem agendar uma demonstração neste primeiro contato." : "Quanto mais contexto você enviar, melhor conseguimos preparar a conversa."}
             </p>

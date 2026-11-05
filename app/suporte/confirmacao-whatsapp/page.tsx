@@ -1,5 +1,8 @@
+import { SiteHeader } from "../../components/site-chrome";
+import "../../design-system/studio.css";
+import "../../components/solutions.css";
+import "../../components/editorial-pages.css";
 import Image from "next/image";
-import Link from "next/link";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -93,37 +96,12 @@ const reabertura = [
 
 export default function ManualConfirmacaoWhatsAppPage() {
   return (
-    <main className="min-h-screen bg-[#07111f] text-white">
+    <main className="editorial-page editorial-suporte min-h-screen bg-[#07111f] text-white">
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,#152642_0,#07111f_48%)]" />
 
         <div className="relative mx-auto max-w-7xl px-6 py-8 lg:px-8">
-          <header className="flex items-center justify-between gap-6">
-            <Link href="/" className="flex items-center gap-4">
-              <Image
-                src="/logo.png"
-                alt="SYSNEY Informática"
-                width={160}
-                height={160}
-                sizes="(min-width: 768px) 128px, 112px"
-                priority
-                className="h-auto w-28 md:w-32"
-              />
-              <div className="hidden sm:block">
-                <p className="text-2xl font-semibold text-blue-400">SISBLINK</p>
-                <p className="text-xs uppercase tracking-[0.3em] text-sky-300">
-                  Manual Visual
-                </p>
-              </div>
-            </Link>
-
-            <Link
-              href="/contato"
-              className="rounded-full bg-blue-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
-            >
-              Falar com suporte
-            </Link>
-          </header>
+          <SiteHeader />
 
           <section className="mt-12 rounded-[28px] border border-[#24314d] bg-gradient-to-br from-[#0d1728] to-[#08111f] p-8 shadow-2xl shadow-black/30 md:p-10">
             <span className="inline-flex rounded-full border border-[#38d5c6]/40 bg-[#38d5c6]/10 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-[#66f0df]">

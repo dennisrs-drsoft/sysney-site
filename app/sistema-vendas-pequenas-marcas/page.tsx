@@ -1,3 +1,7 @@
+import { SiteHeader } from "../components/site-chrome";
+import "../design-system/studio.css";
+import "../components/solutions.css";
+import "../components/editorial-pages.css";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -43,20 +47,11 @@ const questions = [
 
 export default function SmallBrandsPage() {
   return (
-    <main className="min-h-screen bg-white text-slate-950">
+    <main className="editorial-page editorial-sistema-vendas-pequenas-marcas min-h-screen bg-white text-slate-950">
       <section className="relative overflow-hidden bg-[#07111f] text-white">
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,#155e7566,transparent_60%)]" />
         <div className="relative mx-auto max-w-[1600px] px-6 lg:px-10 xl:px-12">
-          <header className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 py-6">
-            <Link href="/" aria-label="SYSNEY — página inicial" className="rounded-lg focus-visible:outline-2 focus-visible:outline-sky-300"><Image src="/logo.png" alt="SYSNEY Informática" width={150} height={150} sizes="112px" className="h-auto w-24 sm:w-28" /></Link>
-            <nav aria-label="Navegação para pequenas marcas" className="flex flex-wrap items-center gap-4 text-sm font-bold sm:gap-6">
-              <Link href="/sisblink-em-acao" className="text-slate-300 hover:text-sky-300">Ver as telas</Link>
-              <Link href="#modalidades" className="text-slate-300 hover:text-sky-300">Modalidades</Link>
-              <Link href="#implantacao" className="text-slate-300 hover:text-sky-300">Como começar</Link>
-              <Link href="/links" className="text-slate-300 hover:text-sky-300">Todas as soluções</Link>
-              <Link href={contact} className="rounded-full bg-blue-500 px-5 py-3 hover:bg-blue-400">Conversar com a SYSNEY</Link>
-            </nav>
-          </header>
+          <SiteHeader />
           <div className="grid items-center gap-10 py-12 sm:py-16 lg:grid-cols-[0.95fr_1.05fr] lg:gap-12 lg:py-20">
             <div>
               <p className="text-xs font-black uppercase tracking-[0.22em] text-emerald-300">SISBlink para pequenas marcas de moda</p>
