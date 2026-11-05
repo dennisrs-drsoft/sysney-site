@@ -4,10 +4,11 @@ import type { Metadata } from "next";
 import { SisblinkLiveHighlight } from "./components/sisblink-live-highlight";
 import { SmallBrandsHighlight } from "./components/small-brands-highlight";
 import { CommercialPaths, ImplementationJourney } from "./components/commercial-paths";
+import { WebsiteDesignHighlight } from "./components/website-design-highlight";
 
 export const metadata: Metadata = {
   title: "Sistema de Força de Vendas B2B para Moda",
-  description: "O SISBlink reúne catálogo digital, pedidos e gestão comercial para pequenas marcas, indústrias, representantes, franquias e multimarcas de moda. Conheça a plataforma.",
+  description: "Conheça o SISBlink, sistema B2B de catálogo e pedidos para moda, e a criação de sites com IA da SYSNEY, com entrega em até 3 dias úteis para projetos elegíveis.",
   alternates: { canonical: "/" },
 };
 
@@ -160,6 +161,8 @@ export default function Home() {
 
               <Link href="/sistema-vendas-pequenas-marcas" className="mt-5 inline-flex text-sm font-bold leading-6 text-sky-200 underline underline-offset-4 hover:text-white">Sua equipe de vendas é enxuta? Conheça o SISBlink para sua marca →</Link>
 
+              <a href="#criacao-de-sites" className="mt-4 block w-fit text-sm font-bold leading-6 text-emerald-300 underline underline-offset-4 hover:text-white">Precisa de um site? Conheça a criação de sites com IA →</a>
+
               <a
                 href="#seguranca"
                 aria-label="Conheça os recursos de segurança do SISBlink"
@@ -209,6 +212,7 @@ export default function Home() {
         </div>
       </section>
 
+      <WebsiteDesignHighlight />
       <SmallBrandsHighlight />
 
       <section aria-label="Resultados e marcas" className="relative border-y border-slate-200 bg-slate-50 px-6 py-12 sm:py-16 lg:px-8">

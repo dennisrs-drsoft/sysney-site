@@ -5,8 +5,8 @@ import { AntiBotFields } from "./anti-bot-fields";
 import { enviarContato } from "./actions";
 
 export const metadata: Metadata = {
-  title: "Solicite uma Demonstração",
-  description: "Converse com a SYSNEY e veja como o SISBlink pode apoiar sua força de vendas, catálogo, pedidos B2B e integrações ERP.",
+  title: "Contato | Demonstração SISBlink e Orçamento de Sites",
+  description: "Solicite uma demonstração do SISBlink ou peça um orçamento de criação de site com IA à SYSNEY.",
   alternates: { canonical: "/contato" },
 };
 
@@ -24,6 +24,7 @@ export default async function ContatoPage({ searchParams }: Props) {
   const enviado = params?.enviado === "1";
   const origem = params?.origem || "site-contato";
   const pequenasMarcas = params?.interesse === "pequenas-marcas";
+  const criacaoSites = params?.interesse === "criacao-de-sites";
   const avaliacao = params?.interesse === "avaliacao" || pequenasMarcas;
   const erro = params?.erro;
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -40,26 +41,26 @@ export default async function ContatoPage({ searchParams }: Props) {
             </Link>
 
             <p className="mt-14 text-sm font-black uppercase tracking-[0.35em] text-sky-300">
-              {avaliacao ? "Avaliação da operação" : "Demonstração gratuita"}
+              {criacaoSites ? "Criação de sites com IA" : avaliacao ? "Avaliação da operação" : "Demonstração gratuita"}
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
-              {pequenasMarcas ? "Vamos organizar a venda da sua marca?" : "Vamos entender sua operação B2B?"}
+              {criacaoSites ? "Vamos criar o site da sua empresa?" : pequenasMarcas ? "Vamos organizar a venda da sua marca?" : "Vamos entender sua operação B2B?"}
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              {pequenasMarcas ? "Conte como você vende hoje, mesmo que seja o próprio dono atendendo os clientes. Na demonstração gratuita, vamos avaliar catálogo, pedidos, acompanhamento comercial e o investimento para a sua operação." : <>Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
+              {criacaoSites ? "Conte o que sua empresa oferece e o que você quer que os visitantes façam no site. Vamos confirmar o escopo, o investimento e o prazo de publicação." : pequenasMarcas ? "Conte como você vende hoje, mesmo que seja o próprio dono atendendo os clientes. Na demonstração gratuita, vamos avaliar catálogo, pedidos, acompanhamento comercial e o investimento para a sua operação." : <>Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
               sua marca, representantes, franquias, multimarcas e integrações
               comerciais.</>}
             </p>
 
             <div className="mt-10 grid gap-4 sm:grid-cols-2">
-              {[
+              {(criacaoSites ? ["Site institucional", "Página de divulgação", "Visual para celular", "WhatsApp ou formulário"] : [
                 "Catálogo digital",
                 "Pedidos B2B",
                 "Integrações com ERP",
                 "Dashboards comerciais",
-              ].map((item) => (
+              ]).map((item) => (
                 <div
                   key={item}
                   className="rounded-2xl border border-white/10 bg-white/5 p-5 font-bold"
@@ -177,6 +178,7 @@ export default async function ContatoPage({ searchParams }: Props) {
                 className="rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
 
+              {!criacaoSites && <>
               <select
                 name="representantes"
                 className="rounded-2xl border border-slate-200 bg-white px-5 py-4 outline-none focus:border-blue-500"
@@ -211,12 +213,13 @@ export default async function ContatoPage({ searchParams }: Props) {
                 <option value="Outro">Outro</option>
                 <option value="Ainda não possui">Ainda não possui</option>
               </select>
+              </>}
 
               <textarea
                 name="mensagem"
                 required
                 maxLength={4000}
-                placeholder="Conte o que precisa organizar e quais recursos gostaria de conhecer *"
+                placeholder={criacaoSites ? "Conte sobre sua empresa e o que deseja no site *" : "Conte o que precisa organizar e quais recursos gostaria de conhecer *"}
                 rows={6}
                 className="md:col-span-2 rounded-2xl border border-slate-200 px-5 py-4 outline-none focus:border-blue-500"
               />
