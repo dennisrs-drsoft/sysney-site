@@ -1,0 +1,12 @@
+# Release pública SYSNEY - 05/11/2026
+
+Autorização: usuário aprovou o laboratório visual, o PDF antes/depois e pediu ajuste e publicação.
+Base de produção preservada: origin/main 34d6a87. Financeiro confirmou ausência de release concorrente.
+
+Escopo: identidade azul e novo cisne, SVGs, motion e áudio opcional, capturas reais, oferta de sites com IA, encerramento renovado e /remodelacao-de-sites com caso SYSNEY. Contato identifica criação e remodelação; sitemap inclui nova página.
+
+Validação: next build --webpack aprovado (22 páginas estáticas); lint dos arquivos alterados aprovado; 12 testes de segurança/admin aprovados; scanner de segredos aprovado. HTTP local: home, remodelação, contato, robots e sitemap 200; API admin anônima 401. /admin local é shell estático; controle Azure será verificado em produção. Nenhuma mensagem, cobrança ou documento fiscal real emitido.
+
+Auditoria npm: nenhum alerta alto/crítico no app e admin-api; permanecem alertas baixos/moderados das dependências existentes. Nenhuma alteração de dependências nesta release.
+
+Deploy: somente aplicação Next.js (público + shell administrativo/rotas ponte) pelo GitHub Actions/Azure Static Web Apps. API financeira externa e VM fiscal não serão publicadas. Evidência final de workflow e SHA será registrada após confirmação.

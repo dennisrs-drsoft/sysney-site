@@ -293,13 +293,14 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="rounded-xl bg-[#07111f] p-3 shadow-2xl shadow-slate-300">
+          <div className="screen-showcase">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/telas/catalogo.webp"
+                src="/sisblink/telas/catalogo-detalhado.png"
+                unoptimized
                 alt="Catálogo SISBlink"
-                width={1920}
-                height={1080}
+                width={1784}
+                height={937}
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
@@ -319,13 +320,14 @@ export default function Home() {
             </h2>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 shadow-2xl shadow-slate-200">
+          <div className="screen-showcase">
             <div className="overflow-hidden bg-white">
               <Image
-                src="/sisblink/telas/catalogo.webp"
-                alt="Catálogo visual SISBlink"
-                width={1920}
-                height={1080}
+                src="/sisblink/telas/catalogo-detalhado.png"
+                unoptimized
+                alt="Catálogo visual SISBlink com produtos e detalhes da blusa terracota"
+                width={1784}
+                height={937}
                 sizes="(min-width: 1024px) 50vw, 100vw"
                 className="h-auto w-full"
               />
@@ -336,7 +338,7 @@ export default function Home() {
 
       <section className="hidden bg-[#07111f] px-6 py-16 text-white sm:py-24 md:block lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[1.05fr_0.95fr]">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="screen-showcase">
             <div className="overflow-hidden bg-white">
               <Image
                 src="/sisblink/estoque.webp"
@@ -380,7 +382,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-2xl shadow-slate-300">
+          <div className="screen-showcase">
             <div className="overflow-hidden bg-white">
               <Image
                 src="/sisblink/pedidos.webp"
@@ -397,7 +399,7 @@ export default function Home() {
 
       <section className="bg-[#07111f] px-6 py-16 text-white sm:py-24 lg:px-8">
         <div className="mx-auto grid max-w-[1600px] items-center gap-12 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+          <div className="screen-showcase">
             <div className="overflow-hidden bg-white">
               <Image
                 src="/sisblink/telas/dashboard.webp"
@@ -477,32 +479,18 @@ export default function Home() {
         </div>
       </section>
 
-      <section id="contato" className="bg-blue-500 px-6 py-16 text-white sm:py-24 lg:px-8">
-        <div className="mx-auto max-w-5xl text-center">
-          <p className="mb-4 text-sm font-black uppercase tracking-[0.35em]">
-            Próximo passo
-          </p>
-          <h2 className="text-4xl font-black leading-tight tracking-tight md:text-6xl">
-            Quer transformar sua operação B2B com o SISBlink?
-          </h2>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-blue-50">
-            Agende uma conversa para entender como o SISBlink pode apoiar sua
-            marca, representantes, franquias, multimarcas e canais B2B.
-          </p>
-
-          <div className="mt-10 flex flex-col justify-center gap-4 sm:flex-row">
-            <Link
-              href="/contato"
-              className="rounded-full bg-white px-8 py-4 font-black text-blue-700 transition hover:bg-slate-100"
-            >
-              Solicitar demonstração
-            </Link>
-            <Link
-              href="/contato"
-              className="rounded-full border border-white px-8 py-4 font-black text-white transition hover:bg-white hover:text-blue-700"
-            >
-              Falar com a SYSNEY
-            </Link>
+      <section id="contato" className="closing-scene" aria-labelledby="closing-title">
+        <div className="closing-horizon" aria-hidden="true" />
+        <div className="closing-intro"><span className="closing-dot" /> O PRÓXIMO CAPÍTULO É SEU.</div>
+        <div className="closing-composition">
+          <h2 id="closing-title">Sua empresa.<br />Um novo<br /><em>horizonte.</em></h2>
+          <div className="closing-emblem" aria-hidden="true"><span /><Image src="/sysney-cisne-3d.png" alt="" width={440} height={440} sizes="(max-width: 700px) 220px, 440px" /></div>
+        </div>
+        <div className="closing-bottom">
+          <p>Da coleção ao pedido. Da ideia ao site no ar.<br />Tecnologia com a sua identidade — e a SYSNEY ao seu lado.</p>
+          <div className="closing-paths">
+            <Link href="/contato?origem=home-encerramento-b2b"><span><small>QUERO VENDER MAIS</small><strong>Conhecer o SISBlink</strong></span><span className="closing-arrow" aria-hidden="true">↗</span></Link>
+            <Link href="/contato?interesse=criacao-de-sites&origem=home-encerramento-sites"><span><small>QUERO MINHA MARCA NO AR</small><strong>Criar meu site</strong></span><span className="closing-arrow" aria-hidden="true">↗</span></Link>
           </div>
         </div>
       </section>
@@ -512,17 +500,10 @@ export default function Home() {
         <Link href="/contato" className="shrink-0 rounded-xl bg-blue-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-blue-500/30">Demonstração grátis</Link>
       </div>
 
-      <footer id="sobre" className="bg-[#07111f] px-6 py-10 text-slate-400 lg:px-8">
-        <div className="mx-auto flex max-w-[1600px] flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="font-black text-white">SYSNEY Informática</p>
-            <p className="text-sm">SISBlink - Plataforma B2B para moda.</p>
-            <Link href="/sistema-vendas-pequenas-marcas" className="mt-3 inline-flex text-sm font-bold text-sky-300 hover:text-white">SISBlink para pequenas marcas →</Link>
-          </div>
-          <p className="text-sm">
-            © {new Date().getFullYear()} SYSNEY. Todos os direitos reservados.
-          </p>
-        </div>
+      <footer id="sobre" className="closing-footer">
+        <div><Image src="/sysney-logo.svg" alt="SYSNEY Informática" width={90} height={90} /><p>Tecnologia para o seu<br /><strong>próximo movimento.</strong></p></div>
+        <nav aria-label="Links do rodapé"><Link href="/sistema-vendas-pequenas-marcas">SISBlink para pequenas marcas ↗</Link><Link href="/contato">Falar com a SYSNEY ↗</Link><Link href="#">Voltar ao início ↑</Link></nav>
+        <small>© {new Date().getFullYear()} SYSNEY. Todos os direitos reservados.</small>
       </footer>
     </main>
   );

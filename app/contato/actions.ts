@@ -125,10 +125,11 @@ export async function enviarContato(formData: FormData) {
 
   sgMail.setApiKey(apiKey);
 
-  const assunto = `Novo lead SISBlink - ${empresa.replace(/[\r\n]+/g, " ")}`;
+  const tituloLead = origem === "remodelacao-de-sites" ? "Remodelação de site SYSNEY" : ["criacao-de-sites", "home-encerramento-sites"].includes(origem) ? "Orçamento de site SYSNEY" : "Novo lead SISBlink";
+  const assunto = `${tituloLead} - ${empresa.replace(/[\r\n]+/g, " ")}`;
 
   const texto = `
-Novo lead SISBlink
+${tituloLead}
 
 Nome: ${nome}
 Empresa: ${empresa}
@@ -147,7 +148,7 @@ ${mensagem}
 
   const html = `
     <div style="font-family: Arial, sans-serif; color: #0f172a; line-height: 1.5;">
-      <h2>Novo lead SISBlink</h2>
+      <h2>${tituloLead}</h2>
 
       <table style="border-collapse: collapse; width: 100%; max-width: 720px;">
         ${[

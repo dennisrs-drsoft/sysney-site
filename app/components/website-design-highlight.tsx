@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 
 const benefits = [
   ["Menor custo de produção", "A IA agiliza tarefas repetitivas de design e desenvolvimento, permitindo oferecer um preço mais acessível."],
@@ -21,11 +22,14 @@ export function WebsiteDesignHighlight() {
           <Link href="/contato?origem=criacao-de-sites&interesse=criacao-de-sites" className="mt-7 inline-flex rounded-full bg-emerald-400 px-6 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-300">
             Solicitar orçamento para meu site →
           </Link>
+          <Link href="/remodelacao-de-sites" className="mt-6 block font-bold text-sky-200">Já tem um site? Veja o antes e depois da SYSNEY →</Link>
           <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">
             Prazo para projetos de escopo simples, após aprovação da proposta e recebimento dos materiais e acessos necessários à publicação.
           </p>
         </div>
-        <ul className="grid gap-4">
+        <div>
+        <figure className="screen-showcase website-preview"><Image src="/sysney-site-preview.png" alt="Site institucional da SYSNEY com a nova identidade visual azul e apresentação do SISBlink" width={1320} height={770} sizes="(min-width: 1024px) 48vw, 90vw" unoptimized /><figcaption className="px-2 pt-3 text-xs">Nosso próprio site: uma experiência criada pela SYSNEY.</figcaption></figure>
+        <ul className="website-benefits grid gap-4">
           {benefits.map(([title, description]) => (
             <li key={title} className="rounded-2xl border border-cyan-300/20 bg-white/5 p-5 sm:p-6">
               <h3 className="font-black text-cyan-200">{title}</h3>
@@ -33,6 +37,7 @@ export function WebsiteDesignHighlight() {
             </li>
           ))}
         </ul>
+        </div>
       </div>
     </section>
   );

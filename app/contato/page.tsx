@@ -28,7 +28,8 @@ export default async function ContatoPage({ searchParams }: Props) {
   const enviado = params?.enviado === "1";
   const origem = params?.origem || "site-contato";
   const pequenasMarcas = params?.interesse === "pequenas-marcas";
-  const criacaoSites = params?.interesse === "criacao-de-sites";
+  const remodelacao = params?.interesse === "remodelacao-de-sites";
+  const criacaoSites = params?.interesse === "criacao-de-sites" || remodelacao;
   const avaliacao = params?.interesse === "avaliacao" || pequenasMarcas;
   const erro = params?.erro;
   const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
@@ -46,15 +47,15 @@ export default async function ContatoPage({ searchParams }: Props) {
             </Link>
 
             <p className="mt-14 text-sm font-black uppercase tracking-[0.35em] text-sky-300">
-              {criacaoSites ? "Criação de sites com IA" : avaliacao ? "Avaliação da operação" : "Demonstração gratuita"}
+              {remodelacao ? "Remodelação de sites" : criacaoSites ? "Criação de sites com IA" : avaliacao ? "Avaliação da operação" : "Demonstração gratuita"}
             </p>
 
             <h1 className="mt-4 text-5xl font-black leading-tight md:text-6xl">
-              {criacaoSites ? "Vamos criar o site da sua empresa?" : pequenasMarcas ? "Vamos organizar a venda da sua marca?" : "Vamos entender sua operação B2B?"}
+              {remodelacao ? "Vamos transformar o seu site?" : criacaoSites ? "Vamos criar o site da sua empresa?" : pequenasMarcas ? "Vamos organizar a venda da sua marca?" : "Vamos entender sua operação B2B?"}
             </h1>
 
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-300">
-              {criacaoSites ? "Conte o que sua empresa oferece e o que você quer que os visitantes façam no site. Vamos confirmar o escopo, o investimento e o prazo de publicação." : pequenasMarcas ? "Conte como você vende hoje, mesmo que seja o próprio dono atendendo os clientes. Na demonstração gratuita, vamos avaliar catálogo, pedidos, acompanhamento comercial e o investimento para a sua operação." : <>Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
+              {remodelacao ? "Envie o endereço do seu site e conte o que deseja melhorar. Avaliamos a plataforma, o conteúdo e as integrações para propor escopo, investimento e prazo." : criacaoSites ? "Conte o que sua empresa oferece e o que você quer que os visitantes façam no site. Vamos confirmar o escopo, o investimento e o prazo de publicação." : pequenasMarcas ? "Conte como você vende hoje, mesmo que seja o próprio dono atendendo os clientes. Na demonstração gratuita, vamos avaliar catálogo, pedidos, acompanhamento comercial e o investimento para a sua operação." : <>Solicite uma demonstração gratuita e personalizada para avaliarmos como o SISBlink pode apoiar
               sua marca, representantes, franquias, multimarcas e integrações
               comerciais.</>}
             </p>

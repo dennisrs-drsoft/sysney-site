@@ -16,7 +16,7 @@ export function SisblinkLiveHighlight() {
           </ul>
           <Link href="/sisblink-em-acao" className="mt-8 inline-flex rounded-full bg-emerald-400 px-7 py-4 font-black text-slate-950 transition hover:bg-emerald-300">Veja as telas e o fluxo completo →</Link>
         </div>
-        <figure className="rounded-2xl border border-white/15 bg-white/5 p-3 shadow-2xl shadow-black/30">
+        <figure className="screen-showcase">
           <Image src="/sisblink/telas/espelhamento.webp" alt="Pedido espelhado do SISBlink com catálogo sincronizado e produto apresentado ao cliente" width={1920} height={1080} sizes="(min-width: 1024px) 60vw, 100vw" className="h-auto w-full rounded-lg object-contain" />
           <figcaption className="px-2 pt-3 text-xs leading-6 text-slate-400">Tela real do SISBlink em ambiente de demonstração DRSOFT. Plataforma desenvolvida pela SYSNEY.</figcaption>
         </figure>

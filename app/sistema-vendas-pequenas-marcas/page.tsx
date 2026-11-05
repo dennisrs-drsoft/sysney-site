@@ -63,7 +63,7 @@ export default function SmallBrandsPage() {
                 <Link href="#rotina" className="rounded-full border border-white/30 px-6 py-4 text-center font-bold transition hover:bg-white/10">Veja como funciona ↓</Link>
               </div>
             </div>
-            <figure className="rounded-2xl border border-white/15 bg-white/5 p-3 shadow-2xl shadow-black/25">
+            <figure className="screen-showcase rounded-2xl border border-white/15 bg-white/5 p-3 shadow-2xl shadow-black/25">
               <div className="flex flex-wrap items-center justify-between gap-2 px-2 pb-3 text-xs font-bold text-sky-200"><span>Apresente. Registre. Confira.</span><span className="rounded-full border border-white/15 px-3 py-1 text-emerald-200">SISBlink Web</span></div>
               <Image src="/sisblink/telas/catalogo.webp" alt="Tela real do SISBlink com catálogo visual, produto selecionado e pedido por grade de tamanhos" width={1920} height={1080} preload sizes="(min-width: 1600px) 780px, (min-width: 1024px) 52vw, 100vw" className="h-auto w-full rounded-lg object-contain" />
               <figcaption className="px-2 pt-3 text-xs leading-6 text-slate-400">Tela real do ambiente de demonstração DRSOFT. Os valores exibidos pertencem ao pedido de demonstração, não ao preço do sistema.</figcaption>
@@ -92,7 +92,7 @@ export default function SmallBrandsPage() {
           <p className="text-xs font-black uppercase tracking-[0.22em] text-blue-700">Do atendimento à conferência</p>
           <h2 id="flow-title" className="mt-4 text-3xl font-black tracking-tight sm:text-4xl">Uma rotina que você pode experimentar na demonstração.</h2>
           <div className="mt-9 grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-            <figure className="rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-lg shadow-slate-200/60">
+            <figure className="screen-showcase rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-lg shadow-slate-200/60">
               <Image src="/sisblink/telas/grade.webp" alt="Montagem do pedido com fotos, saldo por tamanho e quantidades no SISBlink" width={1920} height={1080} sizes="(min-width: 1024px) 52vw, 100vw" className="h-auto w-full rounded-lg object-contain" />
               <figcaption className="px-2 pt-3 text-xs leading-6 text-slate-500">Produto e grade no ambiente de demonstração. Cadastros, dados e regras são definidos para a operação.</figcaption>
             </figure>

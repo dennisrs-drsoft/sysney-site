@@ -1,0 +1,61 @@
+.sysney-experience{--brand:#5099cc;--brand-light:#86c9f2;--brand-deep:#25668f;--blue:#5099cc;--cyan:#86c9f2}
+.sysney-experience .studio em,.sysney-experience .editorial-page h1 span,.sysney-experience .opening-metrics strong{color:var(--brand-light)}
+.sysney-experience :is(.studio-services,.studio-components,.component-lab) em{color:var(--brand-deep)}
+.sysney-experience .studio-button,.sysney-experience :is(.bg-blue-500,.bg-blue-600,.bg-emerald-400){background:var(--brand);color:#061d29;box-shadow:0 7px 28px #5099cc22}
+.sysney-experience :is(.studio-button,.bg-blue-500,.bg-blue-600,.bg-emerald-400):hover{background:var(--brand-light);color:#061d29}
+.sysney-experience :is(.text-blue-700,.text-blue-800,.text-blue-600){color:var(--brand-deep)}
+.sysney-experience :is(.text-cyan-300,.text-sky-300,.text-emerald-300){color:var(--brand-light)}
+.sysney-experience .site-logo{width:115px;height:75px;filter:drop-shadow(0 0 12px #5099cc30)}
+.sysney-experience .site-menu summary span,.sysney-experience .service-arrow,.sysney-experience .journey-line li>span,.sysney-experience .solution-faq summary span{color:var(--brand)}
+.sysney-experience .experience-controls{flex-wrap:wrap;max-width:290px}.sound-settings{display:flex;align-items:center;gap:10px;width:100%;border-top:1px solid #ffffff20;padding:4px 6px}.sound-settings label{display:flex;align-items:center;gap:7px}.sound-settings input{width:85px;accent-color:var(--brand)}.sound-settings button{white-space:nowrap}
+.screen-showcase{position:relative;border:1px solid #84bada80!important;border-radius:16px!important;background:#e9f1f6!important;padding:32px 8px 8px!important;box-shadow:15px 30px 60px #00142140!important;transform:perspective(1300px) rotateY(-5deg) rotateX(3deg);transition:transform .7s,box-shadow .7s;animation:screen-float 8s ease-in-out infinite alternate;overflow:visible}
+.screen-showcase::before{content:"● ● ●     SYSNEY / EXPERIÊNCIA REAL";position:absolute;top:10px;left:16px;color:#376b8d;font-size:8px;letter-spacing:2px;line-height:1}
+.screen-showcase:hover{transform:perspective(1300px) rotateY(0deg) rotateX(0deg);box-shadow:10px 35px 80px #5099cc35!important;animation-play-state:paused}
+.screen-showcase img{border-radius:7px;object-fit:contain;width:100%;height:auto}.screen-showcase figcaption{color:#355971}.screen-showcase>div{border-radius:8px;overflow:hidden}.screen-showcase::after{content:"";position:absolute;inset:-25px;z-index:-1;border:1px solid #5099cc30;border-radius:40%;pointer-events:none;transform:rotate(-5deg)}
+@keyframes screen-float{from{translate:0 0}to{translate:0 -13px}}
+.sysney-experience .service-row{position:relative;overflow:hidden}.sysney-experience .service-row::before{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent,#5099cc12,transparent);translate:-100% 0;transition:translate .65s;pointer-events:none}.sysney-experience .service-row:hover::before{translate:100% 0}
+.sysney-experience .journey-line{position:relative}.sysney-experience .journey-line li{position:relative;transition:translate .35s,background-color .35s}.sysney-experience .journey-line li::before{content:"";position:absolute;top:-3px;left:0;width:6px;height:6px;border-radius:50%;background:var(--brand-light);box-shadow:0 0 16px var(--brand);animation:journey-pulse 3s ease-in-out infinite}.sysney-experience .journey-line li:nth-child(2)::before{animation-delay:1s}.sysney-experience .journey-line li:nth-child(3)::before{animation-delay:2s}
+@keyframes journey-pulse{50%{scale:1.8;opacity:.4}}
+.sysney-experience .solution-audience li{transition:translate .3s,background-color .3s;padding-left:12px}.sysney-experience .solution-audience li:hover{translate:7px 0;background:#5099cc10}.sysney-experience .solution-audience li span{display:inline-block;color:var(--brand-deep);transition:rotate .3s}.sysney-experience .solution-audience li:hover span{rotate:45deg}
+.website-benefits{margin-top:30px}.website-preview{margin-bottom:24px}.sysney-experience #criacao-de-sites .screen-showcase{max-width:100%}
+@media(max-width:700px){.sysney-experience .site-logo{width:85px;height:65px}.screen-showcase{transform:perspective(1000px) rotateY(-3deg);animation-duration:10s}.screen-showcase::after{inset:-10px}.sound-settings{gap:4px}}
+.sysney-experience.motion-paused .screen-showcase{transform:none;animation:none}.sysney-experience.motion-paused *::before{animation:none!important;transition:none!important}
+@media(prefers-reduced-motion:reduce){.sysney-experience .screen-showcase{animation:none;transform:none}.sysney-experience *::before{animation:none!important;transition:none!important}.sysney-experience .solution-audience li span{rotate:none!important}}
+.sysney-experience .ambient-core{width:190px;height:190px;right:10%;top:34%;border-radius:0;background: url('/sysney-cisne-3d.png?v=2') center/contain no-repeat;box-shadow:none;filter:drop-shadow(0 20px 24px #00142180);animation:swan-drift 16s ease-in-out infinite alternate}
+@keyframes swan-drift{0%{transform:perspective(800px) translate3d(0,0,0) rotateY(-15deg) rotateZ(-6deg)}100%{transform:perspective(800px) translate3d(-50px,65px,30px) rotateY(18deg) rotateZ(8deg)}}
+@media(max-width:700px){.sysney-experience .ambient-core{width:155px;height:155px;opacity:.32;right:5%}}
+@media(prefers-reduced-motion:reduce){.sysney-experience .ambient-core{animation:none}}
+.sysney-experience .screen-showcase.is-visible{animation:screen-float 8s ease-in-out infinite alternate}.sysney-experience .screen-showcase.is-visible:hover{animation-play-state:paused}
+.sysney-experience .solution-audience li{animation:audience-arrive .75s both}.sysney-experience .solution-audience li:nth-child(2n){animation-delay:.12s}.sysney-experience .solution-audience li:nth-child(3n){animation-delay:.24s}
+@keyframes audience-arrive{from{transform:translateX(30px);opacity:.5}to{transform:none;opacity:1}}
+.sysney-experience.motion-paused .screen-showcase.is-visible,.sysney-experience.motion-paused .solution-audience li{animation:none!important}
+.home-redesign{overflow-x:clip}.sysney-experience .solution-audience li[data-reveal]{animation-play-state:paused}.sysney-experience .solution-audience li.is-visible{animation-play-state:running}
+.sysney-experience .screen-showcase::before{font-family:Manrope,Arial,sans-serif}.sysney-experience #criacao-de-sites li h3{color:var(--brand-light)}
+.sysney-experience .ambient-core{top:21%;right:7%;width:175px;height:175px}
+.sysney-experience .home-redesign #criacao-de-sites li h3{color:var(--brand-light)}
+.sysney-experience .solution-audience li span{animation:audience-signal 4s ease-in-out infinite}.sysney-experience .solution-audience li:nth-child(even) span{animation-delay:1s}
+@keyframes audience-signal{50%{translate:4px -3px}}
+.sysney-experience .service-number{position:relative;color:var(--brand-deep)}.sysney-experience .service-number::after{content:"";display:block;width:24px;height:2px;margin-top:10px;background:var(--brand);transform-origin:left;animation:service-signal 5s ease-in-out infinite}.sysney-experience .service-row:nth-child(even) .service-number::after{animation-delay:1.5s}
+@keyframes service-signal{0%,100%{scale:.3 1;opacity:.3}50%{scale:1 1;opacity:1}}
+.sysney-experience.motion-paused *::after{animation:none!important;transition:none!important}.sysney-experience.motion-paused .solution-audience li span{animation:none!important}
+@media(prefers-reduced-motion:reduce){.sysney-experience *::after,.sysney-experience .solution-audience li span{animation:none!important;transition:none!important}}
+@media(max-width:700px){.sysney-experience .ambient-core{width:150px;height:150px;right:4%;top:27%}}
+@media(max-width:767px){.sysney-experience.sound-enabled .home-mobile-action{bottom:108px}}
+.ambient-swan-track{position:absolute;inset:0;transform:translate(var(--pointer-x),calc(var(--pointer-y) - var(--scroll) * .3));transition:transform .12s linear}.motion-paused .ambient-swan-track{transform:none}
+@media(prefers-reduced-motion:reduce){.ambient-swan-track{transform:none!important}}
+/* Encerramento: horizonte aberto, integrado ao rodapé. */
+.sysney-experience .home-redesign #contato.closing-scene{position:relative;isolation:isolate;overflow:hidden;border:0;border-radius:0;background:#eaf4fa;color:#082735;padding:90px 6vw 70px}
+.closing-horizon{position:absolute;z-index:-1;inset:0;background:radial-gradient(ellipse at 80% 48%,#86c9f288,transparent 57%),linear-gradient(160deg,#f8fbfd 10%,#eaf4fa 60%,#cee7f6)}
+.closing-intro{display:flex;align-items:center;gap:12px;font-size:11px;font-weight:700;letter-spacing:.24em}.closing-dot{width:7px;height:7px;border-radius:50%;background:#25668f;box-shadow:0 0 0 6px #5099cc18}
+.closing-composition{display:grid;grid-template-columns:1.3fr 1fr;align-items:center;position:relative;margin:44px 0 52px}
+.sysney-experience .closing-composition h2{font-size:clamp(64px,8.6vw,145px);font-weight:500;line-height:.94;letter-spacing:-.065em;color:#082735;margin:0;position:relative;z-index:2}
+.sysney-experience .closing-composition h2 em{font-family:Fraunces,Georgia,serif;font-weight:400;color:#25668f}
+.closing-emblem{position:relative;display:grid;place-items:center;min-width:0}.closing-emblem img{position:relative;width:min(100%,440px);height:auto;filter:drop-shadow(0 35px 25px #25668f26);animation:closing-rise 7s ease-in-out infinite alternate}
+.closing-emblem span{position:absolute;width:110%;aspect-ratio:1;border:1px solid #5099cc35;border-radius:50%;transform:rotateX(55deg) rotateZ(-24deg);box-shadow:0 0 0 50px #5099cc09,0 0 0 100px #5099cc06}
+.closing-bottom{display:grid;grid-template-columns:1fr 1.3fr;gap:50px;align-items:end;position:relative;z-index:2}.closing-bottom>p{font-size:16px;line-height:1.8;color:#385769;max-width:390px}
+.closing-paths{display:grid;grid-template-columns:1fr 1fr;gap:18px}.closing-paths a{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:23px 0;border-top:1px solid #5099cc80;color:#082735;transition:transform .3s}.closing-paths small{display:block;font-size:9px;letter-spacing:.12em;margin-bottom:10px;color:#385769}.closing-paths strong{font-size:20px;font-weight:600}.closing-arrow{display:grid;place-items:center;flex-shrink:0;width:44px;height:44px;border:1px solid #5099cc80;border-radius:50%;font-size:24px;transition:background .3s,transform .3s}.closing-paths a:hover .closing-arrow{background:#5099cc;transform:rotate(45deg)}.closing-paths a:focus-visible{outline:2px solid #25668f;outline-offset:6px}
+.sysney-experience .home-redesign .closing-footer{position:relative;background:#cee7f6;color:#385769;padding:32px 6vw 65px;border:0;display:flex;align-items:center;justify-content:space-between;gap:32px}.closing-footer>div{display:flex;align-items:center;gap:18px}.closing-footer img{width:75px;height:auto}.closing-footer p{font-size:13px;line-height:1.6}.closing-footer nav{display:flex;flex-wrap:wrap;gap:12px 25px;max-width:400px;font-size:12px}.closing-footer nav a:hover{text-decoration:underline}.closing-footer>small{font-size:10px;max-width:180px;line-height:1.6}
+@keyframes closing-rise{from{transform:translateY(8px) rotate(-4deg)}to{transform:translateY(-16px) rotate(3deg)}}
+@media(max-width:850px){.closing-bottom{grid-template-columns:1fr;gap:20px}.closing-bottom>p{max-width:100%}.sysney-experience .home-redesign .closing-footer{flex-wrap:wrap}.closing-footer>small{max-width:none}}
+@media(max-width:600px){.sysney-experience .home-redesign #contato.closing-scene{padding:60px 24px 35px}.closing-intro{font-size:9px;letter-spacing:.16em}.closing-composition{grid-template-columns:1fr;margin:35px 0 20px}.sysney-experience .closing-composition h2{font-size:clamp(62px,16vw,96px)}.closing-emblem{justify-self:end;width:180px;margin-top:-26px;margin-right:-12px}.closing-emblem span{width:90%}.closing-paths{grid-template-columns:1fr;gap:0}.closing-paths a{padding:20px 0}.closing-bottom>p{font-size:14px}.sysney-experience .home-redesign .closing-footer{padding:28px 24px 155px;gap:25px}.closing-footer nav{flex-direction:column}.closing-footer>small{width:100%}}
+@media(prefers-reduced-motion:reduce){.closing-emblem img{animation:none}.closing-arrow,.closing-paths a{transition:none}}
