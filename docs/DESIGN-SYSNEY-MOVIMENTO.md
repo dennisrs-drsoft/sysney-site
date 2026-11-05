@@ -39,3 +39,22 @@ Home: soluções e problemas reorganizados em linhas editoriais, números sem ca
 Verificação visual: design system, home, pedidos de moda, integrações, contato, manual, pequenas marcas, tour e links. Celular: 390 px; menu também em 320 px, corrigido e retestado sem corte lateral. Corrigida interferência do estilo de FAQ no menu do contato. Fundo observado animando entre manual e integrações via Link; parallax de scroll confirmado em 260 px no trecho avançado da home. Preferências mantidas entre rotas.
 
 Build Next.js e TypeScript aprovados (21 páginas); lint da home e biblioteca aprovado; 9 testes de ponte administrativa e segurança aprovados. Nenhum formulário real enviado. Pendências: auditoria final do conjunto completo, teclado/movimento reduzido e verificação do feedback sonoro. Prévia permanece em localhost, sem push/deploy.
+
+## Auditoria da entrega local — 05/11/2026
+
+A entrega para aprovação está implementada. Não corresponde a publicação nem à aprovação estética do usuário.
+
+| Requisito | Evidência da versão atual |
+| --- | --- |
+| Mesclar as três referências preservando SYSNEY | Logo original, azul/ciano/verde, superfícies minerais e curvas, Manrope + Fraunces locais, telas reais em perspectiva e órbitas. Conferidos na prévia desktop/móvel. |
+| Design system completo navegável | /design-system reúne composição, cores, tipografia, escala de espaços, botões, navegação, linhas de serviço, FAQ, seleção, campos, erro, desabilitado, retorno e regras de movimento/som. Laboratório funciona sem enviar dados. |
+| Remodelar o site público | Home e 11 páginas públicas usam o sistema compartilhado, com conteúdo comercial e rotas preservados. HTTP 200 confirmado nas 12 páginas e no design system; todas as variantes de página foram inspecionadas visualmente. Página de força de vendas conferida também em captura integral. |
+| Entrada, hover e pressionamento | Revelação por IntersectionObserver; transição de rota; translate/scale de interação independentes da animação de entrada. Links, botões, FAQ, campos e componentes de conteúdo contemplados. |
+| Sons | Web Audio ativado por gesto, estado running confirmado pela ativação, feedback de foco/clique executado na interação de FAQ sem erros de console. Som começa desligado; volume físico do equipamento depende do usuário. Osciladores desconectados após cada sinal. |
+| Fundo contínuo e scroll | Fundo reside fora da superfície remountada por rota. Transform do objeto observado avançando entre manual e integrações via Link; --scroll mudou com a posição da home. |
+| Preferências e teclado | Som e pausa persistiram entre páginas. FAQ abriu com Enter e foco solid. Pausa confirmada: core paused, rota sem animação, opacidade 1, parallax 0. CSS e listener respeitam prefers-reduced-motion; não foi alterada a preferência do Windows. |
+| Responsividade | Desktop e 390 px inspecionados; menu de 320 px corrigido e retestado com limites dentro da viewport. Objetos de fundo atenuados no celular. |
+| Validação | Build Next.js/TypeScript completo e lint dos arquivos públicos alterados aprovados após os ajustes. 9 testes de segurança/ponte aprovados. /admin renderiza sem o ambiente público. Console da interação final sem erros. |
+| Aprovação em localhost | http://127.0.0.1:3125/design-system e home acessíveis, aba mantida para aprovação. Sem push/deploy; financeiro não remodelado. |
+
+O contato conserva a validação e o envio existentes; nenhum e-mail real foi enviado na revisão. Autenticação Azure e Turnstile de produção não foram re-homologados por esta prévia local. Antes de eventual publicação, incorporar origin/main atual e executar o processo de release coordenado.

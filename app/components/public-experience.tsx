@@ -9,6 +9,7 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
   const root = useRef<HTMLDivElement>(null);
   const audio = useRef<AudioContext | null>(null);
   const lastSound = useRef(0);
+  const feedbackSelector = "a,button,summary,input,select,textarea,article,figure,.product-window,.journey-line li,.service-row";
   const [sound, setSound] = useState(false);
   const [paused, setPaused] = useState(false);
   const [audioError, setAudioError] = useState(false);
@@ -36,7 +37,7 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
     const observer = new IntersectionObserver(entries => entries.forEach(entry => {
       if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); }
     }), { threshold: 0.08 });
-    host.querySelectorAll("[data-reveal], main > section, article, .journey-line li").forEach(element => {
+    host.querySelectorAll("[data-reveal], main > section, article, figure, .journey-line li, .solution-link-row").forEach(element => {
       element.setAttribute("data-reveal", "");
       observer.observe(element);
     });
@@ -71,11 +72,12 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
     gain.gain.setValueAtTime(0.018, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.085);
     oscillator.connect(gain); gain.connect(context.destination);
+    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
     oscillator.start(); oscillator.stop(context.currentTime + 0.09);
   }
 
   if (isAdmin) return children;
-  return <div ref={root} className={`sysney-experience${paused ? " motion-paused" : ""}`} onFocus={event => { if (event.target.closest("a,button,summary,input,select,textarea")) tone(); }} onClick={event => { if ((event.target as HTMLElement).closest("a,button,summary")) tone(true); }} onPointerOver={event => { const target = (event.target as HTMLElement).closest("a,button,summary"); const previous = event.relatedTarget; if (target && (!(previous instanceof Node) || !target.contains(previous))) tone(); }}>
+  return <div ref={root} className={`sysney-experience${paused ? " motion-paused" : ""}`} onFocus={event => { if (event.target.closest(feedbackSelector)) tone(); }} onClick={event => { if ((event.target as HTMLElement).closest(feedbackSelector)) tone(true); }} onPointerOver={event => { const target = (event.target as HTMLElement).closest(feedbackSelector); const previous = event.relatedTarget; if (target && (!(previous instanceof Node) || !target.contains(previous))) tone(); }}>
     <div className="ambient-stage" aria-hidden="true"><div className="ambient-orbit orbit-one" /><div className="ambient-orbit orbit-two" /><div className="ambient-core" /></div>
     <div className="route-surface" key={pathname}>{children}</div>
     <div className="experience-controls" aria-label="Preferências da experiência">

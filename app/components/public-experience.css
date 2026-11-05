@@ -27,3 +27,9 @@
 @media(prefers-reduced-motion:reduce){.sysney-experience *{animation:none!important;transition:none!important;scroll-behavior:auto!important}.sysney-experience :is(a,button,summary,article,[data-reveal]),.sysney-experience .product-window,.ambient-orbit{transform:none!important}}
 .sysney-experience .editorial-page h1 span{font-family:Fraunces,Georgia,serif;font-style:italic;color:#54d7a0}
 @media(max-width:700px){.ambient-core{opacity:.45;width:100px;height:100px}.experience-controls{right:12px;bottom:12px}.experience-controls button{padding:9px 8px}}
+.sysney-experience :is(a,button,summary,article,figure,.journey-line li,.product-window){transition:translate .22s,scale .22s,transform .35s,background-color .22s,box-shadow .22s}
+.sysney-experience :is(a,button,summary,article,figure,.journey-line li):hover{translate:0 -2px}
+.sysney-experience :is(a,button,summary,article,figure,.journey-line li,.product-window):active{translate:0 1px;scale:.985}
+.sysney-experience button:disabled{translate:none!important;scale:none!important}
+.sysney-experience.motion-paused *{translate:none!important;scale:none!important}
+@media(prefers-reduced-motion:reduce){.sysney-experience *{translate:none!important;scale:none!important}}
