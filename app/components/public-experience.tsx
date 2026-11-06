@@ -11,6 +11,7 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
   const audio = useRef<AudioContext | null>(null);
   const lastSound = useRef(0);
   const feedbackSelector = "a,button,summary,input,select,textarea,article,figure,.product-window,.journey-line li,.solution-audience li,.service-row";
+  const [classicSound, setClassicSound] = useState(false);
   const [sound, setSound] = useState(false);
   const [paused, setPaused] = useState(false);
   const [audioError, setAudioError] = useState(false);
@@ -68,26 +69,52 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
     const context = audio.current;
     if (!context || context.state !== "running") return;
     lastSound.current = Date.now();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    oscillator.frequency.setValueAtTime(high ? 640 : 420, context.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(high ? 900 : 520, context.currentTime + 0.06);
-    gain.gain.setValueAtTime(0.001, context.currentTime);
-    gain.gain.linearRampToValueAtTime(Math.max(0.001, volume / 100 * 0.18), context.currentTime + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.21);
-    oscillator.connect(gain); gain.connect(context.destination);
-    oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
-    oscillator.start(); oscillator.stop(context.currentTime + 0.22);
+    const notes = classicSound ? [high ? 640 : 420] : [392, 587.33, 880];
+    for (const [index, frequency] of notes.entries()) {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      const start = context.currentTime + index * 0.035;
+      oscillator.type = !classicSound && index === 0 ? "triangle" : "sine";
+      oscillator.frequency.setValueAtTime(frequency, start);
+      if (classicSound) oscillator.frequency.exponentialRampToValueAtTime(high ? 900 : 520, start + 0.06);
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(volume / 100 * (classicSound ? 0.18 : 0.09 / (index + 1)), start + 0.014);
+      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.24);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.onended = () => { oscillator.disconnect(); gain.disconnect(); };
+      oscillator.start(start);
+      oscillator.stop(start + 0.25);
+    }
   }
 
   if (isAdmin) return children;
-  return <div ref={root} className={`sysney-experience${paused ? " motion-paused" : ""}${sound ? " sound-enabled" : ""}`} onFocus={event => { if (event.target.closest(feedbackSelector)) tone(); }} onClick={event => { if ((event.target as HTMLElement).closest(feedbackSelector)) tone(true); }} onPointerOver={event => { const target = (event.target as HTMLElement).closest(feedbackSelector); const previous = event.relatedTarget; if (target && (!(previous instanceof Node) || !target.contains(previous))) tone(); }}>
+  return <div ref={root} className={`sysney-experience${paused ? " motion-paused" : ""}${sound ? " sound-enabled" : ""}`}
+    onFocus={event => {
+      if (classicSound && event.target.closest(feedbackSelector)) tone();
+    }}
+    onClick={event => {
+      const target = event.target;
+      if (!(target instanceof Element) || target.closest(".experience-controls")) return;
+      if (target.closest(classicSound ? feedbackSelector : "a,button,summary")) tone(true);
+    }}
+    onPointerOver={event => {
+      if (!classicSound || !(event.target instanceof Element)) return;
+      const target = event.target.closest(feedbackSelector);
+      const previous = event.relatedTarget;
+      if (target && (!(previous instanceof Node) || !target.contains(previous))) tone();
+    }}>
     <div className="ambient-stage" aria-hidden="true"><div className="ambient-orbit orbit-one" /><div className="ambient-orbit orbit-two" /><div className="ambient-swan-track"><div className="ambient-core" /></div></div>
     <div className="route-surface" key={pathname}>{children}</div>
     <div className="experience-controls" aria-label="Preferências da experiência">
       <button type="button" aria-pressed={sound} onClick={toggleSound}>Som {sound ? "ligado" : "desligado"}</button>
       <button type="button" aria-pressed={paused} onClick={() => setPaused(value => !value)}>{paused ? "Retomar movimento" : "Pausar movimento"}</button>
-      {sound && <div className="sound-settings"><label>Volume <input aria-label="Volume dos efeitos" type="range" min="10" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))} /></label><button type="button" onClick={event => { event.stopPropagation(); tone(true, true); }}>Testar som ♪</button></div>}
+      {sound && <div className="sound-settings">
+        <label>Estilo <select className="bg-[#061d29] text-white" value={classicSound ? "classic" : "synth"} onChange={event => setClassicSound(event.target.value === "classic")}>
+          <option value="synth">Acorde eletrônico</option>
+          <option value="classic">Toque clássico</option>
+        </select></label>
+        <label>Volume <input aria-label="Volume dos efeitos" type="range" min="10" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))} /></label><button type="button" onClick={event => { event.stopPropagation(); tone(true, true); }}>Testar som ♪</button></div>}
       {audioError && <span role="status">Áudio indisponível neste navegador.</span>}
     </div>
   </div>;
