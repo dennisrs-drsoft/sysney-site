@@ -22,3 +22,7 @@ Deploy: somente aplicação Next.js (público + shell administrativo/rotas ponte
 ## Correção do retorno ao início
 
 SHA 339e823d906f6dd1a1fc0f548bdac04b168dbd7b: home usa destino explícito #inicio com âncora nativa. Build aprovado e 11 testes admin/segurança aprovados. Workflow https://github.com/dennisrs-drsoft/sysney-site/actions/runs/42135123573 concluído com sucesso. Clique no rodapé em produção confirmado no navegador: hash #inicio e scrollY 0. Contato e sitemap 200; admin/API anônimos 302 para login. Somente Next.js publicado.
+
+## Assinatura do Design System
+
+SHA 689bbe10454b0d7394a75c3ff4f3949c5ae05fa4 publicado: aviso local substituído por SYSNEY · Identidade visual e componentes. Build e lint aprovados; 11 testes admin/segurança aprovados. Workflow https://github.com/dennisrs-drsoft/sysney-site/actions/runs/42148462069 concluído com sucesso. HTTP público confirmou novo texto presente e antigo ausente; menu preservado. Home/contato/sitemap 200, admin/API anônimos 302. Somente Next.js, sem API externa/VM.
