@@ -72,11 +72,81 @@ export function valorDigitado(texto:string):number|null {
   return Number.isSafeInteger(n) && n<=10000000000 ? n : null;
 }
 export function htmlEmail(e: EmailCobranca, logo = "https://www.sysney.com/logo.png") {
-  e={...e,assunto:resolverTextoEmail(e.assunto,e),saudacao:resolverTextoEmail(e.saudacao,e)};
-  const esc = (v: string) => escapar(v).replaceAll("\n", "<br>");
-  const linha = (nome: string, valor: string):string => `${nome === "Competência" && e.po ? linha("Pedido de compra (PO)",e.po) : ""}<tr><td style="padding:14px;border-bottom:1px solid #dde5ee;color:#475569">${nome}</td><td style="padding:14px;border-bottom:1px solid #dde5ee;text-align:right;font-weight:bold">${esc(valor)}</td></tr>`;
-  const pagamento=e.formaPagamento==="pix"?`${linha("Forma de pagamento","PIX")}${linha("Chave PIX",e.pixChave||"A confirmar")}${linha("Beneficiário",e.pixBeneficiario||"A confirmar")}`:"";
-  const desconto=(e.descontoCentavos||0)>0?`${linha("Valor original",moeda(e.centavos+(e.descontoCentavos||0)))}${linha("Desconto comercial",`− ${moeda(e.descontoCentavos||0)} · ${e.descontoMotivo||""}`)}`:"";
-  const resumoAviso=e.aviso?`${linha("Valor já recebido",moeda(e.aviso.recebidoCentavos))}${linha("Saldo em aberto",moeda(e.aviso.saldoCentavos))}`:"";
-return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapar(e.assunto)}</title></head><body style="margin:0;background:#edf2f7;font-family:Arial,Helvetica,sans-serif;color:#14253b"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:24px 12px"><table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#fff;border-radius:16px;overflow:hidden"><tr><td style="padding:24px;background:#071b30"><img src="${escapar(logo)}" alt="SYSNEY Informática" width="110" height="110" style="display:block;width:110px;height:110px;object-fit:contain"><p style="margin:12px 0 0;color:#8ed6f3;font-size:12px;letter-spacing:2px">FINANCEIRO · ${e.empresa.toUpperCase()}</p></td></tr><tr><td style="padding:28px"><p>${esc(e.saudacao)}</p><h1 style="font-size:23px;line-height:1.3">Demonstrativo de cobrança</h1><p style="line-height:1.7;color:#475569">${esc(e.introducao)}</p>${e.detalhado ? `<p style="font-size:13px;color:#64748b">Cliente: ${esc(e.cliente || "A confirmar")}</p>` : ""}<table width="100%" cellspacing="0" cellpadding="0" style="font-size:14px;border:1px solid #dde5ee;border-radius:8px">${e.detalhado ? linha("Descrição", e.descricao) : ""}${linha("Competência", e.competencia ? e.competencia.split("-").reverse().join("/") : "A confirmar")}${desconto}${linha((e.descontoCentavos||0)>0?"Total com desconto":"Valor", e.centavos > 0 ? moeda(e.centavos) : "A confirmar")}${linha("Vencimento", e.vencimento ? dataBr(e.vencimento) : "A confirmar")}${pagamento}${resumoAviso}</table>${e.confirmarRecebimento ? '<p style="padding:14px;background:#eff6ff;color:#1d4ed8;font-weight:bold">Por favor, confirme o recebimento desta mensagem e dos documentos.</p>' : ""}<p style="line-height:1.7;color:#475569">${esc(e.observacoes)}</p><p style="line-height:1.6;font-weight:bold;color:#187bad">${esc(e.assinatura)}</p><p style="font-size:12px;color:#64748b">${e.anexos.length ? `Documentos anexos: ${e.anexos.map(a => escapar(a.nome)).join(" · ")}` : "Documentos ainda não anexados — rascunho para revisão."}</p><a href="https://www.sysney.com" style="font-size:12px;color:#187bad">www.sysney.com</a></td></tr></table></td></tr></table></body></html>`;
+  const esc = (value: string) => escapar(value).replaceAll("\n", "<br>");
+  const empresa = e.empresa.toUpperCase();
+  const assunto = resolverTextoEmail(e.assunto, e);
+  const saudacao = resolverTextoEmail(e.saudacao, e);
+  const titulosAviso = {
+    lembrete: "Lembrete de pagamento",
+    vencimento: "Aviso de vencimento",
+    atraso: "Aviso de pagamento em atraso",
+    reenvio: "Reenvio de cobrança",
+  };
+  const titulo = e.aviso ? titulosAviso[e.aviso.tipo] : "Demonstrativo de cobrança";
+  const linhas: { rotulo: string; valor: string; destaque?: boolean }[] = [];
+  if (e.detalhado) linhas.push({ rotulo: "Descrição", valor: e.descricao });
+  if (e.po) linhas.push({ rotulo: "Pedido de compra (PO)", valor: e.po });
+  linhas.push({ rotulo: "Competência", valor: e.competencia ? e.competencia.split("-").reverse().join("/") : "A confirmar" });
+  const desconto = e.descontoCentavos || 0;
+  if (desconto > 0) {
+    linhas.push({ rotulo: "Valor original", valor: moeda(e.centavos + desconto) });
+    linhas.push({ rotulo: "Desconto comercial", valor: `− ${moeda(desconto)} · ${e.descontoMotivo || ""}` });
+  }
+  linhas.push({ rotulo: desconto > 0 ? "Total com desconto" : "Valor", valor: e.centavos > 0 ? moeda(e.centavos) : "A confirmar", destaque: !e.aviso });
+  linhas.push({ rotulo: "Vencimento", valor: e.vencimento ? dataBr(e.vencimento) : "A confirmar" });
+  if (e.formaPagamento === "pix") {
+    linhas.push({ rotulo: "Forma de pagamento", valor: "PIX" });
+    linhas.push({ rotulo: "Chave PIX", valor: e.pixChave || "A confirmar" });
+    linhas.push({ rotulo: "Beneficiário", valor: e.pixBeneficiario || "A confirmar" });
+  }
+  if (e.aviso) {
+    linhas.push({ rotulo: "Valor já recebido", valor: moeda(e.aviso.recebidoCentavos) });
+    linhas.push({ rotulo: "Saldo em aberto", valor: moeda(e.aviso.saldoCentavos), destaque: true });
+  }
+  const resumo = linhas.map(({ rotulo, valor, destaque }) => `
+    <tr bgcolor="${destaque ? "#e4f0f6" : "#f5f9f8"}">
+      <th scope="row" width="38%" valign="top" align="left" style="padding:12px;border-bottom:1px solid #d1e2e4;font-weight:normal;color:#3e5b67">${rotulo}</th>
+      <td valign="top" align="right" style="padding:12px;border-bottom:1px solid #d1e2e4;font-weight:bold;overflow-wrap:anywhere;word-break:break-word;color:#061d29">${esc(valor)}</td>
+    </tr>`).join("");
+  const documentos = e.anexos.length
+    ? `Documentos anexos: ${e.anexos.map(a => escapar(a.nome)).join(" · ")}`
+    : "Documentos ainda não anexados — rascunho para revisão.";
+
+  // Tabelas, cores e fontes locais ao e-mail funcionam sem CSS externo ou fontes remotas.
+  return `<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>${escapar(assunto)}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#eef5f3;color:#102c39;font-family:Arial,Helvetica,sans-serif">
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#eef5f3">
+    <tr><td align="center" style="padding:20px 10px">
+      <!--[if mso]><table role="presentation" width="600" cellspacing="0" cellpadding="0"><tr><td><![endif]-->
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#ffffff" style="max-width:600px;border:1px solid #d1e2e4">
+        <tr><td bgcolor="#061d29" style="padding:20px 24px;border-top:4px solid #5099cc">
+          <img src="${escapar(logo)}" alt="SYSNEY Informática" width="86" height="86" style="display:block;width:86px;height:86px;border:0;color:#eef5f3">
+          <p style="margin:8px 0 0;color:#86c9f2;font-size:12px;font-weight:bold;letter-spacing:1.6px">FINANCEIRO · ${empresa}</p>
+        </td></tr>
+        <tr><td style="padding:24px;font-size:15px;line-height:1.6">
+          <h1 style="margin:0 0 16px;color:#061d29;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:normal;line-height:1.25">${titulo}</h1>
+          <p style="margin:0 0 10px">${esc(saudacao)}</p>
+          <p style="margin:0 0 18px;color:#3e5b67">${esc(e.introducao)}</p>
+          ${e.detalhado ? `<p style="margin:0 0 8px;color:#3e5b67;font-size:13px">Cliente: ${esc(e.cliente || "A confirmar")}</p>` : ""}
+          <table aria-label="Dados da cobrança" width="100%" cellspacing="0" cellpadding="0" style="table-layout:fixed;font-size:14px;border:1px solid #d1e2e4">${resumo}</table>
+          ${e.confirmarRecebimento ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px"><tr><td bgcolor="#eaf4f8" style="padding:12px;border-left:3px solid #5099cc;color:#183f57;font-size:14px;font-weight:bold">Por favor, confirme o recebimento desta mensagem e dos documentos.</td></tr></table>` : ""}
+          ${e.observacoes ? `<p style="margin:18px 0 0;color:#3e5b67">${esc(e.observacoes)}</p>` : ""}
+          <p style="margin:18px 0 0;color:#225f84;font-weight:bold">${esc(e.assinatura)}</p>
+        </td></tr>
+        <tr><td bgcolor="#f5f9f8" style="padding:14px 24px;border-top:1px solid #d1e2e4;font-size:12px;line-height:1.6;color:#3e5b67;overflow-wrap:anywhere">
+          <p style="margin:0 0 6px">${documentos}</p>
+          <a href="https://www.sysney.com" style="color:#194d70;text-decoration:underline">www.sysney.com</a>
+        </td></tr>
+      </table>
+      <!--[if mso]></td></tr></table><![endif]-->
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
