@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import {DialogosAdmin} from "./dialogos-admin";
+import styles from "./admin-theme.module.css";
 
 export const metadata: Metadata = {
   title: "Administração financeira",
@@ -14,5 +15,5 @@ export const metadata: Metadata = {
 export default function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  return <DialogosAdmin>{children}</DialogosAdmin>;
+  return <div className={styles.scope}><DialogosAdmin>{children}</DialogosAdmin></div>;
 }

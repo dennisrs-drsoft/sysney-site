@@ -1,0 +1,33 @@
+/* Tailwind palette overrides apply only to administrative screens. */
+.scope {
+  min-height: 100dvh;
+  background: #eef5f3;
+  color: #102c39;
+  font-family: Manrope, Arial, sans-serif;
+  --color-blue-50: #eaf4f8;
+  --color-blue-100: #dceef5;
+  --color-blue-200: #bfdce9;
+  --color-blue-300: #99c8dd;
+  --color-blue-400: #5099cc;
+  --color-blue-500: #317aa7;
+  --color-blue-600: #225f84;
+  --color-blue-700: #194d70;
+  --color-blue-800: #183f57;
+  --color-blue-900: #12374b;
+  --color-blue-950: #061d29;
+  --color-cyan-50: #e9f6f5;
+  --color-cyan-100: #d6eeec;
+  --color-cyan-200: #b9dddd;
+  --color-cyan-300: #86c9f2;
+  --color-slate-50: #f4f8f7;
+  --color-slate-100: #e8f1ef;
+  --color-slate-200: #d1e2e4;
+  --color-slate-300: #aec5cc;
+  --color-slate-400: #64808d;
+  --color-slate-500: #4a6672;
+  --color-slate-600: #3e5b67;
+  --color-slate-700: #304e5a;
+  --color-slate-800: #203e4a;
+  --color-slate-900: #102c39;
+  --color-slate-950: #061d29;
+}
