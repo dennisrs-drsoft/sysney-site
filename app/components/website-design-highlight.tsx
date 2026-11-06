@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import { WebsiteProjects } from "./website-projects";
 
 const benefits = [
   ["Menor custo de produção", "A IA agiliza tarefas repetitivas de design e desenvolvimento, permitindo oferecer um preço mais acessível."],
@@ -17,7 +17,7 @@ export function WebsiteDesignHighlight() {
             Seu site no ar em até <span className="text-cyan-300">3 dias úteis.</span>
           </h2>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-300">
-            A SYSNEY cria sites institucionais e páginas de divulgação com IA e revisão humana. Você ganha um site profissional, com entrega rápida e investimento mais acessível para começar a receber contatos.
+            A SYSNEY cria sites institucionais, portfólios profissionais e páginas de divulgação com IA e revisão humana. Você ganha um site profissional, com entrega rápida e investimento mais acessível para começar a receber contatos.
           </p>
           <Link href="/contato?origem=criacao-de-sites&interesse=criacao-de-sites" className="mt-7 inline-flex rounded-full bg-emerald-400 px-6 py-4 text-center font-black text-slate-950 transition hover:bg-emerald-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-emerald-300">
             Solicitar orçamento para meu site →
@@ -28,7 +28,8 @@ export function WebsiteDesignHighlight() {
           </p>
         </div>
         <div>
-        <figure className="screen-showcase website-preview"><Image src="/sysney-site-preview.png" alt="Site institucional da SYSNEY com a nova identidade visual azul e apresentação do SISBlink" width={1320} height={770} sizes="(min-width: 1024px) 48vw, 90vw" unoptimized /><figcaption className="px-2 pt-3 text-xs">Nosso próprio site: uma experiência criada pela SYSNEY.</figcaption></figure>
+          <p className="text-xs font-bold uppercase tracking-widest text-sky-200">Projetos desenvolvidos pela SYSNEY</p>
+          <WebsiteProjects />
         <ul className="website-benefits grid gap-4">
           {benefits.map(([title, description]) => (
             <li key={title} className="rounded-2xl border border-cyan-300/20 bg-white/5 p-5 sm:p-6">

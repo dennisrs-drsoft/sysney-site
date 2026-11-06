@@ -100,25 +100,58 @@
   .sysney-experience.sound-enabled .home-mobile-action { bottom: 66px; }
 }
 
-/* A abertura usa a largura da tela, com respiro proporcional. */
+/* Uma margem comum alinha o conteúdo sem limitar os fundos das seções. */
+.sysney-experience {
+  --public-gutter: max(clamp(20px, 4.5vw, 96px), calc((100% - 1760px) / 2));
+}
 .sysney-experience :is(.home-opening, .studio) .studio-hero {
   max-width: none;
-  padding-inline: clamp(20px, 3.5vw, 80px);
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  padding-inline: var(--public-gutter);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
 }
-.sysney-experience .home-redesign > section:not(.closing-scene) > div {
-  max-width: 1600px;
-}
-.sysney-experience :is(.home-opening, .studio) .studio-header {
+.sysney-experience :is(.home-redesign, .studio, .editorial-page, .remodel-page) .studio-header {
   max-width: none;
-  padding-inline: clamp(20px, 3.5vw, 80px);
+  padding-inline: var(--public-gutter);
+}
+.sysney-experience :is(.home-redesign, .studio, .editorial-page, .remodel-page) > section,
+.sysney-experience :is(.home-redesign, .studio, .editorial-page, .remodel-page) > footer {
+  padding-inline: var(--public-gutter);
+}
+.sysney-experience .home-redesign > section:not(.closing-scene) > div,
+.sysney-experience .editorial-page > section > .relative.mx-auto {
+  max-width: none;
+}
+.sysney-experience .editorial-links > .relative.mx-auto {
+  max-width: 1760px;
+}
+.sysney-experience .editorial-links {
+  padding-inline: var(--public-gutter);
+}
+.sysney-experience .editorial-links .studio-header {
+  padding-inline: 0;
 }
 @media (max-width: 850px) {
   .sysney-experience :is(.home-opening, .studio) .studio-hero {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+@media (min-width: 851px) {
+  .sysney-experience .home-opening .product-stage {
+    margin-inline-end: clamp(8px, 1.2vw, 24px);
+  }
+}
 
 .sysney-experience .home-redesign #contato > .closing-horizon {
   max-width: none;
 }
+/* Miniaturas da página de links usam o mesmo movimento, com moldura compacta. */
+.sysney-experience .links-screen {
+  min-width: 0;
+  padding: 24px 6px 6px !important;
+}
+.links-screen::before {
+  top: 8px;
+  left: 10px;
+  letter-spacing: 1px;
+}
+.links-screen::after { content: none; }
