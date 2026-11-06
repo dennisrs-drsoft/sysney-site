@@ -10,3 +10,11 @@ Validação: next build --webpack aprovado (22 páginas estáticas); lint dos ar
 Auditoria npm: nenhum alerta alto/crítico no app e admin-api; permanecem alertas baixos/moderados das dependências existentes. Nenhuma alteração de dependências nesta release.
 
 Deploy: somente aplicação Next.js (público + shell administrativo/rotas ponte) pelo GitHub Actions/Azure Static Web Apps. API financeira externa e VM fiscal não serão publicadas. Evidência final de workflow e SHA será registrada após confirmação.
+
+## Publicação confirmada
+
+- SHA implantado: 091b76e5ea863df9136d8f347584262c342d5969.
+- Workflow concluído com sucesso: https://github.com/dennisrs-drsoft/sysney-site/actions/runs/42133499196.
+- Produção: home e /remodelacao-de-sites HTTP 200 com novo conteúdo; contato de remodelação HTTP 200 e título correto; sitemap contém nova rota; robots e SVG HTTP 200.
+- /admin e /api/admin/status anônimos redirecionam 302 para autenticação GitHub, conforme proteção Azure. Não foi revalidada uma sessão administrativa autenticada nem enviado formulário real.
+- Revisão visual desktop e mobile do build; página publicada conferida no navegador. API financeira e VM fiscal não foram implantadas.
