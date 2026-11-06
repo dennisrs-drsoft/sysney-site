@@ -12,7 +12,7 @@ export function ComponentLab() {
   const [selected, setSelected] = useState(0);
   const [result, setResult] = useState("");
   return <section className="component-lab" aria-labelledby="lab-title">
-    <div className="section-heading"><p className="studio-eyebrow">DESIGN SYSTEM / 03 — LABORATÓRIO</p><h2 id="lab-title">Os detalhes fazem<br />a <em>diferença.</em></h2><p>Componentes reais para experimentar. Este formulário é uma demonstração local e não envia dados.</p></div>
+    <div className="section-heading"><p className="studio-eyebrow">DESIGN SYSTEM / 03 — LABORATÓRIO</p><h2 id="lab-title">Os detalhes fazem<br />a <em>diferença.</em></h2><p>Experimente os componentes. Este formulário de demonstração não envia dados.</p></div>
     <div className="lab-grid">
       <article className="lab-selection">
         <p className="studio-eyebrow">SELEÇÃO / CONTEÚDO</p>

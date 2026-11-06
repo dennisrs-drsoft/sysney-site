@@ -10,7 +10,7 @@ import { enviarContato } from "./actions";
 
 export const metadata: Metadata = {
   title: "Contato | Demonstração SISBlink e Orçamento de Sites",
-  description: "Solicite uma demonstração do SISBlink ou peça um orçamento de criação de site com IA à SYSNEY.",
+  description: "Solicite uma demonstração do SISBlink ou peça um orçamento de criação ou remodelação de site à SYSNEY.",
   alternates: { canonical: "/contato" },
 };
 
@@ -39,6 +39,27 @@ export default async function ContatoPage({ searchParams }: Props) {
 <SiteHeader />
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,#2563eb66,transparent_32%),radial-gradient(circle_at_bottom_left,#0ea5e955,transparent_28%),linear-gradient(180deg,#05101f,#07111f)]" />
+
+        <nav aria-label="Escolha o serviço" className="relative mx-auto max-w-7xl px-6 pt-10 lg:px-8">
+          <p className="mb-4 text-sm font-bold text-sky-200">Como podemos ajudar?</p>
+          <ul className="grid gap-3 sm:grid-cols-3">
+            {[
+              { label: "Demonstração do SISBlink", href: "/contato?interesse=sisblink", active: !criacaoSites && !avaliacao },
+              { label: "Criar meu site", href: "/contato?interesse=criacao-de-sites&origem=criacao-de-sites", active: criacaoSites && !remodelacao },
+              { label: "Remodelar meu site", href: "/contato?interesse=remodelacao-de-sites&origem=remodelacao-de-sites", active: remodelacao },
+            ].map(({ label, href, active }) => (
+              <li key={href}>
+                <Link
+                  href={href}
+                  aria-current={active ? "page" : undefined}
+                  className={`block rounded-xl border px-4 py-3 font-bold focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 ${active ? "border-sky-300 bg-sky-200 text-slate-950" : "border-white/25 text-white hover:bg-white/10"}`}
+                >
+                  {label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
 
         <div className="relative mx-auto grid max-w-7xl gap-12 px-6 py-10 lg:grid-cols-[0.85fr_1.15fr] lg:px-8 lg:py-20">
           <div>
@@ -117,7 +138,7 @@ export default async function ContatoPage({ searchParams }: Props) {
               </div>
             )}
 
-            <h2 className="text-3xl font-black">{criacaoSites ? "Solicitar orçamento do meu site" : avaliacao ? "Conversar sobre meu fluxo de pedidos" : "Solicitar demonstração"}</h2>
+            <h2 className="text-3xl font-black">{remodelacao ? "Solicitar avaliação do meu site" : criacaoSites ? "Solicitar orçamento do meu site" : avaliacao ? "Conversar sobre meu fluxo de pedidos" : "Solicitar demonstração"}</h2>
             <p className="mt-2 text-slate-600">
               {avaliacao ? "Conte sua principal dificuldade e qual sistema utiliza. Podemos começar pela avaliação do seu cenário, sem agendar uma demonstração neste primeiro contato." : "Quanto mais contexto você enviar, melhor conseguimos preparar a conversa."}
             </p>
