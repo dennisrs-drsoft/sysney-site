@@ -5,3 +5,12 @@
 @media(max-width:700px){.editorial-page h1{letter-spacing:-1.5px}.editorial-contato>section>div.relative{gap:35px}.editorial-contato form{border-radius:22px 4px 4px 4px!important}.editorial-page .studio-header{flex-wrap:wrap}.editorial-page .studio-header nav{display:none}}
 
 .editorial-contato>section>div.relative{padding-left:5%;padding-right:5%;max-width:1480px}.editorial-page .site-menu>div{max-width:calc(100vw - 40px)}
+.editorial-links a.group.links-demo {
+  background: #123746;
+  color: #f4f9fc;
+  border-color: #5099cc;
+}
+.editorial-links a.group.links-demo:hover,
+.editorial-links a.group.links-demo:focus-visible {
+  background: #19475a;
+}
