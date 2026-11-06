@@ -1,3 +1,4 @@
+import { DirectionalArrow } from "./components/directional-arrow";
 import { HomeOpening } from "./components/home-opening";
 import "./design-system/studio.css";
 import "./components/solutions.css";
@@ -55,7 +56,7 @@ const businessNumbers = [
   { value: "+35", label: "clientes", detail: "operações apoiadas", icon: "♥" },
   { value: "+26", label: "marcas", detail: "no ecossistema", icon: "◆" },
   { value: "+53 mil", label: "pedidos", detail: "processados", icon: "▤" },
-  { value: "R$ 854 mi", label: "em vendas", detail: "movimentadas", icon: "↗" },
+  { value: "R$ 854 mi", label: "em vendas", detail: "movimentadas", icon: "↗︎" },
 ];
 
 const painPoints = [
@@ -188,7 +189,7 @@ export default function Home() {
               href="/contato"
               className="shrink-0 rounded-full bg-blue-500 px-7 py-4 font-black text-white shadow-lg shadow-blue-500/30 transition hover:bg-blue-400"
             >
-              Ver o SISBlink em ação ↗
+              Ver o SISBlink em ação ↗︎
             </Link>
           </div>
         </div>
@@ -239,7 +240,7 @@ export default function Home() {
                 className="min-w-[82vw] snap-center rounded-[2rem] border border-slate-200 bg-white p-7 shadow-sm transition hover:-translate-y-1 hover:shadow-xl lg:min-w-0"
               >
                 <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 text-2xl font-black text-white shadow-lg shadow-blue-500/30">
-                  {index === 0 ? "▣" : index === 1 ? "▤" : "↗"}
+                  {index === 0 ? "▣" : index === 1 ? "▤" : "↗︎"}
                 </div>
                 <h3 className="mt-6 text-xl font-black text-blue-700">
                   {item.title}
@@ -255,7 +256,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1600px]">
           <div className="max-w-4xl"><p className="text-sm font-black uppercase tracking-[0.35em] text-sky-300">Problemas que custam vendas</p><h2 className="mt-4 text-4xl font-black tracking-tight md:text-5xl">Quando a operação depende de e-mails, planilhas e informações dispersas, o time perde velocidade.</h2><p className="mt-6 max-w-3xl text-lg leading-8 text-slate-300">O SISBlink foi evoluído a partir da rotina comercial para eliminar atritos que aparecem antes, durante e depois do atendimento.</p></div>
           <div className="-mx-6 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-6 pb-4 md:mx-0 md:mt-12 md:grid md:grid-cols-2 md:overflow-visible md:px-0 md:pb-0">
-            {painPoints.map((pain, index) => <article key={pain.title} className="pain-row" data-reveal><span className="row-index">0{index + 1}</span><h3>{pain.title}</h3><div><p>{pain.text}</p><p className="pain-result"><span aria-hidden="true">↗</span> {pain.result}</p></div></article>)}
+            {painPoints.map((pain, index) => <article key={pain.title} className="pain-row" data-reveal><span className="row-index">0{index + 1}</span><h3>{pain.title}</h3><div><p>{pain.text}</p><p className="pain-result"><span aria-hidden="true"><DirectionalArrow /></span> {pain.result}</p></div></article>)}
           </div>
         </div>
       </section>
@@ -489,8 +490,8 @@ export default function Home() {
         <div className="closing-bottom">
           <p>Da coleção ao pedido. Da ideia ao site no ar.<br />Tecnologia com a sua identidade — e a SYSNEY ao seu lado.</p>
           <div className="closing-paths">
-            <Link href="/contato?origem=home-encerramento-b2b"><span><small>QUERO VENDER MAIS</small><strong>Conhecer o SISBlink</strong></span><span className="closing-arrow" aria-hidden="true">↗</span></Link>
-            <Link href="/contato?interesse=criacao-de-sites&origem=home-encerramento-sites"><span><small>QUERO MINHA MARCA NO AR</small><strong>Criar meu site</strong></span><span className="closing-arrow" aria-hidden="true">↗</span></Link>
+            <Link href="/contato?origem=home-encerramento-b2b"><span><small>QUERO VENDER MAIS</small><strong>Conhecer o SISBlink</strong></span><span className="closing-arrow" aria-hidden="true"><DirectionalArrow /></span></Link>
+            <Link href="/contato?interesse=criacao-de-sites&origem=home-encerramento-sites"><span><small>QUERO MINHA MARCA NO AR</small><strong>Criar meu site</strong></span><span className="closing-arrow" aria-hidden="true"><DirectionalArrow /></span></Link>
           </div>
         </div>
       </section>
@@ -502,7 +503,7 @@ export default function Home() {
 
       <footer id="sobre" className="closing-footer">
         <div><Image src="/sysney-logo.svg" alt="SYSNEY Informática" width={90} height={90} /><p>Tecnologia para o seu<br /><strong>próximo movimento.</strong></p></div>
-        <nav aria-label="Links do rodapé"><Link href="/sistema-vendas-pequenas-marcas">SISBlink para pequenas marcas ↗</Link><Link href="/contato">Falar com a SYSNEY ↗</Link><a href="#inicio">Voltar ao início ↑</a></nav>
+        <nav aria-label="Links do rodapé"><Link href="/sistema-vendas-pequenas-marcas">SISBlink para pequenas marcas <DirectionalArrow /></Link><Link href="/contato">Falar com a SYSNEY <DirectionalArrow /></Link><a href="#inicio">Voltar ao início ↑</a></nav>
         <small>© {new Date().getFullYear()} SYSNEY. Todos os direitos reservados.</small>
       </footer>
     </main>

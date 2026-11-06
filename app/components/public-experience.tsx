@@ -106,7 +106,13 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
     }}>
     <div className="ambient-stage" aria-hidden="true"><div className="ambient-orbit orbit-one" /><div className="ambient-orbit orbit-two" /><div className="ambient-swan-track"><div className="ambient-core" /></div></div>
     <div className="route-surface" key={pathname}>{children}</div>
-    <div className="experience-controls" aria-label="Preferências da experiência">
+    <details className="experience-controls">
+      <summary aria-label="Preferências de som e movimento" title="Som e movimento">
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round">
+          <path d="M4 6h5m4 0h7M4 12h10m4 0h2M4 18h2m4 0h10M9 4v4m9 2v4M6 16v4" />
+        </svg>
+      </summary>
+      <div className="experience-panel" aria-label="Preferências da experiência">
       <button type="button" aria-pressed={sound} onClick={toggleSound}>Som {sound ? "ligado" : "desligado"}</button>
       <button type="button" aria-pressed={paused} onClick={() => setPaused(value => !value)}>{paused ? "Retomar movimento" : "Pausar movimento"}</button>
       {sound && <div className="sound-settings">
@@ -116,6 +122,7 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
         </select></label>
         <label>Volume <input aria-label="Volume dos efeitos" type="range" min="10" max="100" value={volume} onChange={event => setVolume(Number(event.target.value))} /></label><button type="button" onClick={event => { event.stopPropagation(); tone(true, true); }}>Testar som ♪</button></div>}
       {audioError && <span role="status">Áudio indisponível neste navegador.</span>}
-    </div>
+      </div>
+    </details>
   </div>;
 }

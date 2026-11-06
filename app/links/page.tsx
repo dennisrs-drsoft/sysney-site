@@ -7,7 +7,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 const title = "Links oficiais da SYSNEY e do SISBlink";
-const description = "Encontre as telas do SISBlink, soluções para pequenas marcas, moda e multimarcas, integrações ERP, demonstração e orientação nos links oficiais da SYSNEY.";
+const description = "Encontre as telas do SISBlink, soluções para pequenas marcas, moda e multimarcas, integrações ERP, demonstração, criação de sites com IA e remodelação nos links oficiais da SYSNEY.";
 export const metadata: Metadata = {
   title, description, alternates: { canonical: "/links" },
   openGraph: { title, description, url: "/links", type: "website", locale: "pt_BR", siteName: "SISBlink", images: [{ url: "/sisblink/telas/catalogo.webp", width: 1920, height: 1080, alt: "Catálogo digital e pedidos por grade no SISBlink" }] },
@@ -37,7 +37,7 @@ export default function LinksPage() {
 
       <section aria-labelledby="links-title" className="pb-8 pt-9 sm:pb-10 sm:pt-12">
         <p className="text-[11px] font-black uppercase tracking-[0.26em] text-sky-300">SYSNEY · SISBlink</p>
-        <div className="mt-4 grid items-end gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12"><h1 id="links-title" className="max-w-2xl text-3xl font-black leading-[1.12] tracking-tight sm:text-4xl lg:text-5xl">O próximo passo da sua operação começa aqui.</h1><p className="max-w-xl text-sm leading-7 text-slate-300 sm:text-base">Conheça a plataforma, encontre a solução para sua rotina ou fale com a SYSNEY. Todos os caminhos para vender moda B2B com mais clareza e controle.</p></div>
+        <div className="mt-4 grid items-end gap-5 lg:grid-cols-[1.15fr_0.85fr] lg:gap-12"><h1 id="links-title" className="max-w-2xl text-3xl font-black leading-[1.12] tracking-tight sm:text-4xl lg:text-5xl">O próximo passo da sua operação começa aqui.</h1><p className="max-w-xl text-sm leading-7 text-slate-300 sm:text-base">Conheça a plataforma, encontre a solução para sua rotina ou fale com a SYSNEY. Encontre soluções para vender moda B2B, criar um site com IA ou renovar seu site atual.</p></div>
       </section>
 
       <section aria-label="Comece por aqui" className="grid gap-4 lg:grid-cols-[1.3fr_0.7fr]">
@@ -50,6 +50,15 @@ export default function LinksPage() {
             <div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-blue-100">Gratuita e sem compromisso</p><h2 className="mt-3 text-2xl font-black leading-tight">Solicitar demonstração</h2><p className="mt-3 text-sm leading-6 text-blue-50">Avalie o SISBlink no contexto da sua empresa e receba uma proposta para sua operação.</p></div><span className="flex items-center justify-between text-sm font-black">Quero conhecer o SISBlink<Arrow className="transition group-hover:translate-x-1" /></span>
           </Link>
           <Link href="/contato?origem=instagram-links" className={`group flex flex-col justify-between gap-6 rounded-3xl border border-white/15 bg-white/[0.04] p-6 transition hover:border-emerald-300/40 hover:bg-white/[0.07] sm:p-7 ${cardFocus}`}><div><p className="text-[10px] font-black uppercase tracking-[0.18em] text-emerald-300">Contato comercial</p><h2 className="mt-3 text-xl font-black">Falar com a SYSNEY</h2><p className="mt-3 text-sm leading-6 text-slate-300">Converse sobre funcionalidades, integração, implantação e as necessidades da sua equipe.</p></div><span className="flex items-center justify-between text-sm font-bold text-emerald-200">Conte o que sua empresa precisa<Arrow className="transition group-hover:translate-x-1" /></span></Link>
+        </div>
+      </section>
+
+      <section aria-labelledby="links-sites" className="mt-6 rounded-3xl border border-sky-300/25 bg-[#0d2033] p-6 sm:p-7">
+        <h2 id="links-sites" className="text-2xl font-black">Criação de sites com IA</h2>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">Desenvolvemos sites institucionais e páginas de divulgação com IA e revisão humana. Também remodelamos sites que já estão no ar.</p>
+        <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3">
+          <Link href="/contato?origem=criacao-de-sites&interesse=criacao-de-sites" className={`inline-flex items-center gap-2 font-bold text-sky-200 ${cardFocus}`}>Quero criar meu site <Arrow /></Link>
+          <Link href="/remodelacao-de-sites" className={`inline-flex items-center gap-2 font-bold text-sky-200 ${cardFocus}`}>Veja como remodelamos sites <Arrow /></Link>
         </div>
       </section>
 
