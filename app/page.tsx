@@ -77,7 +77,7 @@ const testimonials = [
 
 export default function Home() {
   return (
-    <main className="home-redesign min-h-screen pb-32 md:pb-0">
+    <main id="inicio" className="home-redesign min-h-screen pb-32 md:pb-0">
       <HomeOpening metrics={metrics} />
 
       <WebsiteDesignHighlight />
@@ -502,7 +502,7 @@ export default function Home() {
 
       <footer id="sobre" className="closing-footer">
         <div><Image src="/sysney-logo.svg" alt="SYSNEY Informática" width={90} height={90} /><p>Tecnologia para o seu<br /><strong>próximo movimento.</strong></p></div>
-        <nav aria-label="Links do rodapé"><Link href="/sistema-vendas-pequenas-marcas">SISBlink para pequenas marcas ↗</Link><Link href="/contato">Falar com a SYSNEY ↗</Link><Link href="#">Voltar ao início ↑</Link></nav>
+        <nav aria-label="Links do rodapé"><Link href="/sistema-vendas-pequenas-marcas">SISBlink para pequenas marcas ↗</Link><Link href="/contato">Falar com a SYSNEY ↗</Link><a href="#inicio">Voltar ao início ↑</a></nav>
         <small>© {new Date().getFullYear()} SYSNEY. Todos os direitos reservados.</small>
       </footer>
     </main>
