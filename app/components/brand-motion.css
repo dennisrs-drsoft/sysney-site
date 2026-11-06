@@ -99,3 +99,26 @@
 @media (max-width: 767px) {
   .sysney-experience.sound-enabled .home-mobile-action { bottom: 66px; }
 }
+
+/* A abertura usa a largura da tela, com respiro proporcional. */
+.sysney-experience :is(.home-opening, .studio) .studio-hero {
+  max-width: none;
+  padding-inline: clamp(20px, 3.5vw, 80px);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+}
+.sysney-experience .home-redesign > section:not(.closing-scene) > div {
+  max-width: 1600px;
+}
+.sysney-experience :is(.home-opening, .studio) .studio-header {
+  max-width: none;
+  padding-inline: clamp(20px, 3.5vw, 80px);
+}
+@media (max-width: 850px) {
+  .sysney-experience :is(.home-opening, .studio) .studio-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sysney-experience .home-redesign #contato > .closing-horizon {
+  max-width: none;
+}
