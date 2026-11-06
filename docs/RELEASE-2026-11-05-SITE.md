@@ -18,3 +18,7 @@ Deploy: somente aplicação Next.js (público + shell administrativo/rotas ponte
 - Produção: home e /remodelacao-de-sites HTTP 200 com novo conteúdo; contato de remodelação HTTP 200 e título correto; sitemap contém nova rota; robots e SVG HTTP 200.
 - /admin e /api/admin/status anônimos redirecionam 302 para autenticação GitHub, conforme proteção Azure. Não foi revalidada uma sessão administrativa autenticada nem enviado formulário real.
 - Revisão visual desktop e mobile do build; página publicada conferida no navegador. API financeira e VM fiscal não foram implantadas.
+
+## Correção do retorno ao início
+
+SHA 339e823d906f6dd1a1fc0f548bdac04b168dbd7b: home usa destino explícito #inicio com âncora nativa. Build aprovado e 11 testes admin/segurança aprovados. Workflow https://github.com/dennisrs-drsoft/sysney-site/actions/runs/42135123573 concluído com sucesso. Clique no rodapé em produção confirmado no navegador: hash #inicio e scrollY 0. Contato e sitemap 200; admin/API anônimos 302 para login. Somente Next.js publicado.
