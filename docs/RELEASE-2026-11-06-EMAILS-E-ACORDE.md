@@ -1,0 +1,7 @@
+# Publicação dos e-mails de cobrança e do acorde — 06/11/2026
+
+- Site e API financeira publicados a partir de `70b87714f4be5c84be57c027dec885dab58e55e1`. Site: [workflow 42156493475](https://github.com/dennisrs-drsoft/sysney-site/actions/runs/42156493475), concluído com sucesso.
+- API: implantação Azure `44c573ef-ad3a-43ba-99f7-98ee66435b35`, ZIP SHA256 `178275280b693af8b21fc5e976cc697e77d391720529acd753d98f4db5d626e6`. Em relação ao pacote anterior, mudaram somente `generated/emails.mjs` e `public/logo.png`. Configurações preservadas, exceto marcador do commit. VM fora desta entrega.
+- O renderizador compartilhado atende a prévia, a cópia de auditoria de novas tentativas e o envio aprovado pelo painel. Abrange cobrança com boleto, PIX e os quatro avisos. Recibos e tentativas históricas não foram regravados. A aprovação existente cobre o HTML, portanto uma aprovação com o modelo antigo precisa ser refeita.
+- Validação: 25 testes de e-mails e segurança, lint dos arquivos alterados, build Next.js 16.4.3 e build da API. Seis prévias sintéticas em 320, 375 e 720 px no Chrome, sem envio real. Compatibilidade com Outlook tratada com tabelas e fallback MSO, sem teste em cliente Outlook real.
+- Produção: home, contato, Design System, robots e sitemap 200. Admin e rotas verificadas redirecionaram acesso anônimo. API de saúde 200 e rota de e-mails anônima 401. O acorde é a opção inicial ao ativar o som, que começa desligado.
