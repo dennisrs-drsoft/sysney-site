@@ -1,6 +1,7 @@
 .field { display: grid; gap: .5rem; min-width: 0; color: #38575c; font-size: .8125rem; font-weight: 650; }
 .trigger, .panel button { cursor: pointer; font: inherit; }
 .trigger { display: flex; align-items: center; justify-content: space-between; gap: .65rem; width: 100%; min-height: 44px; padding: .625rem .85rem; border: 1px solid #a9c5c4; border-radius: 10px; background: #f8fbfa; color: #092d3b; font-size: .875rem; font-weight: 550; text-align: left; }
+.trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trigger svg { flex: none; color: #146b60; }
 .trigger:hover, .trigger:focus-visible { border-color: #146b60; }
 .trigger:focus-visible, .panel button:focus-visible { outline: 2px solid #146b60; outline-offset: 2px; }

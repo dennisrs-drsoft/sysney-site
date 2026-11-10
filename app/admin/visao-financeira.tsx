@@ -1,5 +1,6 @@
 "use client";
 
+import filterStyles from "../design-system/filter-fields.module.css";
 import { FilterDate, FilterSelect } from "../design-system/filter-fields";
 import { useCallback, useEffect, useState } from "react";
 import { SincronizacaoInter } from "./sincronizacao-inter";
@@ -13,7 +14,6 @@ import { useOrdenacaoTabela } from "./ordenacao-tabela";
 
 type Destino = "cobrancas" | "acompanhamento" | "historico-inter" | "historico-fiscal";
 type Dados = { cobrancas: Cobranca[]; planos: Plano[]; banco: RegistroInter[]; emails: EmailFinanceiro[]; notas: NotaFinanceira[] };
-const campo = "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-800 outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10";
 const botao = "rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-blue-800 transition hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50";
 const painel = "rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6";
 const tons: Record<EstadoFinanceiro, string> = { previsto: "bg-slate-100 text-slate-600", aberto: "bg-blue-50 text-blue-700", atrasado: "bg-red-50 text-red-700", parcial: "bg-amber-50 text-amber-800", pago: "bg-emerald-50 text-emerald-700", cancelado: "bg-slate-100 text-slate-500", expirado: "bg-slate-100 text-slate-500", conferir: "bg-amber-50 text-amber-800" };
@@ -119,12 +119,17 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
     </section>
 
     <section className={painel} aria-label="Filtros financeiros">
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data de referência</span><select className={campo} value={por} onChange={e => { setPor(e.target.value as typeof por); setPagina(1); }}><option value="vencimento">Vencimento</option><option value="competencia">Competência do serviço</option><option value="emissao">Emissão do boleto / registro de documentos</option><option value="pagamento">Baixa / pagamento registrado</option></select></label>
+      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <FilterSelect label="Data de referência" value={por} options={[
+          { value: "vencimento", label: "Vencimento" },
+          { value: "competencia", label: "Competência do serviço" },
+          { value: "emissao", label: "Emissão do boleto / registro de documentos" },
+          { value: "pagamento", label: "Baixa / pagamento registrado" },
+        ]} onChange={valor => { setPor(valor as typeof por); setPagina(1); }} />
         <FilterDate label="Data inicial" value={inicio} onChange={valor => { setInicio(valor); setPagina(1); validarPeriodo(valor, fim); }} />
         <FilterDate label="Data final (incluída)" value={fim} onChange={valor => { setFim(valor); setPagina(1); validarPeriodo(inicio, valor); }} />
         <FilterSelect label="Situação" value={estado} options={[{ value: "", label: "Todas as situações" }, ...Object.entries(nomesEstados).map(([value, label]) => ({ value, label }))]} onChange={valor => { setEstado(valor); setPagina(1); }} />
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Cliente, documento, nota ou boleto</span><input className={campo} placeholder="Buscar na carteira…" value={busca} onChange={e => { setBusca(e.target.value); setPagina(1); }} /></label>
+        <label className={filterStyles.field}><span>Cliente, documento, nota ou boleto</span><input className={filterStyles.trigger} placeholder="Buscar na carteira…" value={busca} onChange={e => { setBusca(e.target.value); setPagina(1); }} /></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">{[["mes","Este mês"],["ano","Ano até hoje"],["completo","Ano completo"],["todos","Todo o histórico"]].map(([tipo,nome])=><button key={tipo} className={botao} onClick={()=>periodoRapido(tipo as Parameters<typeof periodoRapido>[0])}>{nome}</button>)}</div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-slate-500">{inicio || fim ? `${inicio ? dataBr(inicio) : "Início do histórico"} a ${fim ? dataBr(fim) : "Fim do histórico salvo"}` : "Todo o histórico salvo"} · Previsões até {ate.split("-").reverse().join("/")} · Indicadores seguem os filtros.</p><div className="flex gap-2"><button className={botao} onClick={limpar}>Limpar filtros</button><button className={botao} disabled={carregando} onClick={() => setCarga(v => v + 1)}>{carregando ? "Carregando…" : "Atualizar painel"}</button></div></div>

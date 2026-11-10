@@ -83,3 +83,10 @@ Sempre que criar uma página nova:
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 
 <!-- END:nextjs-agent-rules -->
+
+## Revisão visual obrigatória para mudanças de interface
+
+- Abra a rota real alterada com dados representativos ou uma fixture segura. Valide a seção completa no contexto da tela. O laboratório de componentes serve como complemento.
+- Capture e inspecione a tela renderizada em 390, 768 e 1440 px. Confira alinhamento de rótulos e controles, alturas, espaçamentos, textos longos, quebra de linhas e rolagem horizontal.
+- Verifique menus abertos, foco por teclado e estados relevantes, como carregamento, vazio e erro. Para filtros lado a lado, compare também as posições e alturas com o teste de navegador.
+- Corrija os problemas observados e repita a revisão antes de entregar. Mostre as capturas da tela real na prévia. Se o acesso impedir a revisão, informe a limitação antes de pedir aprovação para publicar.
