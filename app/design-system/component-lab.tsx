@@ -1,5 +1,7 @@
 "use client";
 
+import { nomesEstados } from "@/lib/visao-financeira";
+import { FilterDate, FilterSelect } from "./filter-fields";
 import { useState } from "react";
 
 const solutions = [
@@ -9,6 +11,9 @@ const solutions = [
 ];
 
 export function ComponentLab() {
+  const [inicio, setInicio] = useState("");
+  const [fim, setFim] = useState("");
+  const [situacao, setSituacao] = useState("");
   const [selected, setSelected] = useState(0);
   const [result, setResult] = useState("");
   return <section className="component-lab" aria-labelledby="lab-title">
@@ -32,6 +37,18 @@ export function ComponentLab() {
         </form>
       </article>
     </div>
+    <article id="filtros-financeiros" className="financial-filter-demo">
+      <p className="studio-eyebrow">PAINEL FINANCEIRO</p>
+      <h3>Filtros de período e situação</h3>
+      <div>
+        <FilterDate label="Data inicial" value={inicio} onChange={setInicio} />
+        <FilterDate label="Data final (incluída)" value={fim} onChange={setFim} />
+        <FilterSelect label="Situação" value={situacao} onChange={setSituacao} options={[
+          { value: "", label: "Todas as situações" },
+          ...Object.entries(nomesEstados).map(([value, label]) => ({ value, label })),
+        ]} />
+      </div>
+    </article>
     <div className="lab-rules">
       <article><p className="studio-eyebrow">TIPOGRAFIA</p><h3>Manrope <em>+ Fraunces.</em></h3><p>Manrope organiza títulos e leitura. Fraunces itálica marca poucas palavras com personalidade. Texto corrido parte de 16 px; detalhes nunca carregam informação essencial sozinhos.</p></article>
       <article><p className="studio-eyebrow">RITMO / SUPERFÍCIES</p><h3>Espaço para respirar.</h3><div className="space-scale" aria-label="Escala de espaçamento: 8, 16, 24, 40 e 64 pixels">{[8,16,24,40,64].map(size => <span key={size}><i style={{height:size}} />{size}</span>)}</div><p>Linhas abertas, recortes assimétricos e contraste entre azul profundo e mineral. As telas reais do produto são protagonistas.</p></article>

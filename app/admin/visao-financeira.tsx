@@ -1,5 +1,6 @@
 "use client";
 
+import { FilterDate, FilterSelect } from "../design-system/filter-fields";
 import { useCallback, useEffect, useState } from "react";
 import { SincronizacaoInter } from "./sincronizacao-inter";
 import { hojeBrasil, dataBr, moeda, type Cobranca, type Plano } from "@/lib/cobrancas";
@@ -24,6 +25,10 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState("");
   const [erroPeriodo, setErroPeriodo] = useState("");
+  function validarPeriodo(de: string, ate: string) {
+    if (de && ate && de > ate) setErroPeriodo("A data inicial deve ser igual ou anterior à data final. Ajuste o período para consultar e comparar.");
+  }
+
   const [ajuda, setAjuda] = useState(false);
   const [cruzando,setCruzando]=useState(false),[resultadoVinculos,setResultadoVinculos]=useState("");
   const confirmar=useConfirmarAdmin();
@@ -116,9 +121,9 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
     <section className={painel} aria-label="Filtros financeiros">
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data de referência</span><select className={campo} value={por} onChange={e => { setPor(e.target.value as typeof por); setPagina(1); }}><option value="vencimento">Vencimento</option><option value="competencia">Competência do serviço</option><option value="emissao">Emissão do boleto / registro de documentos</option><option value="pagamento">Baixa / pagamento registrado</option></select></label>
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data inicial</span><input type="date" className={campo} value={inicio} onChange={e => { setInicio(e.target.value); setPagina(1); }} onBlur={() => {if(inicio && fim && inicio > fim)setErroPeriodo("A data inicial deve ser igual ou anterior à data final. Ajuste o período para consultar e comparar.");}} /></label>
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Data final (incluída)</span><input type="date" className={campo} value={fim} onChange={e => { setFim(e.target.value); setPagina(1); }} onBlur={() => {if(inicio && fim && inicio > fim)setErroPeriodo("A data inicial deve ser igual ou anterior à data final. Ajuste o período para consultar e comparar.");}} /></label>
-        <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Situação</span><select className={campo} value={estado} onChange={e => { setEstado(e.target.value); setPagina(1); }}><option value="">Todas as situações</option>{Object.entries(nomesEstados).map(([valor, nome]) => <option key={valor} value={valor}>{nome}</option>)}</select></label>
+        <FilterDate label="Data inicial" value={inicio} onChange={valor => { setInicio(valor); setPagina(1); validarPeriodo(valor, fim); }} />
+        <FilterDate label="Data final (incluída)" value={fim} onChange={valor => { setFim(valor); setPagina(1); validarPeriodo(inicio, valor); }} />
+        <FilterSelect label="Situação" value={estado} options={[{ value: "", label: "Todas as situações" }, ...Object.entries(nomesEstados).map(([value, label]) => ({ value, label }))]} onChange={valor => { setEstado(valor); setPagina(1); }} />
         <label className="space-y-2 text-xs font-semibold text-slate-600"><span>Cliente, documento, nota ou boleto</span><input className={campo} placeholder="Buscar na carteira…" value={busca} onChange={e => { setBusca(e.target.value); setPagina(1); }} /></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">{[["mes","Este mês"],["ano","Ano até hoje"],["completo","Ano completo"],["todos","Todo o histórico"]].map(([tipo,nome])=><button key={tipo} className={botao} onClick={()=>periodoRapido(tipo as Parameters<typeof periodoRapido>[0])}>{nome}</button>)}</div>
