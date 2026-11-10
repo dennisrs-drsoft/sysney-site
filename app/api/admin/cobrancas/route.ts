@@ -153,8 +153,21 @@ export async function POST(req: NextRequest) {
       if (body.inicio < dataValidaInicio()) throw new Error("Para o controle inicial, use uma competência dos últimos cinco anos.");
       const email = texto(body.email, 254);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("E-mail inválido.");
+      const documento = cliente.documento.replace(/\D/g, "");
+      const anteriores = (await ler<Plano>(planosTable, part)).filter(plano =>
+        plano.clienteId === clienteId || plano.documento?.replace(/\D/g, "") === documento);
+      const inicio = body.inicio;
+      const fim = body.fim || "";
+      if (anteriores.some(plano => (!plano.fim || inicio <= plano.fim) && (!fim || plano.inicio <= fim))) {
+        throw new Error("Já existe uma cobrança prevista para o cliente no período informado.");
+      }
+      if (anteriores.length && fim !== inicio) {
+        throw new Error("Para cliente com histórico, informe a mesma competência inicial e final para cadastrar um mês avulso.");
+      }
+      const chavePlano = anteriores.length ? `${cliente.documento}:avulsa:${inicio}` : cliente.documento;
       const p: Plano = {
-        id: createHash("sha256").update(cliente.documento).digest("hex"), clienteId,
+        id: createHash("sha256").update(chavePlano).digest("hex"), clienteId,
+        ...(anteriores.length ? { avulsa: true } : {}),
         clienteNome: cliente.nome, documento: cliente.documento, email,
         descricao: texto(body.descricao), centavos: inteiro(body.centavos, 1, 10000000000),
         inicio: body.inicio, fim: body.fim || "", diaEnvio: inteiro(body.diaEnvio, 1, 31),

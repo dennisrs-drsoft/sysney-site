@@ -98,10 +98,10 @@ export function Cobrancas({ empresa, clientes }: { empresa: Empresa; clientes: C
     <MensagemAdmin mensagem={aviso} aoFechar={()=>setAviso("")} titulo="Registro salvo" subtitulo="Histórico de acompanhamento atualizado"/>
     {novo && <form onSubmit={criarPlano} className="rounded-3xl border border-slate-200 bg-white p-6">
       <h3 className="text-xl font-black">Configurar recorrência mensal</h3>
-      <p className="mt-2 text-sm text-slate-600">Uma mensalidade consolidada por cliente. Cada competência terá seu próprio controle. O valor e os prazos devem ser conferidos no contrato.</p>
+      <p className="mt-2 text-sm text-slate-600">Cada competência tem seu próprio controle. Para cadastrar um mês avulso de um cliente com histórico, informe a mesma competência inicial e final. Confira o valor e os prazos no contrato.</p>
       {remotos.length === 0 && <p className="mt-3 text-amber-800">Carregue os clientes sincronizados para cadastrar a mensalidade desta empresa.</p>}
       <fieldset disabled={ocupado || loading} className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <label className={label}>Cliente<FinanceSelect label="Cliente" required name="clienteId" value={clienteId} onValueChange={novoValor => setClienteId(novoValor)}><option value="">Selecione</option>{remotos.filter(c => !planos.some(p => p.clienteId === c.id)).map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</FinanceSelect></label>
+        <label className={label}>Cliente<FinanceSelect label="Cliente" required name="clienteId" value={clienteId} onValueChange={novoValor => setClienteId(novoValor)}><option value="">Selecione</option>{remotos.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}</FinanceSelect></label>
         <label className={label}>E-mail para cobrança<input key={clienteId} name="email" type="email" required maxLength={254} defaultValue={clientes.find(c => c.id === clienteId)?.email || ""} className={input}/></label>
         <label className={label}>Mensalidade (R$)<input name="valor" type="number" min="0.01" max="100000000" step="0.01" required className={input}/></label>
         <label className={`${label} sm:col-span-2 lg:col-span-3`}>Descrição do serviço<input name="descricao" required maxLength={500} defaultValue="Suporte e locação do sistema SISBlink" className={input}/></label>
