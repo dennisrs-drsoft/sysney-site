@@ -1,3 +1,4 @@
+import type {ConciliacaoHistorica} from "./conciliacao-historica";
 import { pago, candidatosBoletos, type Cobranca, type Plano } from "./cobrancas";
 import type { EmailCobranca } from "./emails-cobranca";
 
@@ -7,7 +8,7 @@ export type RegistroInter = {
   id: string; cliente: string; documento: string; numero: string; nossoNumero?: string;
   emissao: string; vencimento: string; valor: number; situacao: string;
   dataSituacao: string; consultadoEm: string; valorRecebido?: number;
-  nota?: string; emissaoNota?: string;
+  nota?: string; emissaoNota?: string; conciliacao?: ConciliacaoHistorica;
 };
 export type EstadoFinanceiro = "previsto" | "aberto" | "atrasado" | "parcial" | "pago" | "cancelado" | "expirado" | "conferir";
 export type LinhaFinanceira = {
@@ -16,7 +17,7 @@ export type LinhaFinanceira = {
   estado: EstadoFinanceiro; origem: "sistema" | "inter" | "integrado";
   nota: string; boleto: string; envio: boolean; etapa: string; consultadoEm: string;
   pagamento: string; fontePagamento: "manual" | "banco" | ""; recebidoNominal: boolean;
-  emissaoPrevista: string; emissaoNota: string;
+  emissaoPrevista: string; emissaoNota: string; conciliacao?: ConciliacaoHistorica;
 };
 export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string; tributos?: import("./extrato-fiscal-xml").TributosXml; xml?: boolean; pdf?: boolean; emissor?:string; chaveAcesso?:string };
 export const nomesEstados: Record<EstadoFinanceiro, string> = {
@@ -41,11 +42,11 @@ function estadoBanco(r: RegistroInter, hoje: string): EstadoFinanceiro {
 export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], banco: RegistroInter[], emails: EmailFinanceiro[], hoje: string, notas: NotaFinanceira[] = []): LinhaFinanceira[] {
   const bancarias: LinhaFinanceira[] = banco.map(b => {
     const centavos = Math.round(b.valor * 100);
-    const estado = Number.isSafeInteger(centavos) && centavos > 0 ? estadoBanco(b, hoje) : "conferir";
-    return { id: `inter:${b.id}`, cliente: b.cliente, documento: b.documento, competencia: "", emissao: data(b.emissao),
+    const estado = b.conciliacao ? "conferir" : Number.isSafeInteger(centavos) && centavos > 0 ? estadoBanco(b, hoje) : "conferir";
+    return { conciliacao:b.conciliacao, id: `inter:${b.id}`, cliente: b.cliente, documento: b.documento, competencia: "", emissao: data(b.emissao),
       vencimento: data(b.vencimento), centavos: Number.isSafeInteger(centavos) ? centavos : 0,
       recebido: estado === "pago" ? (b.valorRecebido !== undefined && Number.isFinite(b.valorRecebido) && b.valorRecebido >= 0 ? Math.round(b.valorRecebido * 100) : centavos) : 0, saldo: ["aberto", "atrasado"].includes(estado) ? centavos : 0,
-      estado, origem: "inter", nota: b.nota || "", boleto: b.nossoNumero || b.numero, envio: false,
+      estado, origem: "inter", nota: b.conciliacao?.notas.join(", ") || b.nota || "", boleto: b.nossoNumero || b.numero, envio: false,
       etapa: "Histórico bancário; envio de e-mail desconhecido", consultadoEm: b.consultadoEm,
       pagamento: estado === "pago" ? data(b.dataSituacao) : "", fontePagamento: estado === "pago" ? "banco" : "",
       recebidoNominal: estado === "pago" && b.valorRecebido === undefined, emissaoPrevista: "", emissaoNota: b.emissaoNota || "" };
@@ -106,7 +107,7 @@ export function resumoFinanceiro(linhas: LinhaFinanceira[], hoje: string) {
   const emAberto = validas.filter(aberto);
   const dias = (n: number) => new Date(Date.parse(`${hoje}T12:00:00Z`) + n * 86400000).toISOString().slice(0, 10);
   return { receber: soma(emAberto, "saldo"), recebido: soma(validas, "recebido"), vencido: soma(emAberto.filter(r => r.vencimento < hoje), "saldo"),
-    previsto: soma(validas.filter(r => r.estado === "previsto"), "centavos"), conferir: linhas.filter(r => r.estado === "conferir").length,
+    previsto: soma(validas.filter(r => r.estado === "previsto"), "centavos"), conferir: linhas.filter(r => r.estado === "conferir" && !r.conciliacao).length,
     hoje: soma(emAberto.filter(r => r.vencimento === hoje), "saldo"), sete: soma(emAberto.filter(r => r.vencimento >= hoje && r.vencimento <= dias(7)), "saldo"),
     trinta: soma(emAberto.filter(r => r.vencimento >= hoje && r.vencimento <= dias(30)), "saldo"),
     pendentes: validas.filter(r => r.origem !== "inter" && !r.envio && r.estado !== "pago" && !["cancelado", "expirado"].includes(r.estado)).length };

@@ -1,3 +1,4 @@
+import {lerConciliacaoHistorica} from "@/lib/conciliacao-historica";
 import { DefaultAzureCredential } from "@azure/identity";
 import { TableClient } from "@azure/data-tables";
 import { BlobServiceClient } from "@azure/storage-blob";
@@ -47,12 +48,13 @@ export async function GET(req: NextRequest) {
     }
     const cobrancas = [];
     const notas=await registros(table,`nfse-historico-${empresa}`);
-    for await (const entity of table.listEntities<{ json: string; atualizadoEm: string; pdfBlob?:string;nfseVinculo?:string }>({ queryOptions: { filter: `PartitionKey eq 'inter-historico-${empresa}'` } })) {
+    for await (const entity of table.listEntities<{ json: string; atualizadoEm: string; pdfBlob?:string;nfseVinculo?:string;conciliacaoHistorica?:string }>({ queryOptions: { filter: `PartitionKey eq 'inter-historico-${empresa}'` } })) {
       const { cobranca: c, boleto } = JSON.parse(entity.json);
       if (!c) continue;
       const vinculo=entity.nfseVinculo?JSON.parse(entity.nfseVinculo):null;
       const n=vinculo?notas.find(n=>n.numero===vinculo.numero&&n.situacao==="N"&&n.documento.replace(/\D/g,"")===String(c.pagador?.cpfCnpj||"").replace(/\D/g,"")&&n.centavos===Math.round(Number(c.valorNominal)*100)):undefined;
-      cobrancas.push({ id: entity.rowKey, nota:n?.numero||"",emissaoNota:n?.emissao||"",cliente: c.pagador?.nome || "Não informado", documento: c.pagador?.cpfCnpj || "", numero: c.seuNumero || "", nossoNumero: boleto?.nossoNumero || c.nossoNumero || "", emissao: c.dataEmissao || "", vencimento: c.dataVencimento || "", valor: Number(c.valorNominal), valorRecebido: Number.isFinite(Number(c.valorTotalRecebido)) && c.valorTotalRecebido !== null && c.valorTotalRecebido !== undefined ? Number(c.valorTotalRecebido) : undefined, situacao: c.situacao || "Não informada", dataSituacao: c.dataSituacao || "", consultadoEm: entity.atualizadoEm, pdf:!!entity.pdfBlob });
+      const conciliacao = lerConciliacaoHistorica(entity.conciliacaoHistorica, Math.round(Number(c.valorNominal)*100), String(c.pagador?.cpfCnpj || "").replace(/\D/g, ""), notas);
+      cobrancas.push({ conciliacao, id: entity.rowKey, nota:n?.numero||"",emissaoNota:n?.emissao||"",cliente: c.pagador?.nome || "Não informado", documento: c.pagador?.cpfCnpj || "", numero: c.seuNumero || "", nossoNumero: boleto?.nossoNumero || c.nossoNumero || "", emissao: c.dataEmissao || "", vencimento: c.dataVencimento || "", valor: Number(c.valorNominal), valorRecebido: Number.isFinite(Number(c.valorTotalRecebido)) && c.valorTotalRecebido !== null && c.valorTotalRecebido !== undefined ? Number(c.valorTotalRecebido) : undefined, situacao: c.situacao || "Não informada", dataSituacao: c.dataSituacao || "", consultadoEm: entity.atualizadoEm, pdf:!!entity.pdfBlob });
     }
     cobrancas.sort((a, b) => b.vencimento.localeCompare(a.vencimento));
     const sincronizacao = statusSync(await lerSync(table,empresa),syncAtiva(empresa));
@@ -82,6 +84,51 @@ export async function POST(req: NextRequest) {
       return reply(await recuperarPdfHistoricoInter(table,container,empresa,body.id));
     }
     if(body.acao==="cruzar-notas")return reply(await cruzarNotas(table,responsavel,empresa));
+    if(body.acao==="conciliar-notas-pix") {
+      if(body.confirmado!==true || !/^[a-f0-9]{64}$/.test(body.id||"") ||
+        !Array.isArray(body.notas) || body.notas.length<1 || body.notas.length>20 ||
+        body.notas.some((n:unknown)=>typeof n!=="string" || !/^[1-9]\d{0,14}$/.test(n)) ||
+        new Set(body.notas).size!==body.notas.length) return reply({erro:"Informe uma ou mais notas distintas e confirme o vínculo."},400);
+      const part=`inter-historico-${empresa}`, row=await table.getEntity<{json:string;conciliacaoHistorica?:string;nfseVinculo?:string}>(part,body.id);
+      const b=JSON.parse(row.json).cobranca, documento=String(b?.pagador?.cpfCnpj||"").replace(/\D/g,"");
+      if(row.conciliacaoHistorica || row.nfseVinculo || b?.situacao!=="MARCADO_RECEBIDO" || !/^(?:\d{11}|\d{14})$/.test(documento))
+        return reply({erro:"Use um boleto marcado como recebido, sem vínculo fiscal anterior."},409);
+      const [cobrancas,notas]=await Promise.all([registros(table,`cobrancas-${empresa}`),registros(table,`nfse-historico-${empresa}`)]);
+      const vinculos=cobrancas.filter(c=>body.notas.includes(c.nota));
+      const pagamentos=vinculos.map(c=>{
+        const pg=(c.eventos||[]).filter((e:Cobranca["eventos"][number])=>e.tipo==="pagamento");
+        return pg.length===1 && !(c.eventos||[]).some((e:Cobranca["eventos"][number])=>e.tipo==="estorno") &&
+          pg[0].fonte==="banco" && pg[0].centavos===c.centavos && pg[0].recebidoCentavos===c.centavos ? pg[0] : null;
+      });
+      const primeiro=pagamentos[0];
+      if(vinculos.length!==body.notas.length || new Set(vinculos.map(c=>c.nota)).size!==body.notas.length ||
+        !primeiro?.referencia || !dataValida(primeiro.data) ||
+        pagamentos.some(p=>p?.referencia!==primeiro.referencia || p?.data!==primeiro.data))
+        return reply({erro:"As notas precisam estar em cobranças quitadas pelo mesmo PIX identificado, sem estorno."},400);
+      if(cobrancas.some(c=>!vinculos.includes(c) && c.eventos?.some((e:Cobranca["eventos"][number])=>
+        e.tipo==="pagamento" && e.referencia===primeiro.referencia)))
+        return reply({erro:"Inclua todas as notas que receberam parte deste PIX."},400);
+      const nominalCentavos=Math.round(Number(b.valorNominal)*100), recebidoCentavos=pagamentos.reduce((s,p)=>s+p.recebidoCentavos,0);
+      const ajuste={forma:"pix",notas:body.notas,data:primeiro.data,pixId:primeiro.referencia,nominalCentavos,recebidoCentavos,
+        ajusteCentavos:nominalCentavos-recebidoCentavos,cobrancas:vinculos.map(c=>c.id),em:new Date().toISOString(),responsavel};
+      if(!lerConciliacaoHistorica(JSON.stringify(ajuste),nominalCentavos,documento,notas))
+        return reply({erro:"Confira o cliente, a situação fiscal e o valor de cada nota."},400);
+      for await(const anterior of table.listEntities<{conciliacaoHistorica?:string}>({queryOptions:{filter:`PartitionKey eq '${part}'`,select:["conciliacaoHistorica"]}})) {
+        if(anterior.conciliacaoHistorica && JSON.parse(anterior.conciliacaoHistorica).pixId===primeiro.referencia)
+          return reply({erro:"PIX já usado em outra conciliação histórica."},409);
+      }
+      const reserva=`p-${chavePix(primeiro.referencia)}`;
+      try {
+        await table.createEntity({partitionKey:partPix,rowKey:reserva,json:JSON.stringify({tipo:"reserva",pixId:primeiro.referencia,boletoId:body.id})});
+      } catch(e) {
+        if((e as {statusCode?:number}).statusCode!==409)throw e;
+        const existente=JSON.parse((await table.getEntity<{json:string}>(partPix,reserva)).json);
+        if(existente.boletoId!==body.id)return reply({erro:"PIX já reservado para outro vínculo."},409);
+      }
+      // Se houver conflito na gravação, a reserva permite repetir somente para este boleto.
+      await table.updateEntity({partitionKey:part,rowKey:body.id,conciliacaoHistorica:JSON.stringify(ajuste)},"Merge",{etag:row.etag});
+      return reply({sucesso:true});
+    }
     if(["regra-pix","vincular-pix"].includes(body.acao)){
       if(!/^[a-zA-Z0-9_-]{1,140}$/.test(body.id||""))return reply({erro:"Cobrança inválida."},400);
       const row=await table.getEntity<{json:string}>(`cobrancas-${empresa}`,body.id),c=JSON.parse(row.json) as Cobranca;
