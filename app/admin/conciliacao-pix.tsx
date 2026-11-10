@@ -1,4 +1,5 @@
 "use client";
+import { FinanceDate } from "../design-system/finance-fields";
 import { useCallback, useEffect, useState } from "react";
 import { moeda, dataBr, pago, type Cobranca } from "@/lib/cobrancas";
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
@@ -33,7 +34,7 @@ export function ConciliacaoPix({c,empresa,aoAtualizar}:{empresa:"sysney"|"drsoft
     <h4 className="font-bold text-slate-900">Conciliação PIX · Banco Inter</h4><p className="mt-2 text-sm text-slate-600">PIX direto à chave CNPJ pode ser reconhecido pelo extrato. Configure o período esperado e autorize a regra; não é necessário gerar boleto.</p>
     {dados?.vinculo?<p className="mt-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Recebimento vinculado em {dataBr(dados.vinculo.data)} · {dados.vinculo.modo}<br/><span className="break-all text-xs">{dados.vinculo.pixId}</span></p>:<>
     <p className="mt-3 text-xs text-slate-500">Pagador esperado: {dados?.documento||"Carregando…"} · {moeda(c.centavos)}. O e-mail da cobrança deve estar configurado para PIX.</p>
-    <fieldset disabled={ocupado||quitada||!dados} className="mt-4 space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Data inicial<input type="date" className={campo} value={inicio} onChange={e=>setInicio(e.target.value)}/></label><label className="text-sm">Data final<input type="date" className={campo} value={fim} onChange={e=>setFim(e.target.value)}/></label></div>
+    <fieldset disabled={ocupado||quitada||!dados} className="mt-4 space-y-4"><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm">Data inicial<FinanceDate label="Data inicial" type="date" value={inicio} onValueChange={novoValor => setInicio(novoValor)}/></label><label className="text-sm">Data final<FinanceDate label="Data final" type="date" value={fim} onValueChange={novoValor => setFim(novoValor)}/></label></div>
     <label className="flex gap-2 text-sm"><input type="checkbox" checked={automatica} onChange={e=>setAutomatica(e.target.checked)}/>Autorizar baixa automática quando o recebimento for único e compatível</label>
     <button className={botao} onClick={()=>void executar("regra-pix")}>Salvar regra de conciliação</button></fieldset>
     <h5 className="mt-5 text-sm font-bold">Recebimentos encontrados do mesmo pagador e valor</h5>

@@ -27,3 +27,32 @@
 .search input { display: block; width: 100%; min-height: 40px; padding: .5rem .65rem; border: 1px solid #a9c5c4; border-radius: 8px; background: white; color: #092d3b; font: inherit; }
 .search input:focus-visible { outline: 2px solid #146b60; outline-offset: 1px; }
 .empty { padding: .65rem; color: #38575c; }
+
+.compact { display: block; min-width: 0; }
+.compact .trigger { min-height: 44px; }
+.trigger:disabled, .panel button:disabled { opacity: .48; cursor: not-allowed; }
+.trigger[aria-invalid="true"] { border-color: #a02738; }
+.calendar, .search, .empty { display: block; }
+.months { display: grid; grid-template-columns: repeat(3, 1fr); gap: .25rem; }
+.months button { min-height: 40px; }
+.error { display: block; color: #a02738; font-size: .75rem; margin-top: .25rem; }
+
+.financeControl { display: block; min-width: 0; margin-top: .25rem; }
+.financeControl > [hidden] { display: none; }
+
+.directDate { display: flex; gap: .4rem; margin-bottom: .4rem; }
+.directDate input { flex: 1; min-width: 0; width: 100%; border: 1px solid #a9c5c4; border-radius: 8px; padding: .45rem; font: inherit; }
+.directDate button { padding-inline: .5rem; font-weight: 650; }
+
+:is(div, fieldset):has(> label > .financeControl) > label > input:not([type="checkbox"], [type="radio"], [type="file"]) {
+  box-sizing: border-box;
+  display: block;
+  height: 44px;
+  margin-top: .25rem;
+}
+
+div[class~="grid"]:has(> label > .financeControl) > label:has(> .financeControl, > input:not([type="checkbox"], [type="radio"], [type="file"])) {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { FinanceSelect, FinanceDate } from "../design-system/finance-fields";
 import { AdminShell } from "./admin-shell";
 import { VisaoFinanceira } from "./visao-financeira";
 import { Cobrancas } from "./cobrancas";
@@ -399,10 +400,10 @@ function NovaEmissao({
         <div className="mt-8 grid gap-5 sm:grid-cols-2">
           <label className="text-sm font-bold text-slate-700 sm:col-span-2">
             Cliente cadastrado
-            <select
-              className={campo}
+            <FinanceSelect label="Cliente cadastrado"
+
               value={dados.clienteId}
-              onChange={(event) => escolherCliente(event.target.value)}
+              onValueChange={novoValor => escolherCliente(novoValor)}
             >
               <option value="">Preencher manualmente</option>
               {clientes.map((cliente) => (
@@ -410,7 +411,7 @@ function NovaEmissao({
                   {cliente.nome} · {cliente.documento}
                 </option>
               ))}
-            </select>
+            </FinanceSelect>
           </label>
           <label className="text-sm font-bold text-slate-700 sm:col-span-2">
             Nome ou razão social
@@ -467,10 +468,10 @@ function NovaEmissao({
           </label>
           <label className="text-sm font-bold text-slate-700">
             Competência
-            <input
-              className={campo}
+            <FinanceDate label="Competência"
+
               value={dados.competencia}
-              onChange={(event) => atualizar("competencia", event.target.value)}
+              onValueChange={novoValor => atualizar("competencia", novoValor)}
               type="date"
               required
             />
@@ -488,10 +489,10 @@ function NovaEmissao({
           </label>
           <label className="text-sm font-bold text-slate-700">
             Vencimento da cobrança
-            <input
-              className={campo}
+            <FinanceDate label="Vencimento da cobrança"
+
               value={dados.vencimento}
-              onChange={(event) => atualizar("vencimento", event.target.value)}
+              onValueChange={novoValor => atualizar("vencimento", novoValor)}
               type="date"
               required={dados.gerarCobranca}
             />
@@ -509,19 +510,17 @@ function NovaEmissao({
           </label>
           <label className="text-sm font-bold text-slate-700">
             Retenção
-            <select
-              className={campo}
+            <FinanceSelect label="Retenção"
+
               value={dados.retencao}
-              onChange={(event) =>
-                atualizar(
+              onValueChange={novoValor => atualizar(
                   "retencao",
-                  event.target.value as FormularioEmissao["retencao"]
-                )
-              }
+                  novoValor as FormularioEmissao["retencao"]
+                )}
             >
               <option value="sem-retencao">Sem retenção</option>
               <option value="com-retencao">Com retenção</option>
-            </select>
+            </FinanceSelect>
           </label>
           <label className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-700 sm:col-span-2">
             <input
