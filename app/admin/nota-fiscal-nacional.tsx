@@ -8,6 +8,12 @@ import {lerRespostaAdmin} from "@/lib/admin-resposta";
 import {MensagemAdmin,useConfirmarAdmin} from "./dialogos-admin";
 const input="mt-1 w-full rounded-lg border border-blue-200 bg-white p-2 text-sm text-slate-900";
 const inicial:PerfilNacional={codigoNacional:"",codigoMunicipal:"",nbs:"",serie:"",regimeEspecial:"",apuracaoSimples:"",retencaoIss:"",aliquotaIss:"",transparencia:{tipo:"naoInformar",percentual:""}};
+const codigosServicoLevis = { codigoNacional: "170201", codigoMunicipal: "099", nbs: "118064000" };
+const referenciaSimplesSysney = {
+  regimeEspecial: "0", apuracaoSimples: "1", retencaoIss: "1", aliquotaIss: "",
+  transparencia: { tipo: "simples", percentual: "6.00" },
+} satisfies Partial<PerfilNacional>;
+
 const enderecoInicial:FiscalSP["endereco"]={tipo:"",logradouro:"",numero:"",bairro:"",municipio:"",uf:"",cep:""};
 type Previa={hash:string;dados:{competenciaFiscal:string;endereco:FiscalSP["endereco"];perfil:PerfilNacional};pendencias:string[]};
 type Trabalho={status:string;hash:string;idDps:string;numero:string;jobId?:string;resultado?:{numero:string;chave:string}};
@@ -45,6 +51,19 @@ export function NotaFiscalNacional({email,alterado,ocupado,onEmail}:{email:Email
     <p>A competência fiscal é a data real do fato gerador. Ela não muda porque a emissão será feita hoje. Para o Simples de São Paulo, competências anteriores a novembro/2026 permanecem no municipal.</p>
     <p className="rounded-lg border border-amber-200 bg-amber-50 p-3">{disponivel?"Serviço fiscal disponível para assinatura local.":"Serviço fiscal nacional ainda indisponível para assinatura."} {envio?"Transmissão sujeita à política protegida e à sua aprovação.":"Transmissão nacional bloqueada até liberação da política fiscal e homologação."} Salvar a prévia não emite nota nem reserva numeração. {regime==="presumido"&&"A habilitação nacional do Lucro Presumido exige confirmação específica; o regime será preservado."}</p>
     <label>Ambiente nacional<FinanceSelect label="Ambiente nacional" value={ambiente} disabled={busy||ocupado} onValueChange={novoValor => {setAmbiente(novoValor);setConfirmado(false);}}><option value="homologacao">Homologação — sem valor fiscal</option><option value="producao">Produção — emissão real exige aprovação</option></FinanceSelect></label>
+    <div className="rounded-lg border border-cyan-200 bg-white p-3">
+      <p>Referência da NFS-e nacional da Levi’s. Use os códigos somente se o serviço desta cobrança for o mesmo. Confira a série DPS e os tributos da operação.</p>
+      <button type="button" className={input} disabled={busy || ocupado || !!trabalho}
+        onClick={() => {
+          setPerfil(p => ({ ...p, ...codigosServicoLevis }));
+          setConfirmado(false);
+        }}>Preencher códigos de referência do serviço</button>
+      {email.empresa === "sysney" && regime === "simples" && <button type="button" className={input}
+        disabled={busy || ocupado || !!trabalho} onClick={() => {
+          setPerfil(p => ({ ...p, ...referenciaSimplesSysney }));
+          setConfirmado(false);
+        }}>Preencher parâmetros do Simples da nota de referência</button>}
+    </div>
     <div className="grid gap-3 sm:grid-cols-2">
       <label>Data real da competência fiscal<FinanceDate label="Data real da competência fiscal" type="date" value={competencia} onValueChange={novoValor => {setCompetencia(novoValor);setConfirmado(false);}}/></label>
       {campo("codigoNacional","Código nacional do serviço (6 dígitos)")}{campo("codigoMunicipal","Complemento municipal nacional (opcional; não é o código antigo)")}{campo("nbs","NBS (9 dígitos, quando aplicável)")}{campo("serie","Série DPS exclusiva (1 a 99999)")}
