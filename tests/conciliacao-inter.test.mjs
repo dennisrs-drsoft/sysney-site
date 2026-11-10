@@ -51,3 +51,28 @@ test("extrato incompleto impede todas as baixas; paginação é limitada",async(
  await assert.rejects(()=>sincronizarPix(table,async()=>{consultas++;return{transacoes:[bruto],totalPaginas:6,ultimaPagina:false};}),/limite/);
  assert.equal(escritas,0);assert.equal(consultas,5);
 });
+
+test("envio PIX aceito cria regra, vínculo e reserva no mesmo lote, preservando regra manual e legados",async()=>{
+ const hoje=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+ const cobranca={...c,nota:"53",vencimento:hoje};
+ const tentativa={status:"aceito",data:new Date().toISOString(),documentoConciliacaoPix:regra.documento};
+ const email={status:"aceito",formaPagamento:"pix",centavos:c.centavos,vencimento:hoje,fluxo:{cobrancaId:c.id,nota:"53"},tentativas:[tentativa]};
+ async function simular(emails, controles=[], cobrancas=[cobranca]) {
+  const dados={[partPix]:controles,"cobrancas-sysney":cobrancas,"emails-sysney":emails};
+  const lotes=[];
+  const table={
+   async *listEntities({queryOptions:{filter}}){for(const row of dados[filter.split("'")[1]]||[])yield {rowKey:"regra",etag:"1",json:JSON.stringify(row)};},
+   async upsertEntity(){},
+   async submitTransaction(lote){lotes.push(lote);},
+  };
+  const resultado=await sincronizarPix(table,async()=>({transacoes:[{...bruto,dataTransacao:hoje}],totalPaginas:1,ultimaPagina:true}));
+  return {resultado,lotes};
+ }
+ const {resultado,lotes}=await simular([email]);
+ assert.equal(resultado.baixas,1);
+ assert.deepEqual(lotes[0].map(a=>a[0]),["create","create","create"]);
+ assert.equal(JSON.parse(lotes[0][2][1].json).documento,regra.documento);
+ assert.equal((await simular([{...email,tentativas:[{...tentativa,documentoConciliacaoPix:undefined}]}])).resultado.baixas,0);
+ assert.equal((await simular([email],[{...regra,automatica:false,vencimento:hoje,inicio:hoje,fim:hoje}])).resultado.baixas,0);
+ assert.equal((await simular([email,{...email,fluxo:{...email.fluxo,cobrancaId:"c2"}}],[],[cobranca,{...cobranca,id:"c2"}])).resultado.baixas,0);
+});

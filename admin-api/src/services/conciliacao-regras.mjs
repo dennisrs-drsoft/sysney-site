@@ -17,6 +17,22 @@ export function compativelPix(c, regra, pix) {
     !(c.eventos || []).some(e => ["pagamento", "estorno"].includes(e.tipo));
 }
 
+export function regraPixDoEnvio(c, email) {
+  if (email.status !== "aceito" || email.aviso || email.formaPagamento !== "pix" ||
+      email.fluxo?.cobrancaId !== c.id || !c.nota || email.fluxo.nota !== c.nota ||
+      email.centavos !== c.centavos || email.vencimento !== c.vencimento || !dia(c.vencimento)) return null;
+  const tentativa = email.tentativas?.find(t => t.status === "aceito" &&
+    /^(?:\d{11}|\d{14})$/.test(t.documentoConciliacaoPix || "") && Number.isFinite(Date.parse(t.data)));
+  if (!tentativa) return null;
+  const inicio = new Intl.DateTimeFormat("en-CA", {timeZone:"America/Sao_Paulo", year:"numeric", month:"2-digit", day:"2-digit"}).format(new Date(tentativa.data));
+  const fim = new Date(Math.min(
+    Math.max(Date.parse(c.vencimento), Date.parse(inicio)) + 30 * 86400000,
+    Date.parse(inicio) + 89 * 86400000,
+  )).toISOString().slice(0, 10);
+  return {tipo:"regra", cobrancaId:c.id, documento:tentativa.documentoConciliacaoPix, centavos:c.centavos,
+    vencimento:c.vencimento, inicio, fim, automatica:true, em:tentativa.data, responsavel:"Sistema — cobrança por PIX"};
+}
+
 export function paresPix(cobrancas, regras, recebimentos, usados = []) {
   const livres = recebimentos.filter(p => !usados.includes(p.id));
   const candidatos = cobrancas.flatMap(c => {

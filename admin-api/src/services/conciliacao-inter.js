@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { consultarPaginaExtratoInter } from "./inter.js";
-import { normalizarPix, paresPix, paresNotas, compativelPix } from "./conciliacao-regras.mjs";
+import { normalizarPix, paresPix, paresNotas, compativelPix, regraPixDoEnvio } from "./conciliacao-regras.mjs";
 
 export const partPix = "pix-conciliacao-sysney";
 export function partPixEmpresa(empresa="sysney") {if(!["sysney","drsoft"].includes(empresa))throw Error("Empresa inválida.");return `pix-conciliacao-${empresa}`;}
@@ -14,11 +14,12 @@ export async function vincularPix(table, c, regra, pix, responsavel, modo, empre
   const partPix=partPixEmpresa(empresa);
   if (!compativelPix(c, regra, pix)) throw Error("Recebimento incompatível ou cobrança já movimentada. Atualize e confira os dados.");
   const vinculo = { tipo: "vinculo", cobrancaId: c.id, pixId: pix.id, documento: pix.documento, centavos: pix.centavos, vencimento:c.vencimento, data: pix.data, em: new Date().toISOString(), responsavel, modo };
+  const regraEntity = { partitionKey: partPix, rowKey: regra._rowKey, json: JSON.stringify(Object.fromEntries(Object.entries(regra).filter(([k]) => !k.startsWith("_")))) };
   // Reserva de cobrança e transação no mesmo lote; nenhum PIX pode baixar duas cobranças.
   await table.submitTransaction([
     ["create", { partitionKey: partPix, rowKey: `c-${chavePix(c.id)}`, json: JSON.stringify(vinculo) }],
     ["create", { partitionKey: partPix, rowKey: `p-${chavePix(pix.id)}`, json: JSON.stringify({ tipo: "reserva", cobrancaId: c.id, pixId: pix.id }) }],
-    ["update", { partitionKey: partPix, rowKey: regra._rowKey, json: JSON.stringify(Object.fromEntries(Object.entries(regra).filter(([k]) => !k.startsWith("_")))) }, "Replace", { etag: regra._etag }],
+    regra._nova === true ? ["create", regraEntity] : ["update", regraEntity, "Replace", { etag: regra._etag }],
   ]);
   return vinculo;
 }
@@ -58,9 +59,15 @@ export async function sincronizarPix(table, consultar = consultarPaginaExtratoIn
   const [cobrancas, controles, emails] = await Promise.all([registros(table,`cobrancas-${empresa}`),registros(table,partPix),registros(table,`emails-${empresa}`)]);
   const usadas = controles.filter(r=>r.tipo==="reserva").map(r=>r.pixId);
   const elegiveis = cobrancas.filter(c=>emails.some(e=>e.formaPagamento==="pix"&&e.fluxo?.cobrancaId===c.id&&e.centavos===c.centavos&&e.vencimento===c.vencimento)&&!controles.some(v=>v.tipo==="vinculo"&&v.cobrancaId===c.id));
+  const regras = controles.filter(r => r.tipo === "regra");
+  for (const c of elegiveis) {
+    if (regras.some(r => r.cobrancaId === c.id)) continue; // A configuração manual sempre prevalece.
+    const sugeridas = emails.map(e => regraPixDoEnvio(c, e)).filter(Boolean);
+    if (sugeridas.length === 1) regras.push({...sugeridas[0], _rowKey:`regra-${chavePix(c.id)}`, _nova:true});
+  }
   let baixas=0;
-  for(const par of paresPix(elegiveis,controles.filter(r=>r.tipo==="regra"),pix,usadas)) {
-    try { await vincularPix(table,elegiveis.find(c=>c.id===par.cobrancaId),controles.find(r=>r.tipo==="regra"&&r.cobrancaId===par.cobrancaId),pix.find(p=>p.id===par.pixId),"Sistema — Banco Inter","automatico",empresa);baixas++; }
+  for(const par of paresPix(elegiveis,regras,pix,usadas)) {
+    try { await vincularPix(table,elegiveis.find(c=>c.id===par.cobrancaId),regras.find(r=>r.cobrancaId===par.cobrancaId),pix.find(p=>p.id===par.pixId),"Sistema — Banco Inter","automatico",empresa);baixas++; }
     catch(e){if(![409,412].includes(e.statusCode))throw e;}
   }
   await table.upsertEntity({partitionKey:partPix,rowKey:"consulta",json:JSON.stringify({tipo:"consulta",inicio,fim,em,recebimentos:pix.length,baixas})},"Merge");

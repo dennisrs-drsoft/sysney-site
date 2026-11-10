@@ -83,6 +83,7 @@ async function conferirFluxo(e: EmailCobranca) {
   if (e.fluxo) {
     const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${e.empresa}`,e.fluxo.cobrancaId)).json);
     if (c.competencia !== e.competencia || c.centavos !== e.centavos || c.vencimento !== e.vencimento || c.nota !== e.fluxo.nota || c.boleto !== e.fluxo.boleto) throw new Error("O acompanhamento mudou. Confira os documentos da cobrança novamente antes de enviar.");
+    return c;
   }
 }
 async function buscarCobranca(empresa: string, id: string) {
@@ -348,7 +349,7 @@ export async function POST(req: NextRequest) {
     }
     if (body.acao !== "enviar" || email.status !== "revisado") throw new Error("Salve e revise a mensagem e os anexos antes do envio.");
     validarEnvio(email);
-    await conferirFluxo(email);
+    const cobrancaEnvio = await conferirFluxo(email);
     const material = await pacote(email);
     if (!email.aprovacaoEnvio || email.aprovacaoEnvio.hash !== material.hash) throw new Error("A aprovação não corresponde ao conteúdo, remetente ou PDFs atuais. Revise e aprove novamente.");
     // Download dos anexos pode levar tempo: conferir o saldo novamente antes da trava de envio.
@@ -360,6 +361,12 @@ export async function POST(req: NextRequest) {
     const bcc = config.auditoria && !visiveis.has(config.auditoria.toLowerCase()) ? config.auditoria : "";
     const assunto = resolverTextoEmail(email.assunto,email);
     const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, cc:email.cc, bcc, remetente:config.from, assunto, html: htmlEmail(email), status: "processando" };
+    if (cobrancaEnvio?.nota && !cobrancaEnvio.boleto && !email.aviso && email.formaPagamento === "pix") {
+      const configs = new TableClient(`https://${conta()}.table.core.windows.net`, "AdminConfiguracoes", cred);
+      const plano = JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`, cobrancaEnvio.planoId)).json) as Plano;
+      const documento = plano.documento.replace(/\D/g, "");
+      if (/^(?:\d{11}|\d{14})$/.test(documento)) tentativa.documentoConciliacaoPix = documento;
+    }
     email.tentativas.push(tentativa); email.status = "enviando"; email.atualizadoEm = tentativa.data;
     await guardar(email, etag);
     // O bloqueio persistente impede reenvio em caso de queda ou resposta ambígua.

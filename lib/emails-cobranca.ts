@@ -2,7 +2,7 @@ import { moeda, dataBr, type Empresa } from "./cobrancas";
 
 export type AnexoEmail = { tipo: "nota" | "boleto" | "ordem-servico"; nome: string; blob: string; tamanho: number };
 export const nomesAnexos = {nota:"Nota fiscal",boleto:"Boleto","ordem-servico":"Ordem de serviço"};
-export type TentativaEmail = { id: string; data: string; destino: string; cc?: string; bcc?: string; remetente?: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string };
+export type TentativaEmail = { id: string; data: string; destino: string; cc?: string; bcc?: string; remetente?: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string; documentoConciliacaoPix?: string };
 export type EmailCobranca = {
   aviso?: {tipo:"lembrete"|"vencimento"|"atraso"|"reenvio";cobrancaId:string;origemId:string;recebidoCentavos:number;saldoCentavos:number;data:string};
   id: string; empresa: Empresa; cliente: string; para: string; cc: string; responderPara?: string;
