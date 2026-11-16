@@ -13,6 +13,7 @@ import { OrdensServicoPainel } from "./ordens-servico";
 import { AtpFiscal } from "./atp-fiscal";
 import { RegularizacaoFiscalPainel } from "./regularizacao-fiscal";
 import { NfseNacional } from "./nfse-nacional";
+import { CertificadoFiscal } from "./certificado-fiscal";
 import { Aprovacoes } from "./aprovacoes";
 import {MensagemAdmin} from "./dialogos-admin";
 import {
@@ -776,7 +777,7 @@ export function AdminDashboard() {
   if (secao === "aprovacoes") {
     conteudo = <Aprovacoes key={empresaId} empresa={empresaId} rascunhos={rascunhos.filter(r=>r.empresaId === empresaId)} />;
   } else if (secao === "nfse-nacional") {
-    conteudo = <NfseNacional empresa={empresaId} />;
+    conteudo = <><CertificadoFiscal key={empresaId} empresa={empresaId} /><NfseNacional empresa={empresaId} /></>;
   } else if (secao === "regularizacao") {
     conteudo = <RegularizacaoFiscalPainel key={empresaId} empresa={empresaId} />;
   } else if (secao === "historico-inter") {
