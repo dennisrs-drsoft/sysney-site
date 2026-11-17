@@ -44,6 +44,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const [por, setPor] = useState<FiltroFinanceiro["por"]>("vencimento");
   const [aba, setAba] = useState<"carteira" | "analises" | "fiscal" | "resultados">("carteira");
   const [estado, setEstado] = useState("");
+  const [nota, setNota] = useState<NonNullable<FiltroFinanceiro["nota"]>>("");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
   const hoje = hojeBrasil();
@@ -78,7 +79,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   }, [empresa, ate, carga]);
 
   const linhas = dados ? consolidarFinanceiro(dados.cobrancas, dados.planos, dados.banco, dados.emails, hoje, dados.notas) : [];
-  const filtro = { inicio, fim, por, estado, busca };
+  const filtro = { inicio, fim, por, estado, busca, nota };
   const filtradas = filtrarFinanceiro(linhas, filtro);
   const resumo = resumoFinanceiro(filtradas, hoje);
   const { ordenadas, cabecalhos, restaurar } = useOrdenacaoTabela(filtradas, [
@@ -95,7 +96,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const dataConsulta = (v: string) => Number.isFinite(Date.parse(v)) ? new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date(v)) : "não informada";
   const pendencias = carregando ? [] : filtradas.filter(r => r.origem !== "inter" && !r.envio && ["previsto", "aberto", "atrasado", "parcial"].includes(r.estado));
   const proximas = carregando ? [] : filtradas.filter(r => ["aberto", "atrasado", "parcial"].includes(r.estado) && r.vencimento >= hoje).sort((a, b) => a.vencimento.localeCompare(b.vencimento)).slice(0, 4);
-  function limpar() { setInicio(""); setFim(""); setEstado(""); setBusca(""); setPor("vencimento"); setPagina(1); }
+  function limpar() { setInicio(""); setFim(""); setEstado(""); setNota(""); setBusca(""); setPor("vencimento"); setPagina(1); }
   function periodoRapido(tipo: "mes" | "ano" | "completo" | "todos") {
     setPagina(1);
     if(tipo === "todos"){setInicio("");setFim("");return;}
@@ -130,6 +131,11 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
         <FilterDate label="Data inicial" value={inicio} onChange={valor => { setInicio(valor); setPagina(1); validarPeriodo(valor, fim); }} />
         <FilterDate label="Data final (incluída)" value={fim} onChange={valor => { setFim(valor); setPagina(1); validarPeriodo(inicio, valor); }} />
         <FilterSelect label="Situação" value={estado} options={[{ value: "", label: "Todas as situações" }, ...Object.entries(nomesEstados).map(([value, label]) => ({ value, label }))]} onChange={valor => { setEstado(valor); setPagina(1); }} />
+        <FilterSelect label="Vínculo com NFS-e" value={nota} options={[
+          { value: "", label: "Todas as cobranças" },
+          { value: "sem-vinculo", label: "NFS-e não vinculada" },
+          { value: "vinculada", label: "NFS-e vinculada" },
+        ]} onChange={valor => { setNota(valor as typeof nota); setPagina(1); }} />
         <label className={filterStyles.field}><span>Cliente, documento, nota ou boleto</span><input className={filterStyles.trigger} placeholder="Buscar na carteira…" value={busca} onChange={e => { setBusca(e.target.value); setPagina(1); }} /></label>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">{[["mes","Este mês"],["ano","Ano até hoje"],["completo","Ano completo"],["todos","Todo o histórico"]].map(([tipo,nome])=><button key={tipo} className={botao} onClick={()=>periodoRapido(tipo as Parameters<typeof periodoRapido>[0])}>{nome}</button>)}</div>

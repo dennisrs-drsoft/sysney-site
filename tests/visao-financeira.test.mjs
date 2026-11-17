@@ -82,3 +82,17 @@ test("crédito confirmado no extrato preserva principal e valor real mesmo se AP
  const linhas=montar([local],[b({numero:"000927",nossoNumero:"90878155376",situacao:"ATRASADO",consultadoEm:"2026-10-18T12:00:00Z"})]);
  assert.equal(linhas.length,1);assert.equal(linhas[0].centavos,10000);assert.equal(linhas[0].recebido,10200);assert.equal(linhas[0].saldo,0);assert.equal(linhas[0].estado,"pago");assert.equal(resumoFinanceiro(linhas,hoje).recebido,10200);
 });
+test("vínculo fiscal combina com situação sem contar boletos expirados ou cancelados como recebimento", () => {
+  const linhas = montar([], [
+    b({ id: "recebido", situacao: "RECEBIDO", valorRecebido: 100 }),
+    b({ id: "expirado", situacao: "EXPIRADO" }),
+    b({ id: "cancelado", situacao: "CANCELADO" }),
+    b({ id: "com-nota", situacao: "RECEBIDO", valorRecebido: 100, nota: "52" }),
+  ]);
+  const filtro = { por: "vencimento", estado: "", busca: "Cliente" };
+  const semNota = filtrarFinanceiro(linhas, { ...filtro, nota: "sem-vinculo" });
+  assert.equal(semNota.length, 3);
+  assert.equal(resumoFinanceiro(semNota, hoje).recebido, 10000);
+  assert.deepEqual(filtrarFinanceiro(linhas, { ...filtro, nota: "sem-vinculo", estado: "pago" }).map(r => r.id), ["inter:recebido"]);
+  assert.deepEqual(filtrarFinanceiro(linhas, { ...filtro, nota: "vinculada" }).map(r => r.id), ["inter:com-nota"]);
+});

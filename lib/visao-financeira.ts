@@ -115,11 +115,12 @@ export function resumoFinanceiro(linhas: LinhaFinanceira[], hoje: string) {
     pendentes: validas.filter(r => r.origem !== "inter" && !r.envio && r.estado !== "pago" && !["cancelado", "expirado"].includes(r.estado)).length };
 }
 
-export type FiltroFinanceiro = { mes?: string; inicio?: string; fim?: string; por: "vencimento" | "competencia" | "emissao" | "pagamento"; estado: string; busca: string };
+export type FiltroFinanceiro = { mes?: string; inicio?: string; fim?: string; por: "vencimento" | "competencia" | "emissao" | "pagamento"; estado: string; busca: string; nota?: "" | "vinculada" | "sem-vinculo" };
 export function filtrarFinanceiro(linhas: LinhaFinanceira[], filtro: FiltroFinanceiro) {
   const busca = filtro.busca.trim().toLocaleLowerCase("pt-BR");
   if (filtro.inicio && filtro.fim && filtro.inicio > filtro.fim) return [];
   return linhas.filter(r => {
+    if ((filtro.nota === "vinculada" && !r.nota.trim()) || (filtro.nota === "sem-vinculo" && r.nota.trim())) return false;
     // Competência é mensal: corresponde a qualquer mês abrangido pelo intervalo.
     const valor = r[filtro.por];
     const inicio = filtro.por === "competencia" ? filtro.inicio?.slice(0, 7) : filtro.inicio;
