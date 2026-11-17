@@ -8,6 +8,7 @@ import { hojeBrasil, dataBr, moeda, type Cobranca, type Plano } from "@/lib/cobr
 import { lerRespostaAdmin } from "@/lib/admin-resposta";
 import { consolidarFinanceiro, filtrarFinanceiro, resumoFinanceiro, nomesEstados, type EmailFinanceiro, type EstadoFinanceiro, type RegistroInter, type NotaFinanceira, type FiltroFinanceiro } from "@/lib/visao-financeira";
 import { MensagemAdmin, useConfirmarAdmin } from "./dialogos-admin";
+import { ResultadosFinanceiros } from "./resultados-financeiros";
 import { RelatoriosFinanceiros } from "./relatorios-financeiros";
 import { FaturamentoFiscal } from "./faturamento-fiscal";
 import { useOrdenacaoTabela } from "./ordenacao-tabela";
@@ -41,7 +42,7 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
   const [inicio, setInicio] = useState("");
   const [fim, setFim] = useState("");
   const [por, setPor] = useState<FiltroFinanceiro["por"]>("vencimento");
-  const [aba, setAba] = useState<"carteira" | "analises" | "fiscal">("carteira");
+  const [aba, setAba] = useState<"carteira" | "analises" | "fiscal" | "resultados">("carteira");
   const [estado, setEstado] = useState("");
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
@@ -153,7 +154,8 @@ export function VisaoFinanceira({ empresa, navegar }: { empresa: "sysney" | "drs
       ].map(([titulo, valor, legenda, tom]) => <article key={titulo} className={painel}><p className="text-xs font-semibold text-slate-500">{titulo}</p><p className={`mt-3 text-2xl font-bold tracking-tight ${tom}`}>{carregando ? "…" : dados ? moeda(Number(valor)) : "—"}</p><p className="mt-2 text-xs leading-5 text-slate-500">{legenda}</p></article>)}
     </div>
 
-    <div role="group" aria-label="Visão do painel" className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2"><button className={`${botao} ${aba==="carteira"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="carteira"} onClick={()=>setAba("carteira")}>Carteira e vencimentos</button><button className={`${botao} ${aba==="analises"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="analises"} onClick={()=>setAba("analises")}>Análises e comparativos</button><button className={`${botao} ${aba==="fiscal"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="fiscal"} onClick={()=>setAba("fiscal")}>Faturamento fiscal</button></div>
+    <div role="group" aria-label="Visão do painel" className="flex flex-wrap gap-2 rounded-2xl border border-slate-200 bg-white p-2"><button className={`${botao} ${aba==="resultados"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="resultados"} onClick={()=>setAba("resultados")}>Resultados e projeções</button><button className={`${botao} ${aba==="carteira"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="carteira"} onClick={()=>setAba("carteira")}>Carteira e vencimentos</button><button className={`${botao} ${aba==="analises"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="analises"} onClick={()=>setAba("analises")}>Análises e comparativos</button><button className={`${botao} ${aba==="fiscal"?"bg-blue-50 ring-2 ring-blue-500/20":""}`} aria-pressed={aba==="fiscal"} onClick={()=>setAba("fiscal")}>Faturamento fiscal</button></div>
+    {aba==="resultados" && (dados && !carregando ? <ResultadosFinanceiros linhas={linhas} hoje={hoje}/> : <p className={painel}>{carregando?"Carregando resultados…":"Resultados indisponíveis. Atualize o painel."}</p>)}
     {aba==="fiscal" && (dados && !carregando ? <FaturamentoFiscal notas={dados.notas} inicio={inicio} fim={fim} busca={busca} empresa={empresa}/> : <p className={painel}>{carregando?"Carregando notas fiscais…":"Notas indisponíveis. Atualize o painel."}</p>)}
     {aba==="analises" && (dados && !carregando ? <RelatoriosFinanceiros linhas={linhas} filtradas={filtradas} filtro={filtro} hoje={hoje} notas={dados.notas}/> : <p className={painel}>{carregando ? "Carregando análises…" : "Análises indisponíveis. Atualize o painel."}</p>)}
     {aba==="carteira" && <><div className="grid gap-5 xl:grid-cols-2">

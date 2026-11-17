@@ -17,6 +17,7 @@ export type LinhaFinanceira = {
   estado: EstadoFinanceiro; origem: "sistema" | "inter" | "integrado";
   nota: string; boleto: string; envio: boolean; etapa: string; consultadoEm: string;
   pagamento: string; fontePagamento: "manual" | "banco" | ""; recebidoNominal: boolean;
+  movimentosCaixa?: { data: string; centavos: number }[];
   emissaoPrevista: string; emissaoNota: string; conciliacao?: ConciliacaoHistorica;
 };
 export type NotaFinanceira = { numero: string; documento: string; centavos: number; emissao: string; cliente?: string; situacao?: string; tributos?: import("./extrato-fiscal-xml").TributosXml; xml?: boolean; pdf?: boolean; emissor?:string; chaveAcesso?:string };
@@ -72,12 +73,13 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
     const notaFiscal = notas.filter(n => (!chaveFiscal||n.chaveAcesso===chaveFiscal)&&n.situacao !== "C" && numeroBoleto(n.numero) === numeroBoleto(nota) && digitos(n.documento) === digitos(documento) && n.centavos === c.centavos);
     const estornados = new Set(c.eventos.filter(v => v.tipo === "estorno").map(v => v.referencia));
     const pagamentos = c.eventos.filter(v => v.tipo === "pagamento" && !estornados.has(v.id)).map(v => data(v.data)).filter(Boolean).sort();
-    const recebidoReal=c.eventos.filter(v=>v.tipo==="pagamento"&&!estornados.has(v.id)).reduce((s,v)=>s+(v.recebidoCentavos??v.centavos??0),0);
+    const movimentosCaixa = c.eventos.filter(v => v.tipo === "pagamento" && !estornados.has(v.id)).map(v => ({data:data(v.data), centavos:v.recebidoCentavos ?? v.centavos ?? 0}));
+    const recebidoReal = movimentosCaixa.reduce((s,v)=>s+v.centavos,0);
     const linha: LinhaFinanceira = { id: c.id, cliente: c.clienteNome, documento,
       competencia: c.competencia, emissao: c.eventos.filter(v => v.tipo === "documentos").map(v => data(v.data)).filter(Boolean).sort()[0] || "",
       vencimento: c.vencimento, centavos: c.centavos, recebido:recebidoReal, saldo: emitida ? saldo : 0, estado, origem: "sistema", nota, boleto, envio,
       etapa: envio ? "Aceito pelo provedor; entrega não confirmada" : e?.status === "incerto" ? "Envio incerto: consultar provedor" : e?.status === "enviando" ? "Envio em processamento" : e?.aprovacaoEnvio ? "E-mail aprovado; falta enviar" : e?.fluxo?.documentos ? "Documentos conferidos; revisar e-mail" : emitida ? "Conferir documentos e e-mail" : "Preparar / aprovar documentos", consultadoEm: "",
-      pagamento: saldo === 0 ? pagamentos.at(-1) || "" : "", fontePagamento: pagamentos.length ? c.eventos.some(v=>v.tipo==="pagamento"&&v.fonte==="banco")?"banco":"manual" : "", recebidoNominal: false,
+      pagamento: saldo === 0 ? pagamentos.at(-1) || "" : "", fontePagamento: pagamentos.length ? c.eventos.some(v=>v.tipo==="pagamento"&&v.fonte==="banco")?"banco":"manual" : "", recebidoNominal: false, movimentosCaixa,
       emissaoPrevista: c.envioPrevisto, emissaoNota: notaFiscal.length === 1 ? data(notaFiscal[0].emissao) : "" };
     const candidatos = banco.map((b, i) => ({ b, i })).filter(({ b }) => !!numeroBoleto(boleto) && numeroBoleto(b.nossoNumero || "") === numeroBoleto(boleto));
     const ids=associacoes[ci],i=ids[0];
@@ -88,7 +90,7 @@ export function consolidarFinanceiro(cobrancas: Cobranca[], planos: Plano[], ban
       // Snapshot antigo não apaga um pagamento/estorno registrado depois no sistema.
       const movimentoPosterior = c.eventos.some(v => ["pagamento", "estorno"].includes(v.tipo) && (v.fonte!=="banco"||v.recebidoCentavos!==undefined||v.registradoEm > b.consultadoEm));
       return { ...linha, boleto:exato.b.nossoNumero||linha.boleto,vencimento:linha.vencimento||b.vencimento,origem: "integrado" as const, consultadoEm: b.consultadoEm,
-        ...(movimentoPosterior ? {} : { estado: b.estado, recebido: b.recebido, saldo: b.saldo, pagamento: b.pagamento, fontePagamento: b.fontePagamento, recebidoNominal: b.recebidoNominal }) };
+        ...(movimentoPosterior ? {} : { estado: b.estado, recebido: b.recebido, saldo: b.saldo, pagamento: b.pagamento, fontePagamento: b.fontePagamento, recebidoNominal: b.recebidoNominal, movimentosCaixa:undefined }) };
     }
     const suspeitos = emitida ? banco.map((b, i) => ({ b, i })).filter(({ b, i }) => !usadas.has(i) && !["CANCELADO", "EXPIRADO"].includes(b.situacao) && digitos(linha.documento) && digitos(b.documento) === digitos(linha.documento) && Math.round(b.valor * 100) === c.centavos && data(b.vencimento) === c.vencimento) : [];
     if (candidatos.length || suspeitos.length || ids.length) {
