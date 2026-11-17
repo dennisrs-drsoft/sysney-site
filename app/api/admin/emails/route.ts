@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
+import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, exigeBoleto, tentativaBancariaDeOutraPO, normalizarDadosDeposito, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
 import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, integrarPagamentosInter, integrarPagamentosPix, type VinculoPix, type Cobranca, type Plano } from "@/lib/cobrancas";
 import {AUDITORIA_AVISOS,prepararAviso,conferirAviso,type TipoAviso} from "@/lib/avisos-cobranca";
 
@@ -68,9 +68,9 @@ async function pacote(e: EmailCobranca) {
 }
 async function hashDocumentos(e: EmailCobranca) {
   validarDocumentosEmail(e);
-  if (!e.fluxo?.nota || (e.formaPagamento!=="pix" && !e.fluxo.boleto)) throw new Error("Registre o número da nota e, para pagamento por boleto, o nosso número antes de conferir os documentos.");
+  if (!e.fluxo?.nota || (exigeBoleto(e) && !e.fluxo.boleto)) throw new Error("Registre o número da nota e, para pagamento por boleto, o nosso número antes de conferir os documentos.");
   const anexos = await Promise.all(e.anexos.map(async a=>({tipo:a.tipo,hash:createHash("sha256").update(await container().getBlockBlobClient(a.blob).downloadToBuffer()).digest("hex")})));
-  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:{})})).digest("hex");
+  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:e.formaPagamento==="deposito"?{formaPagamento:"deposito",dadosDeposito:e.dadosDeposito}:{})})).digest("hex");
 }
 async function conferirFluxo(e: EmailCobranca) {
   if(e.aviso) {
@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
       const { email, etag } = await ler(empresa, id);
       if (email.status !== "rascunho" && email.status !== "revisado") throw new Error("Crie outra mensagem para alterar documentos após o envio.");
       if (!(file instanceof File) || file.size > 5_000_000 || (tipo !== "nota" && tipo !== "boleto" && tipo !== "ordem-servico")) throw new Error("Selecione um PDF de até 5 MB.");
-      if(tipo==="boleto"&&email.formaPagamento==="pix")throw new Error("Cobrança por PIX não recebe anexo de boleto. Confira a forma de pagamento.");
+      if(tipo==="boleto"&&!exigeBoleto(email))throw new Error("Esta forma de pagamento não recebe boleto. Confira a cobrança.");
       const data = Buffer.from(await file.arrayBuffer());
       if (!data.subarray(0,5).equals(Buffer.from("%PDF-"))) throw new Error("O arquivo não é um PDF reconhecido.");
       const blob = `${empresa}/emails/${id}/${randomUUID()}.pdf`;
@@ -222,15 +222,19 @@ export async function POST(req: NextRequest) {
       e.fluxo = anterior?.email.fluxo;
       e.aviso = anterior?.email.aviso;
       if(e.aviso && anterior && ["cliente","competencia","centavos","vencimento","formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior.email[k as keyof EmailCobranca]))throw new Error("Os dados financeiros do aviso são vinculados à cobrança original. Prepare um aviso atualizado para refletir mudanças.");
+      if(e.aviso && anterior && JSON.stringify(e.dadosDeposito)!==JSON.stringify(anterior.email.dadosDeposito))throw new Error("A conta do aviso está vinculada à cobrança original.");
+      if(e.formaPagamento==="deposito")e.dadosDeposito=normalizarDadosDeposito(e.dadosDeposito,empresa);
       validarPagamento(e);
-      if(e.fluxo && e.formaPagamento==="pix") {
+      if(e.fluxo && !exigeBoleto(e)) {
         const {c}=await buscarCobranca(empresa,e.fluxo.cobrancaId);
-        if(c.boleto)throw new Error("Há boleto registrado no acompanhamento. Confira a baixa antes de mudar para PIX.");
+        if(c.boleto)throw new Error("Há boleto registrado no acompanhamento. Confira a baixa antes de mudar a forma de pagamento.");
         const plano:Plano=JSON.parse((await new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
         const chave=createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${c.competencia}`).digest("hex");
-        try {await table().getEntity(`inter-emissoes-${empresa}`,chave);throw new Error("Há tentativa bancária registrada. Consulte o resultado antes de mudar para PIX.");}catch(err){if((err as {statusCode?:number}).statusCode!==404)throw err;}
+        const verificarTentativa=async(id:string,legada=false)=>{try {const tentativa=await table().getEntity<{json?:string}>(`inter-emissoes-${empresa}`,id);if(legada&&plano.avulsa===true&&tentativaBancariaDeOutraPO(tentativa,e,plano.documento.replace(/\D/g,"")))return;throw new Error("Há tentativa bancária registrada. Consulte o resultado antes de mudar a forma de pagamento.");}catch(err){if((err as {statusCode?:number}).statusCode!==404)throw err;}};
+        await verificarTentativa(chave,true);
+        if(plano.avulsa)await verificarTentativa(createHash("sha256").update(`${plano.documento.replace(/\D/g,"")}:${c.competencia}:${c.id}`).digest("hex"));
       }
-      if(e.fluxo && ["formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior?.email[k as keyof EmailCobranca])) delete e.fluxo.documentos;
+      if(e.fluxo && (["formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior?.email[k as keyof EmailCobranca])||JSON.stringify(e.dadosDeposito)!==JSON.stringify(anterior?.email.dadosDeposito))) delete e.fluxo.documentos;
       for (const key of ["po","contato"] as const) {
         e[key] ??= "";
         if(typeof e[key] !== "string" || e[key].length > 120 || /[\r\n]/.test(e[key])) throw new Error("PO ou contato inválido (máximo 120 caracteres).");
@@ -290,7 +294,7 @@ export async function POST(req: NextRequest) {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para alteração.");
       if ((body.tipo !== "nota" && body.tipo !== "boleto") || typeof body.numero !== "string" || !body.numero.trim() || body.numero.length > 120) throw new Error("Informe o tipo e o número do documento já emitido.");
       const tipo: "nota" | "boleto" = body.tipo, numero = body.numero.trim();
-      if(tipo==="boleto"&&email.formaPagamento==="pix")throw new Error("Esta cobrança usa PIX. Não registre um boleto neste fluxo.");
+      if(tipo==="boleto"&&!exigeBoleto(email))throw new Error("Esta cobrança não usa boleto. Confira a forma de pagamento.");
       const {c,etag:cetag} = await buscarCobranca(empresa,email.fluxo.cobrancaId);
       if (c.competencia !== email.competencia || c.centavos !== email.centavos || c.vencimento !== email.vencimento) throw new Error("A cobrança mudou. Confira o acompanhamento.");
       if (c[tipo] && c[tipo] !== numero) throw new Error("Já existe outro documento registrado. Não substitua sem conferir o cancelamento ou a baixa do anterior.");

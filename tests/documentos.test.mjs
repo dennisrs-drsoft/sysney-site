@@ -107,3 +107,10 @@ test("prévia alterada, duplicidade e condições desconhecidas bloqueiam emiss�
  const c={id:cobrancaId,centavos:e.centavos,competencia:e.competencia,vencimento:e.vencimento};
  assert.throws(()=>montarPayloadBoleto(e,c,"12345678000199",{},{}));
 });
+
+test('depósito nunca prepara, emite ou consulta boleto pela API',async()=>{
+ const e=setup();e.formaPagamento='deposito';e.dadosDeposito={banco:'077 - Inter',agencia:'0001',conta:'39764172-9',cnpj:'57.767.099/0001-79',razaoSocial:'SYSNEY SERVICOS DE INFORMATICA LTDA'};
+ records.get(`AdminDocumentos:emails-sysney:${id}`).json=JSON.stringify(e);
+ for(const acao of ['preparar-boleto','emitir-boleto','consultar-boleto']){const r=await POST(req({acao,id,atualizadoEm:e.atualizadoEm,aprovado:true}));assert.equal(r.status,400);assert.match((await r.json()).erro,/não usa boleto/);}
+ assert.equal(state.posts,0);
+});

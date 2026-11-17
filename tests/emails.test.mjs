@@ -281,3 +281,59 @@ test("PIX exige nota e OS, aceita upload/remoção da OS e revoga aprovação ao
  assert.equal((await POST(request({acao:"salvar",email:e}))).status,400);
  records.delete(`AdminDocumentos:inter-emissoes-sysney:${bankKey}`);
 });
+
+test('depósito apresenta banco e conta por empresa, sem exigir boleto nem tratar como PIX',async()=>{
+ const {contaDepositoPadrao,validarPagamento,documentosCompletos}=await import(emailModel);
+ for(const empresa of ['sysney','drsoft']){
+  const dados={...contaDepositoPadrao(empresa),conta:empresa==='sysney'?'39764172-9':'9439596-9'};
+  const e={...novoEmail(empresa,'Cliente teste'),formaPagamento:'deposito',dadosDeposito:dados,competencia:'2026-11',vencimento:'2026-12-18',centavos:3553147,anexos:[{tipo:'nota',nome:'nota.pdf',blob:'privado',tamanho:100}]};
+  assert.doesNotThrow(()=>validarPagamento(e));assert.equal(documentosCompletos(e),true);
+  const html=htmlEmail(e);for(const valor of ['Depósito/Transferência','077 - Inter','0001',dados.conta,dados.cnpj,dados.razaoSocial])assert.ok(html.includes(valor),valor);
+  assert.doesNotMatch(html,/Chave PIX/);assert.throws(()=>validarPagamento({...e,dadosDeposito:{...dados,conta:''}}));
+  assert.throws(()=>validarPagamento({...e,dadosDeposito:{...dados,cnpj:empresa==='sysney'?'09.365.785/0001-70':'57.767.099/0001-79'}}),/empresa/);
+  assert.throws(()=>validarPagamento({...e,fluxo:{boleto:'existente'}}),/boleto/);
+  assert.throws(()=>validarDocumentosEmail({...e,anexos:[]}),/nota fiscal/);
+  const htmlEscapado=htmlEmail({...e,dadosDeposito:{...dados,razaoSocial:'<script>erro</script>'}});assert.ok(htmlEscapado.includes('&lt;script&gt;'));assert.doesNotMatch(htmlEscapado,/<script>/);
+ }
+});
+
+test('alterar conta de depósito revoga conferência e aprovação; aviso preserva sua conta',async()=>{
+ const {contaDepositoPadrao}=await import(emailModel),pid='d'.repeat(64),cid=pid+'_2026-11';
+ const c={id:cid,planoId:pid,competencia:'2026-11',clienteNome:'Depósito teste',email:'cliente@example.com',descricao:'Serviço',centavos:10000,vencimento:'2030-12-18',nota:'6',boleto:'',eventos:[]};
+ records.set(`AdminDocumentos:cobrancas-sysney:${cid}`,{json:JSON.stringify(c),etag:'1'});
+ records.set(`AdminConfiguracoes:cobrancas-sysney:${pid}`,{json:JSON.stringify({documento:'11111111111111',avulsa:true}),etag:'1'});
+ let e=(await (await POST(request({acao:'preparar-cobranca',cobrancaId:cid}))).json()).email;
+ const saved=await POST(request({acao:'salvar',email:{...e,formaPagamento:'deposito',dadosDeposito:contaDepositoPadrao('sysney')}}));assert.equal(saved.status,200);e=(await saved.json()).email;
+ const key=`AdminDocumentos:emails-sysney:${e.id}`;e.anexos=[{tipo:'nota',nome:'nota.pdf',blob:'nota',tamanho:100}];records.get(key).json=JSON.stringify(e);
+ const checked=await POST(request({acao:'conferir-documentos',id:e.id,atualizadoEm:e.atualizadoEm}));assert.equal(checked.status,200);e=(await checked.json()).email;assert.ok(e.fluxo.documentos);
+ e.aprovacaoEnvio={hash:'anterior'};records.get(key).json=JSON.stringify(e);
+ const changed=await POST(request({acao:'salvar',email:{...e,dadosDeposito:{...e.dadosDeposito,conta:'12345678-0'}}}));assert.equal(changed.status,200);e=(await changed.json()).email;
+ assert.equal(e.fluxo.documentos,undefined);assert.equal(e.aprovacaoEnvio,undefined);assert.equal(e.tentativas.length,0);
+ assert.equal((await POST(request({acao:'salvar',email:{...e,dadosDeposito:{...e.dadosDeposito,cnpj:'09.365.785/0001-70'}}}))).status,400);
+ const {assinaturaEnvio}=await import(approvalModel);assert.notEqual(assinaturaEnvio(e,'a@example.com','logo',['pdf']),assinaturaEnvio({...e,dadosDeposito:{...e.dadosDeposito,conta:'12345678-1'}},'a@example.com','logo',['pdf']));
+ records.delete(key);records.delete(`AdminDocumentos:cobrancas-sysney:${cid}`);records.delete(`AdminConfiguracoes:cobrancas-sysney:${pid}`);
+});
+
+test('tentativa bancária de outra PO só é separada com documento, PO, valor e vencimento inequívocos',async()=>{
+ const {tentativaBancariaDeOutraPO}=await import(emailModel),e={...novoEmail('sysney'),po:'076458',centavos:3553147,vencimento:'2026-12-18'};
+ const p={pagador:{cpfCnpj:'43351097000190'},valorNominal:3314.97,dataVencimento:'2026-12-03',mensagem:{linha1:'Mensalidade. PO 069825.'}};
+ const record=v=>({json:JSON.stringify(v)});
+ assert.equal(tentativaBancariaDeOutraPO(record(p),e,'43351097000190'),true);
+ for(const patch of [{valorNominal:35531.47},{dataVencimento:e.vencimento},{mensagem:{linha1:'PO 076458'}},{mensagem:{}},{pagador:{cpfCnpj:'outro'}}])assert.equal(tentativaBancariaDeOutraPO(record({...p,...patch}),e,'43351097000190'),false);
+ assert.equal(tentativaBancariaDeOutraPO({json:'inválido'},e,'43351097000190'),false);
+});
+
+test('envio de depósito empacota a conta da empresa e os PDFs sem boleto ou regra PIX',async()=>{
+ const {contaDepositoPadrao}=await import(emailModel),originalFetch=globalThis.fetch;
+ try{
+  for(const empresa of ['sysney','drsoft']){
+   const draft={...novoEmail(empresa,'Cliente fictício'),para:'cliente@example.com',responderPara:'financeiro@example.com',competencia:'2026-11',vencimento:'2030-12-18',centavos:10000,formaPagamento:'deposito',dadosDeposito:contaDepositoPadrao(empresa)};
+   let e=(await (await POST(request({acao:'salvar',email:draft},empresa))).json()).email;
+   const key=`AdminDocumentos:emails-${empresa}:${e.id}`;e.anexos=[{tipo:'nota',nome:'nota-teste.pdf',blob:'preview/nota',tamanho:100}];records.get(key).json=JSON.stringify(e);
+   const sender=empresa==='sysney'?'sender@example.com':'drsoft@example.com';
+   const review=await POST(request({acao:'revisar',id:e.id,atualizadoEm:e.atualizadoEm,remetente:sender},empresa));assert.equal(review.status,200);e=(await review.json()).email;
+   let sends=0;globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.sendgrid.com/v3/mail/send');const p=JSON.parse(options.body);assert.ok(p.content[0].value.includes(draft.dadosDeposito.conta));assert.ok(p.content[0].value.includes('Depósito/Transferência'));assert.ok(!p.content[0].value.includes('Chave PIX'));assert.equal(p.attachments.filter(a=>a.disposition==='attachment').length,1);sends++;return new Response(null,{status:202});};
+   const send=await POST(request({acao:'enviar',id:e.id,atualizadoEm:e.atualizadoEm},empresa));assert.equal(send.status,200);e=(await send.json()).email;assert.equal(sends,1);assert.equal(e.status,'aceito');assert.equal(e.tentativas[0].documentoConciliacaoPix,undefined);records.delete(key);
+  }
+ }finally{globalThis.fetch=originalFetch;}
+});

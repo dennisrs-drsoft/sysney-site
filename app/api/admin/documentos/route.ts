@@ -61,7 +61,7 @@ export async function POST(req:NextRequest) {
       return reply(await recuperarPdfNotaSP(emp,b.id,b.atualizadoEm));
     }
     const {row,e,c,cr,documento}=await contexto(emp,b.id);
-    if(e.formaPagamento==="pix")throw new Error("Esta cobrança usa PIX e não exige boleto. Não há emissão bancária neste fluxo.");
+    if(e.formaPagamento && e.formaPagamento!=="boleto")throw new Error("Esta cobrança não usa boleto. Não há emissão bancária neste fluxo.");
     const part=`boleto-painel-${emp}`,bankKey=createHash("sha256").update(`${documento}:${c.competencia}`).digest("hex");
     let banco=await opcional<{status:string;codigoSolicitacao?:string;json:string}>(`inter-emissoes-${emp}`,bankKey);
     const pr=await opcional<{json:string}>(part,e.id);

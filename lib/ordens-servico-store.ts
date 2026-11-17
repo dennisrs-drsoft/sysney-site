@@ -3,7 +3,7 @@ import { DefaultAzureCredential } from "@azure/identity";
 import { BlobServiceClient } from "@azure/storage-blob";
 import { createHash } from "node:crypto";
 import { calcularOS, validarEntradaOS, validarRegrasOS, resumirOS, selecionarParaCobrancaOS, textoOS, dataOS, type OrdemServico, type LoteOS, type RegrasOS, type PreferenciasCobrancaOS } from "./ordens-servico";
-import { novoEmail, emailsValidos, type EmailCobranca } from "./emails-cobranca";
+import { novoEmail, emailsValidos, validarPagamento, contaDepositoPadrao, normalizarDadosDeposito, type EmailCobranca } from "./emails-cobranca";
 import { pdfOrdensServico } from "./ordens-servico-pdf";
 import type { Plano, Cobranca, Empresa } from "./cobrancas";
 import { lerExcelOS } from "./ordens-servico-excel";
@@ -203,10 +203,12 @@ export class OrdensServicoStore {
         const cc = typeof raw.cc === "string" ? raw.cc.trim() : "";
         if (cc && (cc.length > 2540 || !emailsValidos(cc)))
             throw Error("Confira os destinatários em cópia.");
-        if (raw.formaPagamento !== "pix" && raw.formaPagamento !== "boleto")
+        if (raw.formaPagamento !== "pix" && raw.formaPagamento !== "boleto" && raw.formaPagamento !== "deposito")
             throw Error("Forma de pagamento inválida.");
         const pixChave = raw.formaPagamento === "pix" ? textoOS(raw.pixChave, 150) : "", pixBeneficiario = raw.formaPagamento === "pix" ? textoOS(raw.pixBeneficiario, 150) : "";
-        const assinatura = hash(JSON.stringify({ itens: [...itens].sort((a, b) => a.id.localeCompare(b.id)), competencia, vencimento: raw.vencimento, email, cc, formaPagamento: raw.formaPagamento, pixChave, pixBeneficiario }));
+        const dadosDeposito = raw.formaPagamento === "deposito" ? normalizarDadosDeposito(raw.dadosDeposito || contaDepositoPadrao(this.empresa),this.empresa) : undefined;
+        validarPagamento({...novoEmail(this.empresa),formaPagamento:raw.formaPagamento,pixChave,pixBeneficiario,dadosDeposito});
+        const assinatura = hash(JSON.stringify({ itens: [...itens].sort((a, b) => a.id.localeCompare(b.id)), competencia, vencimento: raw.vencimento, email, cc, formaPagamento: raw.formaPagamento, pixChave, pixBeneficiario, ...(dadosDeposito?{dadosDeposito}:{}) }));
         const key = `lote-${op}`;
         let existente = await this.ler(key), lote: LoteOS;
         if (existente) {
@@ -220,7 +222,7 @@ export class OrdensServicoStore {
             if (os.some(o => o.versao !== itens.find(i => i.id === o.id)?.versao))
                 throw conflito("Atendimento mudou. Atualize a seleção.");
             const planoId = hash(`os:${this.empresa}:${op}`), em = new Date().toISOString();
-            lote = { id: op, tipo: "lote", estado: "reservado", ids: itens.map(i => i.id), clienteId: os[0].clienteId, competencia, vencimento: raw.vencimento, email, cc, formaPagamento: raw.formaPagamento, pixChave, pixBeneficiario, planoId, cobrancaId: `${planoId}_${competencia}`, emailId: op, criadoEm: em, por, hash: assinatura };
+            lote = { id: op, tipo: "lote", estado: "reservado", ids: itens.map(i => i.id), clienteId: os[0].clienteId, competencia, vencimento: raw.vencimento, email, cc, formaPagamento: raw.formaPagamento, pixChave, pixBeneficiario, ...(dadosDeposito?{dadosDeposito}:{}), planoId, cobrancaId: `${planoId}_${competencia}`, emailId: op, criadoEm: em, por, hash: assinatura };
             await this.tabela().submitTransaction([["create", this.entidade(key, lote)], ...rows.map((r, i): TransactionAction => ["update", this.entidade(r.rowKey, { ...os[i], estado: "reservada", loteId: op, atualizadoEm: em }), "Replace", { etag: r.etag }])]);
             existente = await this.ler(key);
         }
@@ -261,7 +263,7 @@ export class OrdensServicoStore {
             }).statusCode))
                 throw e;
         }
-        const email: EmailCobranca = { ...novoEmail(this.empresa, plano.clienteNome), id: lote.emailId, para: lote.email, responderPara: this.empresa === "sysney" ? "financeiro@sysney.com" : "financeiro@drsoftinformatica.com", descricao, introducao: "Segue o demonstrativo dos serviços prestados e o relatório para conferência.", competencia: lote.competencia, vencimento: lote.vencimento, centavos: resumo.total, formaPagamento: lote.formaPagamento, pixChave: lote.pixChave, pixBeneficiario: lote.pixBeneficiario, observacoes: `Subtotal dos serviços: R$ ${(resumo.subtotal / 100).toFixed(2)}. Acréscimo comercial: ${resumo.adicionalBps / 100}%. Total: R$ ${(resumo.total / 100).toFixed(2)}.`, fluxo: { cobrancaId: lote.cobrancaId, nota: "", boleto: "" }, anexos: [{ tipo: "ordem-servico", nome: "Relatorio-servicos-prestados.pdf", blob, tamanho: (await container.getBlockBlobClient(blob).getProperties()).contentLength || bytes.length }], atualizadoEm: lote.criadoEm };
+        const email: EmailCobranca = { ...novoEmail(this.empresa, plano.clienteNome), id: lote.emailId, para: lote.email, responderPara: this.empresa === "sysney" ? "financeiro@sysney.com" : "financeiro@drsoftinformatica.com", descricao, introducao: "Segue o demonstrativo dos serviços prestados e o relatório para conferência.", competencia: lote.competencia, vencimento: lote.vencimento, centavos: resumo.total, formaPagamento: lote.formaPagamento, ...(lote.dadosDeposito?{dadosDeposito:lote.dadosDeposito}:{}), pixChave: lote.pixChave, pixBeneficiario: lote.pixBeneficiario, observacoes: `Subtotal dos serviços: R$ ${(resumo.subtotal / 100).toFixed(2)}. Acréscimo comercial: ${resumo.adicionalBps / 100}%. Total: R$ ${(resumo.total / 100).toFixed(2)}.`, fluxo: { cobrancaId: lote.cobrancaId, nota: "", boleto: "" }, anexos: [{ tipo: "ordem-servico", nome: "Relatorio-servicos-prestados.pdf", blob, tamanho: (await container.getBlockBlobClient(blob).getProperties()).contentLength || bytes.length }], atualizadoEm: lote.criadoEm };
         email.cc = lote.cc || "";
         await this.garantir(this.tabela(), `emails-${this.empresa}`, email.id, email);
         await this.garantir(this.tabela("AdminConfiguracoes"), `cobrancas-${this.empresa}`, plano.id, plano);

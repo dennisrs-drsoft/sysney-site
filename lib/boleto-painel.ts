@@ -9,6 +9,7 @@ export function hashDadosBoleto(e:EmailCobranca,c:Cobranca,documento:string) {
   return createHash("sha256").update(JSON.stringify({id:e.id,empresa:e.empresa,cobrancaId:c.id,documento,competencia:c.competencia,centavos:c.centavos,vencimento:c.vencimento,descricao:e.descricao,po:e.po || ""})).digest("hex");
 }
 export function conferirDadosBoleto(e:EmailCobranca,c:Cobranca) {
+  if(e.formaPagamento && e.formaPagamento!=="boleto")throw new Error("Esta cobrança não usa boleto.");
   if(!["sysney","drsoft"].includes(e.empresa) || e.fluxo?.cobrancaId!==c.id || e.centavos!==c.centavos || e.competencia!==c.competencia || e.vencimento!==c.vencimento) throw new Error("Cobrança divergente. Atualize antes de emitir.");
   if(!Number.isSafeInteger(c.centavos) || c.centavos<250 || c.centavos>100000000 || !dataValida(c.vencimento) || c.vencimento<hojeBrasil()) throw new Error("Confira valor e vencimento do boleto.");
 }

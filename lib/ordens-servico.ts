@@ -1,3 +1,4 @@
+import type {DadosDeposito,FormaPagamento} from "./emails-cobranca";
 export type PreferenciasCobrancaOS = {
     email: string;
     cc: string;
@@ -57,7 +58,8 @@ export type LoteOS = {
     vencimento: string;
     email: string;
     cc?: string;
-    formaPagamento: "pix" | "boleto";
+    formaPagamento: FormaPagamento;
+    dadosDeposito?: DadosDeposito;
     pixChave: string;
     pixBeneficiario: string;
     cobrancaId: string;

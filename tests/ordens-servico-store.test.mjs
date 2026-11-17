@@ -76,3 +76,12 @@ test('histórico grande importa somente novos em lotes retomáveis, sem duplicar
  assert.equal((await store.importarExcel('c1',b,retomada.versao,randomUUID(),'Teste',true)).repetida,true);
  const ampliada=await store.preverExcel('c1',excelOS([...rows,{data:'01/03/2027',inicio:'08:00',fim:'09:00',descricao:'Adicionado depois'}]));assert.equal(ampliada.novas,1);assert.equal(ampliada.ignoradas,85);
 });
+
+test('ordens de serviço preparam depósito com conta congelada e sem dados de PIX',async()=>{
+ const {store,os}=await preparar(),op=randomUUID(),dadosDeposito={banco:'077 - Inter',agencia:'0001',conta:'39764172-9',cnpj:'57.767.099/0001-79',razaoSocial:'SYSNEY SERVICOS DE INFORMATICA LTDA'};
+ const body={...corpo(os),formaPagamento:'deposito',dadosDeposito,operacaoId:op};const lote=await store.executar(body,'Teste');
+ const email=JSON.parse((await store.tabela().getEntity('emails-sysney',lote.emailId)).json);
+ assert.equal(email.formaPagamento,'deposito');assert.deepEqual(email.dadosDeposito,dadosDeposito);assert.equal(email.pixChave,'');assert.equal(email.pixBeneficiario,'');assert.equal(email.fluxo.boleto,'');
+ assert.deepEqual((await store.executar(body,'Teste')).dadosDeposito,dadosDeposito);
+ await assert.rejects(store.executar({...body,dadosDeposito:{...dadosDeposito,conta:'12345678-0'}},'Teste'),/outro conteúdo/);
+});

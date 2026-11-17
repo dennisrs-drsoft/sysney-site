@@ -1,5 +1,14 @@
 import { moeda, dataBr, type Empresa } from "./cobrancas";
 
+export type FormaPagamento = "boleto" | "pix" | "deposito";
+export type DadosDeposito = { banco: string; agencia: string; conta: string; cnpj: string; razaoSocial: string };
+export function contaDepositoPadrao(empresa: Empresa): DadosDeposito {
+  return empresa === "sysney"
+    ? { banco:"077 - Inter", agencia:"0001", conta:"39764172-9", cnpj:"57.767.099/0001-79", razaoSocial:"SYSNEY SERVICOS DE INFORMATICA LTDA" }
+    : { banco:"077 - Inter", agencia:"0001", conta:"9439596-9", cnpj:"09.365.785/0001-70", razaoSocial:"DRSOFT SERVICOS DE INFORMATICA LTDA" };
+}
+export const rotulosPagamento: Record<FormaPagamento,string> = {boleto:"Boleto",pix:"PIX",deposito:"Depósito/Transferência"};
+export function exigeBoleto(e: Pick<EmailCobranca,"formaPagamento">) { return !e.formaPagamento || e.formaPagamento === "boleto"; }
 export type AnexoEmail = { tipo: "nota" | "boleto" | "ordem-servico"; nome: string; blob: string; tamanho: number };
 export const nomesAnexos = {nota:"Nota fiscal",boleto:"Boleto","ordem-servico":"Ordem de serviço"};
 export type TentativaEmail = { id: string; data: string; destino: string; cc?: string; bcc?: string; remetente?: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string; documentoConciliacaoPix?: string };
@@ -9,7 +18,7 @@ export type EmailCobranca = {
   assunto: string; saudacao: string; introducao: string; descricao: string;
   po?: string; contato?: string;
   descontoCentavos?: number; descontoMotivo?: string;
-  formaPagamento?: "boleto" | "pix"; pixChave?: string; pixBeneficiario?: string;
+  formaPagamento?: FormaPagamento; dadosDeposito?: DadosDeposito; pixChave?: string; pixBeneficiario?: string;
   competencia: string; centavos: number; vencimento: string; observacoes: string;
   assinatura: string; detalhado: boolean; confirmarRecebimento: boolean;
   status: "rascunho" | "revisado" | "enviando" | "aceito" | "incerto" | "emitindo_documento";
@@ -18,18 +27,46 @@ export type EmailCobranca = {
   fluxo?: { cobrancaId: string; nota: string; notaEmissor?:"municipal"|"nacional"; notaChave?:string; boleto: string; documentos?: {hash: string; por: string; em: string} };
 };
 export function validarPagamento(e:EmailCobranca) {
-  if(e.formaPagamento!==undefined && e.formaPagamento!=="boleto" && e.formaPagamento!=="pix")throw new Error("Forma de pagamento inválida.");
+  if(e.formaPagamento!==undefined && !["boleto","pix","deposito"].includes(e.formaPagamento))throw new Error("Forma de pagamento inválida.");
   for(const v of [e.pixChave,e.pixBeneficiario])if(v!==undefined&&(typeof v!=="string"||v.length>150||/[\x00-\x1f]/.test(v)))throw new Error("Confira a chave e o beneficiário do PIX (máximo 150 caracteres).");
   if(e.formaPagamento==="pix" && (!e.pixChave?.trim()||!e.pixBeneficiario?.trim()))throw new Error("Preencha a chave e o beneficiário do PIX.");
-  if(e.formaPagamento==="pix"&&(e.fluxo?.boleto||e.anexos.some(a=>a.tipo==="boleto")))throw new Error("Há boleto registrado ou anexado. Confira sua baixa antes de mudar para PIX.");
+  if(!exigeBoleto(e)&&(e.fluxo?.boleto||e.anexos.some(a=>a.tipo==="boleto")))throw new Error("Há boleto registrado ou anexado. Confira sua baixa antes de mudar a forma de pagamento.");
+  if(e.formaPagamento === "deposito") {
+    const d=e.dadosDeposito, esperado=contaDepositoPadrao(e.empresa);
+    if(!d || typeof d!=="object" || Array.isArray(d))throw new Error("Preencha os dados para depósito/transferência.");
+    for(const k of ["banco","agencia","conta","cnpj","razaoSocial"] as const) {
+      if(typeof d[k]!=="string" || !d[k].trim() || d[k].length>150 || /[\x00-\x1f]/.test(d[k]))throw new Error("Confira os dados da conta para depósito/transferência.");
+    }
+    if(!/^\d{3}\s*-\s*\S/.test(d.banco) || !/^\d{1,6}(?:-[\dXx])?$/.test(d.agencia) || !/^\d{2,20}-[\dXx]$/.test(d.conta))throw new Error("Confira banco, agência e conta com dígito.");
+    if(d.cnpj.replace(/\D/g,"")!==esperado.cnpj.replace(/\D/g,""))throw new Error("O CNPJ da conta deve corresponder à empresa que está cobrando.");
+  }
+}
+export function normalizarDadosDeposito(valor: unknown, empresa: Empresa): DadosDeposito {
+  if(!valor || typeof valor!=="object" || Array.isArray(valor))throw new Error("Preencha os dados para depósito/transferência.");
+  const v=valor as Record<string,unknown>, campos=["banco","agencia","conta","cnpj","razaoSocial"] as const;
+  for(const k of campos)if(typeof v[k]!=="string")throw new Error("Confira os dados da conta para depósito/transferência.");
+  const d=Object.fromEntries(campos.map(k=>[k,(v[k] as string).trim()])) as DadosDeposito;
+  validarPagamento({...novoEmail(empresa),formaPagamento:"deposito",dadosDeposito:d});
+  return d;
+}
+export function tentativaBancariaDeOutraPO(registro: {json?:string}, e: EmailCobranca, documento: string) {
+  if(!e.po || !registro.json)return false;
+  try {
+    const p=JSON.parse(registro.json), texto=Object.values(p.mensagem||{}).filter(v=>typeof v==="string").join(" ");
+    const pos=[...texto.matchAll(/\bPO\s*[:#-]?\s*(\d+)\b/gi)].map(m=>m[1].replace(/^0+/,""));
+    return pos.length===1 && pos[0]!==e.po.replace(/^0+/,"") && p.pagador?.cpfCnpj?.replace(/\D/g,"")===documento
+      && Number.isFinite(p.valorNominal) && Math.round(p.valorNominal*100)!==e.centavos
+      && /^20\d{2}-\d{2}-\d{2}$/.test(p.dataVencimento) && p.dataVencimento!==e.vencimento;
+  } catch { return false; }
 }
 export function documentosCompletos(e:EmailCobranca) {
+  if(e.formaPagamento==="deposito")return e.anexos.some(a=>a.tipo==="nota");
   const requerido=e.formaPagamento==="pix"?"ordem-servico":"boleto";
   return e.anexos.some(a=>a.tipo==="nota")&&e.anexos.some(a=>a.tipo===requerido);
 }
 export function validarDocumentosEmail(e:EmailCobranca) {
   validarPagamento(e);
-  if(!documentosCompletos(e))throw new Error(e.formaPagamento==="pix"?"Anexe os PDFs da nota e da ordem de serviço. Cobrança por PIX não exige boleto.":"Anexe os PDFs da nota e do boleto desta cobrança.");
+  if(!documentosCompletos(e))throw new Error(e.formaPagamento==="deposito"?"Anexe o PDF da nota fiscal. A proposta ou ordem de serviço pode ser anexada como documento de apoio.":e.formaPagamento==="pix"?"Anexe os PDFs da nota e da ordem de serviço. Cobrança por PIX não exige boleto.":"Anexe os PDFs da nota e do boleto desta cobrança.");
 }
 export function novoEmail(empresa: Empresa, cliente = ""): EmailCobranca {
   return { id: "", empresa, cliente, para: "", cc: "", po:"", contato:"", assunto: "{{empresa}} — Demonstrativo de cobrança — {{competencia}}",
@@ -98,6 +135,11 @@ export function htmlEmail(e: EmailCobranca, logo = "https://www.sysney.com/logo.
     linhas.push({ rotulo: "Forma de pagamento", valor: "PIX" });
     linhas.push({ rotulo: "Chave PIX", valor: e.pixChave || "A confirmar" });
     linhas.push({ rotulo: "Beneficiário", valor: e.pixBeneficiario || "A confirmar" });
+  }
+  if (e.formaPagamento === "deposito") {
+    const d=e.dadosDeposito;
+    linhas.push({rotulo:"Forma de pagamento",valor:rotulosPagamento.deposito});
+    for(const [rotulo,valor] of [["Banco",d?.banco],["Agência",d?.agencia],["Conta",d?.conta],["CNPJ do beneficiário",d?.cnpj],["Razão social",d?.razaoSocial]])linhas.push({rotulo:rotulo!,valor:valor||"A confirmar"});
   }
   if (e.aviso) {
     linhas.push({ rotulo: "Valor já recebido", valor: moeda(e.aviso.recebidoCentavos) });

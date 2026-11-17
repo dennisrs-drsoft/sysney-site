@@ -76,3 +76,9 @@ test("envio PIX aceito cria regra, vínculo e reserva no mesmo lote, preservando
  assert.equal((await simular([email],[{...regra,automatica:false,vencimento:hoje,inicio:hoje,fim:hoje}])).resultado.baixas,0);
  assert.equal((await simular([email,{...email,fluxo:{...email.fluxo,cobrancaId:"c2"}}],[],[cobranca,{...cobranca,id:"c2"}])).resultado.baixas,0);
 });
+
+test('depósito não gera regra nem baixa automática de PIX',async()=>{
+ const {regraPixDoEnvio}=await import('../admin-api/src/services/conciliacao-regras.mjs');
+ const cobranca={...c,nota:'6',vencimento:'2026-12-18'},email={status:'aceito',formaPagamento:'deposito',centavos:c.centavos,vencimento:'2026-12-18',fluxo:{cobrancaId:c.id,nota:'6'},tentativas:[{status:'aceito',data:'2026-11-17T19:00:00Z',documentoConciliacaoPix:regra.documento}]};
+ assert.equal(regraPixDoEnvio(cobranca,email),null);assert.deepEqual(integrarPagamentosPix([cobranca],[{id:'p',documento:regra.documento}],[],[email])[0].eventos,[]);
+});
