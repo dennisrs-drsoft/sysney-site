@@ -25,3 +25,13 @@ test('bloqueia datas artificiais/invalidas, código fictício, perfil incompleto
  assert.throws(()=>normalizarPerfilNacional(null));assert.throws(()=>montarDpsNacional(dados,'0','2026-11-02T12:00:00-03:00','homologacao'));
  assert.throws(()=>montarDpsNacional(dados,'1','2026-11-03T12:00:00-03:00','producao'));
 });
+
+
+test('descrição precede NBS no leiaute oficial dos dois ambientes',()=>{
+ for(const ambiente of ['homologacao','producao']){
+  const d=montarDpsNacional({...dados,perfil:{...perfil,codigoMunicipal:'099',nbs:'118064000'}},'3','2026-11-02T12:00:00-03:00',ambiente);
+  const serv=new XMLParser({parseTagValue:false}).parse(d.xml).DPS.infDPS.serv.cServ;
+  assert.deepEqual(Object.keys(serv),['cTribNac','cTribMun','xDescServ','cNBS']);
+  assert.equal(serv.cNBS,'118064000');
+ }
+});

@@ -1,6 +1,7 @@
 import {XMLParser,XMLValidator} from 'fast-xml-parser';
 import {TextDecoder} from 'node:util';
 import {digest} from './atp-fiscal-v1.mjs';
+import {nationalIssuerPostalCode} from './national-postal-code.mjs';
 const NS='http://www.sped.fazenda.gov.br/nfse';
 const fail=()=>{throw Error('XML nacional não comprovado ou incompatível.');};
 const obj=v=>{if(!v||typeof v!=='object'||Array.isArray(v))fail();return v;};
@@ -33,6 +34,7 @@ export function inspectNationalXml(bytes,{environment='production'}={}){
  const n=obj(root.infNFSe),d=obj(obj(n.DPS).infDPS),t=obj(d.toma),e=obj(n.emit),prest=obj(d.prest);
  const authorityKey=str(n['@_Id'],/^NFS\d{50}$/).slice(3),number=str(n.nNFSe,/^[1-9]\d{0,12}$/);
  const issuerDocument=str(e.CNPJ,/^\d{14}$/);if(prest.CNPJ!==issuerDocument||prest.CPF!==undefined)fail();
+ const postalCode = nationalIssuerPostalCode(issuerDocument, e.enderNac?.CEP);
  if(d.tpAmb!==(environment==='production'?'1':'2')||d.subst!==undefined||d.interm!==undefined)fail();
  const recipientDocument=t.CNPJ!==undefined?str(t.CNPJ,/^\d{14}$/):str(t.CPF,/^\d{11}$/);if(t.CNPJ!==undefined&&t.CPF!==undefined)fail();
  const competenceDate=str(d.dCompet,/^20\d{2}-\d{2}-\d{2}$/);if(!Number.isFinite(Date.parse(competenceDate))||new Date(competenceDate).toISOString().slice(0,10)!==competenceDate)fail();
@@ -41,7 +43,7 @@ export function inspectNationalXml(bytes,{environment='production'}={}){
  if(!Number.isSafeInteger(amountCentsBRL)||amountCentsBRL<=0||amountCentsBRL>10000000000)fail();
  const description=str(obj(obj(d.serv).cServ).xDescServ,/^[\s\S]{1,1500}$/);
  const extra=environment==='homologacao'?{dpsId:str(d['@_Id'],/^DPS\d{42}$/),emissionAt:str(d.dhEmi,/^20\d{2}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,3})?(?:Z|[+-]\d\d:\d\d)$/),municipalityCode:str(d.cLocEmi,/^\d{7}$/),serviceMunicipality:str(obj(obj(d.serv).locPrest).cLocPrestacao,/^\d{7}$/),serviceCode:str(obj(obj(d.serv).cServ).cTribNac,/^\d{6}$/)}:{};
- return {authorityKey,number,issuerDocument,recipientDocument,recipientType:t.CNPJ!==undefined?'CNPJ':'CPF',amountCentsBRL,competence:competenceDate.slice(0,7),competenceDate,description,authorizedAtUtc:new Date(authorizedAtUtc).toISOString(),xmlHash:digest(bytes),schemaVersion:'1.01',environment,...extra};
+ return {authorityKey,number,issuerDocument,recipientDocument,recipientType:t.CNPJ!==undefined?'CNPJ':'CPF',amountCentsBRL,competence:competenceDate.slice(0,7),competenceDate,description,authorizedAtUtc:new Date(authorizedAtUtc).toISOString(),xmlHash:digest(bytes),schemaVersion:'1.01',environment,...extra,...postalCode,municipalDescriptionWithLineBreaks:typeof n.xTribMun==="string"&&/[\r\n]/.test(n.xTribMun),municipalServiceCode:d.serv.cServ.cTribMun,nationalServiceCode:d.serv.cServ.cTribNac};
 }
 
 export function inspectRestrictedNationalEvent(bytes,{authorityKey,type,sequence=1,now=Date.now()}){

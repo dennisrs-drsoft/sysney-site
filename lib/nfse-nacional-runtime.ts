@@ -5,6 +5,8 @@ import {BlobServiceClient} from "@azure/storage-blob";
 import {XMLParser} from "fast-xml-parser";
 import {createNationalAdminSequence,createNationalAdminQueue} from "../admin-api/src/services/national-admin-store.mjs";
 import {inspectNationalXml} from "../admin-api/src/services/atp-authorized-xml.mjs";
+import {acceptedNationalSchemaProof} from "../admin-api/src/services/national-postal-code.mjs";
+import {validateNationalDanfse} from "../admin-api/src/services/national-danfse.mjs";
 import {validarDadosNacionais,montarDpsNacional,type DadosNacionais} from "./nfse-nacional";
 import {hojeBrasil,type Cobranca} from "./cobrancas";
 import type {EmailCobranca} from "./emails-cobranca";
@@ -76,15 +78,19 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
   const xml=Buffer.from(r.xml,"base64"),fields=inspectNationalXml(xml,{environment:ambiente==="producao"?"production":"homologacao"});
   const dps=new XMLParser({ignoreAttributes:false,parseTagValue:false,trimValues:false}).parse(xml.toString()).NFSe.infNFSe.DPS.infDPS;
   const original=new XMLParser({ignoreAttributes:false,parseTagValue:false,trimValues:false}).parse(w.xml).DPS.infDPS;
-  if(JSON.stringify(dps)!==JSON.stringify(original)||fields.issuerDocument!==w.cnpj||fields.recipientDocument!==documento||fields.amountCentsBRL!==w.dados.centavos||fields.competenceDate!==w.dados.competenciaFiscal||r.proof?.xmlHash!==hash(xml)||!r.proof.schemaValid||!r.proof.signatureValid||!r.proof.chainValid)throw Error("Documento oficial divergente ou não comprovado. Não vincular nem reemitir.");
+  if(JSON.stringify(dps)!==JSON.stringify(original)||fields.issuerDocument!==w.cnpj||fields.recipientDocument!==documento||fields.amountCentsBRL!==w.dados.centavos||fields.competenceDate!==w.dados.competenciaFiscal||r.proof?.xmlHash!==hash(xml)||!acceptedNationalSchemaProof(r.proof,fields)||!r.proof.signatureValid||!r.proof.chainValid)throw Error("Documento oficial divergente ou não comprovado. Não vincular nem reemitir.");
   const conta=process.env.ADMIN_STORAGE_ACCOUNT||(process.env.NODE_ENV!=="production"?"sysneyadm2602":"");
   const container=new BlobServiceClient(`https://${conta}.blob.core.windows.net`,new DefaultAzureCredential()).getContainerClient("admin-anexos");
   const base=ambiente==="producao"?`historico/${emp}/nfse/nacional-${fields.authorityKey}`:`qa/nacional-admin/${emp}/${id}/${fields.authorityKey}`;
   const upload=async(path:string,bytes:Buffer,tipo:string)=>{const b=container.getBlockBlobClient(path);try{await b.uploadData(bytes,{conditions:{ifNoneMatch:"*"},blobHTTPHeaders:{blobContentType:tipo}});}catch(e){if(![409,412].includes((e as {statusCode?:number}).statusCode||0))throw e;const saved=await b.downloadToBuffer();if(hash(saved)!==hash(bytes))throw Error("Documento existente com conteúdo divergente.");}};
   await upload(base+".xml",xml,"application/xml");
   let pdf:Buffer|undefined;
-  if(r.pdf){pdf=Buffer.from(r.pdf,"base64");if(pdf.length>5000000||pdf.length<100||pdf.subarray(0,5).toString()!=="%PDF-"||hash(pdf)!==r.pdfHash||!pdf.subarray(-1024).includes(Buffer.from("%%EOF")))throw Error("DANFSe não confirmado.");await upload(base+".pdf",pdf,"application/pdf");}
-  w={...w,status:ambiente==="producao"?"emitida":"homologada",resultado:{numero:fields.number,chave:fields.authorityKey,xmlBlob:base+".xml",...(pdf?{pdfBlob:base+".pdf"}:{}),xmlHash:hash(xml),proof:r.proof},atualizadoEm:now};await guardar();
+  if(!r.pdf&&w.resultado?.pdfBlob===base+".pdf"&&w.resultado.xmlHash===hash(xml)){
+   pdf=await container.getBlobClient(base+".pdf").downloadToBuffer();
+   await validateNationalDanfse(pdf,fields);
+  }
+  if(!pdf&&r.pdf){pdf=Buffer.from(r.pdf,"base64");if(pdf.length>5000000||pdf.length<100||pdf.subarray(0,5).toString()!=="%PDF-"||hash(pdf)!==r.pdfHash||!pdf.subarray(-1024).includes(Buffer.from("%%EOF")))throw Error("DANFSe não confirmado.");await upload(base+".pdf",pdf,"application/pdf");}
+  w={...w,status:ambiente==="producao"?"emitida":"homologada",resultado:{numero:fields.number,chave:fields.authorityKey,xmlBlob:base+".xml",...(pdf?{pdfBlob:base+".pdf"}:{}),xmlHash:hash(xml),proof:r.proof,...(fields.issuerPostalCodeFormatted?{cepEmitente:fields.issuerPostalCodeFormatted}:{})},atualizadoEm:now};await guardar();
   if(ambiente==="homologacao"){
    if(pdf){const p=`nfse-nacional-homologacoes-${emp}`,ent={partitionKey:p,rowKey:w.perfilHash,json:JSON.stringify({perfilHash:w.perfilHash,cnpj:w.cnpj,workId:id,em:now,xmlHash:hash(xml),pdfHash:hash(pdf)})},old=await get(table(),p,w.perfilHash);if(old)await table().updateEntity(ent,"Replace",{etag:old.etag});else await table().createEntity(ent);}
    if(email.status==="emitindo_documento"&&email.atualizadoEm===w.emailBloqueadoEm){email.status="rascunho";email.atualizadoEm=now;await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});}
