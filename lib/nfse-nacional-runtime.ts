@@ -1,3 +1,4 @@
+import {particaoDocumentoFiscal,particaoControleFiscal,type ContextoFiscal} from "./contexto-fiscal";
 import {createHash} from "node:crypto";
 import type {TableClient} from "@azure/data-tables";
 import {DefaultAzureCredential} from "@azure/identity";
@@ -8,10 +9,9 @@ import {inspectNationalXml} from "../admin-api/src/services/atp-authorized-xml.m
 import {acceptedNationalSchemaProof} from "../admin-api/src/services/national-postal-code.mjs";
 import {validateNationalDanfse} from "../admin-api/src/services/national-danfse.mjs";
 import {validarDadosNacionais,montarDpsNacional,type DadosNacionais} from "./nfse-nacional";
-import {hojeBrasil,type Cobranca} from "./cobrancas";
-import type {EmailCobranca} from "./emails-cobranca";
+import {hojeBrasil} from "./cobrancas";
 type Empresa="sysney"|"drsoft";
-type Ctx={email:EmailCobranca;cobranca:Cobranca;documento:string;idNota:string;row:{etag?:string};cr:{etag?:string}|null};
+type Ctx=ContextoFiscal;
 type Table=(nome?:string)=>TableClient;
 const hash=(s:string|Buffer)=>createHash("sha256").update(s).digest("hex");
 const get=async(t:TableClient,p:string,k:string)=>{try{return await t.getEntity<{json:string;em?:string;assinatura?:boolean;envio?:boolean}>(p,k);}catch(e){if((e as {statusCode?:number}).statusCode!==404)throw e;return null;}};
@@ -54,7 +54,7 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
   const emissao=new Date(Date.now()-3*3600000).toISOString().slice(0,19)+"-03:00";
   const assignment=await createNationalAdminSequence(table(),{cnpj:d.cnpj,ambiente}).reserve({workId:id,hash:previa.hash,serie:d.perfil.serie,emissao});
   const built=montarDpsNacional(d,assignment.numero,assignment.emissao,ambiente);
-  w={id,idNota:ctx.idNota,empresa:emp,cnpj:d.cnpj,ambiente,emailId:email.id,emailDescricao:email.descricao,dados:d,hash:previa.hash,perfilHash:hash(JSON.stringify(d.perfil)),numero:assignment.numero,idDps:built.idDps,xml:built.xml,xmlHash:built.hash,status:"assinando",atualizadoEm:now};
+  w={id,idNota:ctx.idNota,empresa:emp,...(ctx.origem==="regularizacao"?{origem:"regularizacao"}:{}),cnpj:d.cnpj,ambiente,emailId:email.id,emailDescricao:email.descricao,dados:d,hash:previa.hash,perfilHash:hash(JSON.stringify(d.perfil)),numero:assignment.numero,idDps:built.idDps,xml:built.xml,xmlHash:built.hash,status:"assinando",atualizadoEm:now};
   await guardar();
   w.jobId=await queue.enqueue({empresa:emp,ambiente,workId:id,hash:w.hash,acao:"assinar"});await guardar();
   return {trabalho:w,mensagem:"DPS reservada e enviada para assinatura e validação local. Nenhuma transmissão fiscal solicitada."};
@@ -93,7 +93,7 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
   w={...w,status:ambiente==="producao"?"emitida":"homologada",resultado:{numero:fields.number,chave:fields.authorityKey,xmlBlob:base+".xml",...(pdf?{pdfBlob:base+".pdf"}:{}),xmlHash:hash(xml),proof:r.proof,...(fields.issuerPostalCodeFormatted?{cepEmitente:fields.issuerPostalCodeFormatted}:{})},atualizadoEm:now};await guardar();
   if(ambiente==="homologacao"){
    if(pdf){const p=`nfse-nacional-homologacoes-${emp}`,ent={partitionKey:p,rowKey:w.perfilHash,json:JSON.stringify({perfilHash:w.perfilHash,cnpj:w.cnpj,workId:id,em:now,xmlHash:hash(xml),pdfHash:hash(pdf)})},old=await get(table(),p,w.perfilHash);if(old)await table().updateEntity(ent,"Replace",{etag:old.etag});else await table().createEntity(ent);}
-   if(email.status==="emitindo_documento"&&email.atualizadoEm===w.emailBloqueadoEm){email.status="rascunho";email.atualizadoEm=now;await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});}
+   if(email.status==="emitindo_documento"&&email.atualizadoEm===w.emailBloqueadoEm){email.status="rascunho";email.atualizadoEm=now;await table().updateEntity({partitionKey:particaoDocumentoFiscal(emp,ctx),rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});}
    return {trabalho:w,email,mensagem:pdf?"Documento de homologação confirmado, com XML e PDF privados. Nenhuma nota de produção ou e-mail emitido.":"Homologação retornou XML, mas o PDF ainda não foi recuperado. Consulte novamente para concluir."};
   }
   if(email.centavos!==w.dados.centavos||email.descricao!==w.emailDescricao||email.fluxo?.nota&&email.fluxo.nota!==fields.number||cobranca.nota&&cobranca.nota!==fields.number)throw Error("Cobrança alterada ou outra nota vinculada. Documento preservado para conciliação.");
@@ -104,11 +104,11 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
    const anexo=email.anexos.find(a=>a.tipo==="nota");if(anexo&&anexo.blob!==base+".pdf")throw Error("Outra nota anexada. Concilie os documentos antes de substituir.");
    email.fluxo!.nota=fields.number;email.fluxo!.notaEmissor="nacional";email.fluxo!.notaChave=fields.authorityKey;delete email.fluxo!.documentos;delete email.aprovacaoEnvio;email.status="rascunho";email.atualizadoEm=now;
    if(pdf&&!anexo)email.anexos.push({tipo:"nota",nome:`NFSe_Nacional_${fields.number}.pdf`,blob:base+".pdf",tamanho:pdf.length});
-   await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
+   await table().updateEntity({partitionKey:particaoDocumentoFiscal(emp,ctx),rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
   }
   cobranca.nota=fields.number;cobranca.notaEmissor="nacional";cobranca.notaChave=fields.authorityKey;cobranca.persistida=true;
   if(!cobranca.eventos.some(e=>e.id===id))cobranca.eventos.push({id,tipo:"documentos",data:hojeBrasil(),registradoEm:now,responsavel:"Sistema — NFS-e Nacional",detalhe:`NFS-e nacional ${fields.number} confirmada; chave ${fields.authorityKey}. ${pdf?"PDF anexado.":"PDF pendente de recuperação."} Nenhum e-mail enviado.`});
-  const ce={partitionKey:`cobrancas-${emp}`,rowKey:cobranca.id,json:JSON.stringify(cobranca)};if(ctx.cr)await table().updateEntity(ce,"Replace",{etag:ctx.cr.etag});else await table().createEntity(ce);
+  const ce={partitionKey:particaoControleFiscal(emp,ctx),rowKey:cobranca.id,json:JSON.stringify(cobranca)};if(ctx.cr)await table().updateEntity(ce,"Replace",{etag:ctx.cr.etag});else await table().createEntity(ce);
   return {trabalho:w,email,mensagem:pdf?"NFS-e nacional vinculada, com XML e PDF recuperados. Confira e aprove o envio separadamente.":"Nota nacional vinculada. Consulte novamente para recuperar o PDF, sem reemitir."};
  }
  if(body.acao==="nacional-consultar"){
@@ -130,7 +130,7 @@ export async function operarNacional({table,emp,ctx,body,req,regime}:{table:Tabl
  w.status="transmitindo";w.aprovacao={hash:w.hash,em:now,por:por(req)};w.emailBloqueadoEm=now;w.atualizadoEm=now;
  const current=await get(table(),part,id);if(current?.etag!==workRow?.etag)throw Error("Prévia nacional mudou. Atualize antes de transmitir.");await guardar();
  email.status="emitindo_documento";email.atualizadoEm=now;delete email.aprovacaoEnvio;delete email.fluxo!.documentos;
- await table().updateEntity({partitionKey:`emails-${emp}`,rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
+ await table().updateEntity({partitionKey:particaoDocumentoFiscal(emp,ctx),rowKey:email.id,json:JSON.stringify(email)},"Replace",{etag:ctx.row.etag});
  w.jobId=await queue.enqueue({empresa:emp,ambiente,workId:id,hash:w.hash,acao:"emitir"});await guardar();
  return {trabalho:w,email,mensagem:"Transmissão nacional aprovada e registrada. Aguarde o resultado; não repita a emissão. Nenhum e-mail enviado."};
 }

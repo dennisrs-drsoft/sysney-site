@@ -8,6 +8,13 @@ function Get-NationalTable($Config,[string]$Table,[string]$Partition,[string]$Ro
  $uri="https://$($Config.storageAccount).table.core.windows.net/$Table(PartitionKey='$Partition',RowKey='$Row')"
  return Invoke-RestMethod -Uri $uri -Headers @{Authorization="Bearer $token";'x-ms-version'='2019-02-02';Accept='application/json;odata=nometadata'} -TimeoutSec 15
 }
+function Get-NationalDocumentPartition($Work,[string]$Empresa){
+ if($Empresa -notin @('sysney','drsoft')){throw 'Empresa documental invalida.'}
+ $origem=if($Work.PSObject.Properties['origem']){[string]$Work.origem}else{''}
+ if($origem -and $origem -ne 'regularizacao'){throw 'Origem documental nacional invalida.'}
+ if($origem -eq 'regularizacao'){return 'regularizacao-documentos-'+$Empresa}
+ return 'emails-'+$Empresa
+}
 function Hash-NationalBytes([byte[]]$Bytes){$sha=[Security.Cryptography.SHA256]::Create();try{return ([BitConverter]::ToString($sha.ComputeHash($Bytes))).Replace('-','').ToLowerInvariant()}finally{$sha.Dispose()}}
 function Read-NationalBytes([IO.Stream]$Stream,[int]$Limit){
  $out=[IO.MemoryStream]::new();try{$buffer=New-Object byte[] 8192;while(($n=$Stream.Read($buffer,0,$buffer.Length)) -gt 0){if($out.Length+$n -gt $Limit){throw 'Retorno nacional excede limite.'};$out.Write($buffer,0,$n)};return ,$out.ToArray()}finally{$out.Dispose()}
@@ -78,7 +85,8 @@ function Invoke-NationalAdminNative($p){
   $policy=@($config.emitentes|Where-Object { $_.empresa -eq $p.empresa -and $_.ambiente -eq $p.ambiente -and $_.enabled -eq $true });if($policy.Count -ne 1){throw 'Politica nacional nao aprovada.'}
   $work=(Get-NationalTable $config 'AdminDocumentos' ('nfse-nacional-trabalhos-'+$p.empresa) $p.workId).json|ConvertFrom-Json
   if($work.status -ne 'transmitindo' -or $work.empresa -ne $p.empresa -or $work.cnpj -ne $p.cnpj -or $work.ambiente -ne $p.ambiente -or $work.aprovacao.hash -ne $work.hash -or $work.xmlHash -ne $p.unsignedHash -or $policy[0].perfilHash -ne $work.perfilHash -or [datetime]::UtcNow.Subtract([datetime]$work.aprovacao.em).TotalMinutes -gt 10 -or [datetime]::UtcNow.Subtract([datetime]$work.aprovacao.em).TotalMinutes -lt -0.5){throw 'Aprovacao nacional expirada ou divergente.'}
-  $email=(Get-NationalTable $config 'AdminDocumentos' ('emails-'+$p.empresa) $work.emailId).json|ConvertFrom-Json
+  $documentPartition=Get-NationalDocumentPartition $work $p.empresa
+  $email=(Get-NationalTable $config 'AdminDocumentos' $documentPartition $work.emailId).json|ConvertFrom-Json
   if($email.status -ne 'emitindo_documento' -or $email.atualizadoEm -ne $work.emailBloqueadoEm -or $email.centavos -ne $work.dados.centavos -or $email.descricao -ne $work.emailDescricao -or $email.fluxo.nota){throw 'Cobranca alterada ou nota existente.'}
   $compressed=[Convert]::FromBase64String($p.body.dpsXmlGZipB64);if($compressed.Length -gt 1000000){throw 'DPS excede limite.'}
   $ms=[IO.MemoryStream]::new($compressed);$gz=[IO.Compression.GZipStream]::new($ms,[IO.Compression.CompressionMode]::Decompress)

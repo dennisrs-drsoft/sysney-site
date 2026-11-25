@@ -37,7 +37,9 @@ export async function runNationalAdminJob({queueTable,documents,config,native,ro
    authorize:async()=>{
     const latest=await load(),policy=config.emitentes?.find(x=>x.empresa===p.empresa&&x.ambiente===p.ambiente&&x.enabled===true);
     if(config.allowSend!==true||!policy||policy.perfilHash!==latest.perfilHash||latest.status!=='transmitindo'||latest.hash!==p.hash||latest.aprovacao?.hash!==latest.hash||now()-Date.parse(latest.aprovacao.em)>600000||Date.parse(latest.aprovacao.em)>now()+30000)throw Error('NATIONAL_APPROVAL_REQUIRED');
-    const e=JSON.parse((await documents.getEntity(`emails-${p.empresa}`,latest.emailId)).json);
+    if(latest.origem!==undefined&&latest.origem!=="regularizacao")throw Error("NATIONAL_DOCUMENT_SCOPE");
+    const documentPartition=latest.origem==="regularizacao"?`regularizacao-documentos-${p.empresa}`:`emails-${p.empresa}`;
+    const e=JSON.parse((await documents.getEntity(documentPartition,latest.emailId)).json);
     if(e.status!=='emitindo_documento'||e.atualizadoEm!==latest.emailBloqueadoEm||e.centavos!==latest.dados.centavos||e.descricao!==latest.emailDescricao||e.fluxo?.nota||e.anexos.some(a=>a.tipo==='nota'))throw Error('NATIONAL_BILLING_CHANGED');
    },
   });

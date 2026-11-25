@@ -41,19 +41,19 @@ test('runtime nacional: prévia → reserva transacional → assinatura; servido
   await assert.rejects(run());assert.equal([...good.table('FiscalFila').rows.values()].filter(r=>r.pedido&&JSON.parse(r.pedido).acao==='emitir').length,1);
  }finally{globalThis.Date=RealDate;}
 });
-test('resultado de produção vincula XML/PDF, separa emissor e preserva pagamento; repetição não duplica',async()=>{
+for(const origem of ['cobranca','regularizacao'])test('resultado de produção vincula XML/PDF sem duplicar — '+origem,async()=>{
  const lateClock=RealDate.parse('2026-11-03T02:00:00Z');
  globalThis.Date=class extends RealDate{constructor(...args){super(...(args.length?args:[lateClock]));}static now(){return lateClock;}};
  try{
-  const f=fixture();await operarNacional({...f.args,body:{...f.args.body,ambiente:'producao'}});const prep=await operarNacional({...f.args,body:{acao:'nacional-consultar',ambiente:'producao'}}),w=prep.trabalho,q=createNationalAdminQueue(f.table('FiscalFila')),jr=await q.get(w.jobId);await q.claim(jr);
+  const f=fixture();if(origem==='regularizacao'){f.ctx.origem='regularizacao';const er=await f.table().getEntity('emails-sysney',f.ctx.email.id);f.table().rows.set('regularizacao-documentos-sysney|'+f.ctx.email.id,{...er,partitionKey:'regularizacao-documentos-sysney'});}await operarNacional({...f.args,body:{...f.args.body,ambiente:'producao'}});const prep=await operarNacional({...f.args,body:{acao:'nacional-consultar',ambiente:'producao'}}),w=prep.trabalho,q=createNationalAdminQueue(f.table('FiscalFila')),jr=await q.get(w.jobId);await q.claim(jr);
   const key='8'.repeat(50),xml=Buffer.from(`<NFSe xmlns="http://www.sped.fazenda.gov.br/nfse" versao="1.01"><infNFSe Id="NFS${key}"><nNFSe>1</nNFSe><dhProc>${new Date().toISOString()}</dhProc><emit><CNPJ>${w.cnpj}</CNPJ></emit>${w.xml.replace(/<\?xml[^?]*\?>/,'')}</infNFSe></NFSe>`),pdf=Buffer.from('%PDF-1.4\n'+'QA SEM VALIDADE FISCAL '.repeat(10)+'\n%%EOF');
   await q.complete(w.jobId,{status:'confirmada',xml:xml.toString('base64'),pdf:pdf.toString('base64'),pdfHash:digest(pdf),proof:{xmlHash:digest(xml),schemaValid:true,signatureValid:true,chainValid:true}});
   const first=await operarNacional({...f.args,body:{acao:'nacional-resultado',ambiente:'producao'}});
   assert.equal(first.trabalho.status,'emitida');assert.equal(first.email.fluxo.notaChave,key);assert.equal(first.email.fluxo.notaEmissor,'nacional');assert.equal(first.email.anexos.length,1);assert.equal(first.email.status,'rascunho');assert.equal(globalThis.nationalQaBlobs.size,2);
   const fiscal=JSON.parse((await f.table().getEntity('nfse-historico-sysney','N-'+key)).json);assert.equal(fiscal.emissao,'2026-11-02');assert.equal(fiscal.autorizadaEmUtc,'2026-11-03T02:00:00.000Z');
-  const charge=JSON.parse(f.table().rows.get('cobrancas-sysney|'+f.ctx.cobranca.id).json);assert.equal(charge.notaChave,key);assert.ok(charge.eventos.every(e=>e.tipo==='documentos'));
-  const er=await f.table().getEntity('emails-sysney',f.ctx.email.id),cr=await f.table().getEntity('cobrancas-sysney',f.ctx.cobranca.id);
+  const charge=JSON.parse(f.table().rows.get((origem==='regularizacao'?'regularizacao-controles-sysney|':'cobrancas-sysney|')+f.ctx.cobranca.id).json);assert.equal(charge.notaChave,key);if(origem==='regularizacao'){assert.equal(f.table().rows.has('cobrancas-sysney|'+f.ctx.cobranca.id),false);assert.equal(JSON.parse((await f.table().getEntity('emails-sysney',f.ctx.email.id)).json).anexos.length,0);}assert.ok(charge.eventos.every(e=>e.tipo==='documentos'));
+  const er=await f.table().getEntity(origem==='regularizacao'?'regularizacao-documentos-sysney':'emails-sysney',f.ctx.email.id),cr=await f.table().getEntity(origem==='regularizacao'?'regularizacao-controles-sysney':'cobrancas-sysney',f.ctx.cobranca.id);
   const next={...f.args,ctx:{...f.ctx,email:JSON.parse(er.json),cobranca:JSON.parse(cr.json),row:er,cr},body:{acao:'nacional-resultado',ambiente:'producao'}};
-  const repeated=await operarNacional(next);assert.equal(repeated.email.anexos.length,1);assert.equal(globalThis.nationalQaBlobs.size,2);assert.equal(JSON.parse((await f.table().getEntity('cobrancas-sysney',f.ctx.cobranca.id)).json).eventos.length,1);
+  const repeated=await operarNacional(next);assert.equal(repeated.email.anexos.length,1);assert.equal(globalThis.nationalQaBlobs.size,2);assert.equal(JSON.parse((await f.table().getEntity(origem==='regularizacao'?'regularizacao-controles-sysney':'cobrancas-sysney',f.ctx.cobranca.id)).json).eventos.length,1);
  }finally{globalThis.Date=RealDate;delete globalThis.nationalQaBlobs;}
 });

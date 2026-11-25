@@ -1,3 +1,4 @@
+import * as regularizacao from "../../generated/regularizacao-fiscal.mjs";
 import { app } from "@azure/functions";
 import { criarHandlerPainel } from "../services/painel-handler.js";
 import * as clientes from "../../generated/clientes.mjs";
@@ -15,5 +16,5 @@ import { certificadoFiscal } from "../services/certificado-fiscal.mjs";
 
 app.http("admin-painel",{
   methods:["GET","POST"],authLevel:"function",route:"financeiro/painel/{recurso}",
-  handler:criarHandlerPainel({clientes,cobrancas,emails,aprovacoes,"historico-inter":historico,status,documentos,nfse,"ordens-servico":ordens,"atp-fiscal":atpFiscal,"certificado-fiscal":{GET:certificadoFiscal,POST:certificadoFiscal}}),
+  handler:criarHandlerPainel({clientes,cobrancas,emails,aprovacoes,"historico-inter":historico,status,documentos,nfse,"ordens-servico":ordens,"atp-fiscal":atpFiscal,"regularizacao-fiscal":regularizacao,"certificado-fiscal":{GET:certificadoFiscal,POST:certificadoFiscal}}),
 });

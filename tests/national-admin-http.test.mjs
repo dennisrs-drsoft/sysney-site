@@ -64,3 +64,17 @@ test('cliente nacional HTTP/Postman: dois emitentes/ambientes, autorização, ti
  }
  await fetch(base+'/qa/mode?name=normal');
 });
+
+
+test('worker usa o controle isolado da regularização e conserva a aprovação obrigatória',async()=>{
+ for(const origem of [undefined,'regularizacao','desconhecida'])for(const changed of [false,true]){
+  const table=memoryTable(),documents=memoryTable(),q=createNationalAdminQueue(table),id='e'.repeat(64),built=montarDpsNacional(d,'998','2026-11-02T12:00:00-03:00','homologacao'),stamp=new Date().toISOString();let posts=0;
+  const work={empresa:'sysney',cnpj:d.cnpj,ambiente:'homologacao',...(origem?{origem}:{}),hash:'a'.repeat(64),perfilHash:'b'.repeat(64),xml:built.xml,xmlHash:built.hash,idDps:built.idDps,status:'transmitindo',signedXml:Buffer.from(built.xml).toString('base64'),emailId:'qa-email',emailDescricao:d.descricao,emailBloqueadoEm:stamp,dados:d,aprovacao:{hash:'a'.repeat(64),em:stamp}};
+  await documents.createEntity({partitionKey:'nfse-nacional-trabalhos-sysney',rowKey:id,json:JSON.stringify(work)});
+  const ep=origem==='regularizacao'?'regularizacao-documentos-sysney':'emails-sysney';
+  await documents.createEntity({partitionKey:ep,rowKey:'qa-email',json:JSON.stringify({status:'emitindo_documento',atualizadoEm:stamp,centavos:changed?1:d.centavos,descricao:d.descricao,fluxo:{nota:''},anexos:[]})});
+  const job=await q.enqueue({empresa:'sysney',ambiente:'homologacao',workId:id,hash:work.hash,acao:'emitir'});
+  await runNationalAdminJob({queueTable:table,documents,config:{paused:false,allowQueries:true,allowSend:true,emitentes:[{empresa:'sysney',ambiente:'homologacao',enabled:true,perfilHash:work.perfilHash}]},native:async r=>{if(r.method==='GET')return {status:404,contentType:'application/json',body:Buffer.from('{}')};assert.equal(r.method,'POST');posts++;return {status:400,contentType:'application/json',body:Buffer.from('{"erros":[{"Codigo":"QA","Descricao":"Sem emissão real"}]}')};},row:await q.get(job)});
+  assert.equal(posts,!changed&&origem!=='desconhecida'?1:0);
+ }
+});
