@@ -1,5 +1,12 @@
 export type Empresa = "drsoft" | "sysney";
+/** Pagamento histórico preservado; emissão e envio mantêm suas datas reais. */
+export type RegularizacaoDocumental = {
+  loteId: string; recebimentoId: string; documento: string;
+  dataPagamento: string; emissaoFiscal: string; referenciaHistorica: string;
+  transacao: string; endToEndId: string; registradoEm: string;
+};
 export type Plano = {
+  regularizacao?: Pick<RegularizacaoDocumental,"recebimentoId"|"loteId">;
   avulsa?: boolean;
   id: string; clienteId: string; clienteNome: string; documento: string;
   email: string; descricao: string; centavos: number; inicio: string;
@@ -31,6 +38,7 @@ export function candidatosBoletos(cobrancas:Cobranca[],planos:Plano[],banco:Iden
   });
 }
 export type Cobranca = {
+  regularizacao?: RegularizacaoDocumental;
   id: string; planoId: string; competencia: string; clienteNome: string;
   email: string; descricao: string; centavos: number; envioPrevisto: string;
   vencimento: string; nota: string; notaEmissor?:"municipal"|"nacional"; notaChave?:string; boleto: string; demonstrativo: boolean;

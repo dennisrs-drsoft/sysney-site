@@ -1,4 +1,5 @@
 import {entidadeLoteFiscal,lerLoteFiscal} from "./regularizacao-emissao-store";
+import {criarCobrancaRegularizada,type ArquivoRegularizacao} from "./regularizacao-cobranca";
 import {randomUUID,createHash} from "node:crypto";
 import type {TableClient,TransactionAction} from "@azure/data-tables";
 import {hojeBrasil,type Empresa,type Cobranca} from "./cobrancas";
@@ -15,7 +16,7 @@ import {digestFiscal,fonteRecebimento,validarRecebimentosEmissao,manifestoLote,i
 
 type Tabela=(nome?:string)=>TableClient;
 type Registro={json:string};
-type Dependencias={table:Tabela;hoje?:()=>string;agora?:()=>string;nacional?:typeof operarNacional;municipal?:typeof operarMunicipal;preparar?:typeof prepararNacional};
+type Dependencias={table:Tabela;hoje?:()=>string;agora?:()=>string;nacional?:typeof operarNacional;municipal?:typeof operarMunicipal;preparar?:typeof prepararNacional;arquivo?:ArquivoRegularizacao};
 const errorCode=(e:unknown)=>(e as {statusCode?:number}).statusCode;
 function responsavel(req:Request){const p=req.headers.get("x-ms-client-principal");return p?String(JSON.parse(Buffer.from(p,"base64").toString()).userDetails||"Administrador").slice(0,254):"Administrador local";}
 const seguroErro=()=>"Não foi possível confirmar a etapa. Consulte o mesmo documento; não crie outro lote para este pagamento.";
@@ -61,6 +62,25 @@ export function criarRegularizacaoEmissao(deps:Dependencias){
     if(l.configuracao.emissor==="municipal"){const r=await opcional<Registro>(`nfse-sp-${l.empresa}`,id);return r?JSON.parse(r.json):null;}
     const key=createHash("sha256").update(`${l.empresa}:${id}:${l.configuracao.ambiente}:nacional-admin-v1`).digest("hex");
     const r=await opcional<Registro>(`nfse-nacional-trabalhos-${l.empresa}`,key);return r?JSON.parse(r.json):null;
+  }
+  async function historico(l:LoteEmissaoFiscal,i:ItemLoteFiscal,req:Request){
+    if(i.status!=="emitida")return;
+    try{
+      const w=await trabalho(l,i);
+      if(w?.status!=="emitida"||w.resultado?.numero!==i.nota||w.resultado?.chave!==i.chave)throw Error("Nota ainda não confirmada no trabalho fiscal.");
+      const source=await registro(l.empresa,i.recebimentoId);
+      if(fonteRecebimento(source.r)!==i.fonteHash)throw Error("O pagamento mudou depois da emissão.");
+      const ref=await criarCobrancaRegularizada({table,lote:l,item:i,recebimento:source.r,por:responsavel(req),em:agora(),arquivo:deps.arquivo});
+      i.historicoCobranca=ref;delete i.erroHistorico;
+      if(source.r.cobrancaId!==ref.cobrancaId||source.r.emailId!==ref.emailId){source.r.cobrancaId=ref.cobrancaId;source.r.emailId=ref.emailId;source.r.atualizadoEm=agora();await table().updateEntity({partitionKey:part(l.empresa),rowKey:source.r.id,json:JSON.stringify(source.r)},"Replace",{etag:source.row.etag});}
+    }catch{ i.erroHistorico="Nota emitida e preservada. A cobrança paga ou o rascunho ainda precisa ser organizado. Retome o histórico sem reemitir a nota."; }
+  }
+  async function organizarHistorico(emp:Empresa,id:string,body:Record<string,unknown>,req:Request){
+    const {row,l}=await lote(emp,id);
+    if(body.confirmado!==true||body.hash!==l.hash||l.hash!==manifestoLote(l)||l.execucao||l.configuracao.ambiente!=="producao"||!l.itens.some(i=>i.status==="emitida"))throw Error("Confirme o lote já emitido antes de organizar cobranças e rascunhos.");
+    await fontes(l);
+    for(const i of l.itens)if(i.status==="emitida")await historico(l,i,req);
+    l.atualizadoEm=agora();await table().updateEntity(entidadeLoteFiscal(l),"Replace",{etag:row.etag});return l;
   }
   async function configuracao(emp:Empresa,documento?:string){
     const reg=await regime(emp),emissor=orientacaoEmissor(reg,hoje().slice(0,7),hoje()).tipo==="nacional"?"nacional":"municipal";
@@ -193,6 +213,8 @@ export function criarRegularizacaoEmissao(deps:Dependencias){
           const hist={numero:i.nota,documento:i.documento,cliente:i.cliente,emissao:l.dataFiscal,centavos:i.centavos,situacao:"N",emissor:"municipal",...(i.xml?{xmlBlob:i.xml}:{}),...(i.pdf?{pdfBlob:i.pdf}:{}),consultadoEm:agora()};const entity={partitionKey:hp,rowKey:i.nota,json:JSON.stringify(hist)};if(old)await table().updateEntity(entity,"Replace",{etag:old.etag});else await table().createEntity(entity);
         }
         if(i.status==="emitida"&&i.nota){const source=await registro(emp,i.recebimentoId);if(fonteRecebimento(source.r)!==i.fonteHash||source.r.nota&&source.r.nota!==i.nota)throw Error("Nota confirmada, mas o pagamento mudou. Concilie o vínculo sem reemitir.");Object.assign(source.r,{nota:i.nota,notaEmissor:l.configuracao.emissor,notaChave:i.chave||"",emissaoFiscal:l.dataFiscal,pdfBlob:i.pdf||"",xmlBlob:i.xml||"",emissaoPlanejada:"",atualizadoEm:agora()});await table().updateEntity({partitionKey:part(emp),rowKey:source.r.id,json:JSON.stringify(source.r)},"Replace",{etag:source.row.etag});}
+        // Falha ao materializar o histórico nunca transforma nota confirmada em tentativa incerta.
+        if(i.status==="emitida")await historico(l,i,req);
       }
       if(["incerta","rejeitada"].includes(i.status))l.estado="revisar";else if(l.itens.every(i=>["emitida","homologada"].includes(i.status)))l.estado="concluido";else if(l.itens.every(i=>i.status==="pronta"))l.estado="pronto";
     }catch(e){
@@ -203,5 +225,5 @@ export function criarRegularizacaoEmissao(deps:Dependencias){
     if(l.itens.every(item=>["emitida","homologada"].includes(item.status)))l.estado="concluido";else if(l.itens.every(item=>item.status==="pronta"))l.estado="pronto";
     delete l.execucao;l.atualizadoEm=agora();await table().updateEntity(entidadeLoteFiscal(l),"Replace",{etag:latest.row.etag});return l;
   }
-  return {configuracao,listar,criar,aprovar,avancar,lote};
+  return {configuracao,listar,criar,aprovar,avancar,lote,organizarHistorico};
 }

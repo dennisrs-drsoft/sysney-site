@@ -15,7 +15,10 @@ for(const [empresa,f] of Object.entries(states)){
   f.recebimentos.forEach((r,index)=>{Object.assign(r,{cliente:empresa==='sysney'?'Cliente Exemplo de Tecnologia Ltda.':'Cliente Exemplo de Serviços e Consultoria Ltda.',centavos:index?147384:2730575,recebimento:index?'2025-02-10':'2025-01-10',competencia:index?'2025-02':'2025-01'});f.row('regularizacao-'+empresa,r.id,r);});
   let l=await f.service.criar(empresa,f.body(),fixtureRequest);
   for(let n=0;n<12&&!l.itens.every(i=>i.status==='pronta');n++)l=await f.service.avancar(empresa,l.id,{modo:'validar',hash:l.hash},fixtureRequest);
+  l=await f.service.aprovar(empresa,l.id,{hash:l.hash,confirmado:true},fixtureRequest);
+  for(let n=0;n<12&&l.estado!=='concluido';n++)l=await f.service.avancar(empresa,l.id,{modo:'emitir',hash:l.hash},fixtureRequest);
 }
+const vals=(f,part,name='AdminDocumentos')=>[...f.table(name).rows.values()].filter(r=>r.partitionKey===part).map(r=>JSON.parse(r.json));
 const respond=(res,code,obj)=>{res.writeHead(code,{'Content-Type':'application/json','Cache-Control':'no-store','X-Sysney-QA':'synthetic-no-fiscal-transmission'});res.end(JSON.stringify(obj));};
 const server=http.createServer(async(request,response)=>{
   const url=new URL(request.url,'http://'+host+':'+port);
@@ -31,16 +34,23 @@ const server=http.createServer(async(request,response)=>{
           return respond(response,200,{lotes:await f.service.listar(empresa),configuracao:{...m,disponivel:true,producaoHabilitada:true,perfil:f.config.perfil||null,fiscal:f.config.fiscal||null,endereco:f.config.endereco||f.config.fiscal?.endereco}});
         }
         let text='';for await(const chunk of request){text+=chunk;if(text.length>20000)return respond(response,413,{erro:'Muito grande.'});}
-        const b=JSON.parse(text),l=b.acao==='preparar'?await f.service.criar(empresa,b,fixtureRequest):b.acao==='aprovar'?await f.service.aprovar(empresa,b.loteId,b,fixtureRequest):b.acao==='avancar'?await f.service.avancar(empresa,b.loteId,b,fixtureRequest):null;
+        const b=JSON.parse(text),l=b.acao==='preparar'?await f.service.criar(empresa,b,fixtureRequest):b.acao==='aprovar'?await f.service.aprovar(empresa,b.loteId,b,fixtureRequest):b.acao==='avancar'?await f.service.avancar(empresa,b.loteId,b,fixtureRequest):b.acao==='organizar-historico'?await f.service.organizarHistorico(empresa,b.loteId,b,fixtureRequest):null;
         if(!l)return respond(response,400,{erro:'Ação inválida.'});return respond(response,200,{lote:l,emailEnviado:false,novaCobrancaCriada:false});
       }
       if(url.pathname==='/api/admin/cobrancas'&&url.searchParams.has('regularizacao')){
         const registros=f.recebimentos.map(r=>JSON.parse(f.table().rows.get(`regularizacao-${empresa}|${r.id}`).json));return respond(response,200,{registros,lotes:[]});
       }
       if(request.method==='GET'&&url.pathname==='/api/admin/clientes')return respond(response,200,{clientes:[]});
-      if(request.method==='GET'&&url.pathname==='/api/admin/cobrancas')return respond(response,200,{cobrancas:[],planos:[]});
+      if(request.method==='GET'&&url.pathname==='/api/admin/cobrancas')return respond(response,200,{cobrancas:vals(f,'cobrancas-'+empresa),planos:vals(f,'cobrancas-'+empresa,'AdminConfiguracoes')});
       if(request.method==='GET'&&url.pathname==='/api/admin/historico-inter')return respond(response,200,{cobrancas:[],cobertura:[]});
-      if(request.method==='GET'&&url.pathname==='/api/admin/emails')return respond(response,200,{emails:[]});
+      if(url.pathname==='/api/admin/emails'){
+        if(request.method==='GET')return respond(response,200,{emails:vals(f,'emails-'+empresa),remetente:'financeiro@example.invalid',auditoria:'auditoria@example.invalid'});
+        let text='';for await(const chunk of request)text+=chunk;const b=JSON.parse(text),e=vals(f,'emails-'+empresa).find(e=>e.id===b.id||e.id===b.email?.id);if(!e)return respond(response,404,{erro:'Fixture não encontrada.'});
+        if(b.acao==='salvar'){Object.assign(e,{para:b.email.para,cc:b.email.cc,assunto:b.email.assunto,atualizadoEm:new Date().toISOString()});}
+        else if(b.acao==='conferir-documentos'){e.fluxo.documentos={hash:'fixture',por:'QA sintético',em:new Date().toISOString()};e.atualizadoEm=new Date().toISOString();}
+        else if(b.acao==='revisar'){e.status='revisado';e.aprovacaoEnvio={hash:'fixture',por:'QA sintético',em:new Date().toISOString(),remetente:'financeiro@example.invalid'};e.atualizadoEm=new Date().toISOString();}
+        else return respond(response,400,{erro:'Envio real bloqueado na prévia sintética.'});f.row('emails-'+empresa,e.id,e);return respond(response,200,{email:e,mensagem:'Fixture local atualizada. Nenhuma chamada externa.'});
+      }
       if(request.method==='GET'&&url.pathname==='/api/admin/nfse')return respond(response,200,{notas:[],apuracoes:[]});
       return respond(response,501,{erro:'Rota não prevista na fixture. Nenhuma chamada externa executada.'});
     }catch(e){return respond(response,e.statusCode||400,{erro:e.message});}

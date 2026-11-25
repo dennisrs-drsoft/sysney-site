@@ -120,3 +120,14 @@ test("lote de regularização preserva PIX pago, impede sobreposição e não em
  assert.equal(JSON.parse(records.get(`AdminDocumentos:${part}:${id}`).json).nota,"");
  assert.ok(![...records.keys()].some(k=>k.includes("emails-sysney")));
 });
+
+test('histórico regularizado não vira contrato ativo nem aceita baixa ou estorno duplicados',async()=>{
+ const pid='9'.repeat(64),cid=pid+'_2025-04',part='cobrancas-sysney',doc='12345678000190',clientId='cliente-regularizacao-qa';
+ records.set(`AdminClientes:sysney:${clientId}`,{nome:'Cliente histórico',documento:doc});
+ const p={id:pid,clienteId:doc,clienteNome:'Cliente histórico',documento:doc,email:'qa@example.com',descricao:'Histórico',centavos:10000,inicio:'2025-04',fim:'2025-04',diaEnvio:10,mesEnvio:0,diaVencimento:10,mesVencimento:0,avulsa:true,regularizacao:{recebimentoId:'a'.repeat(64),loteId:'emissao-'+'b'.repeat(64)}};
+ const c={id:cid,planoId:pid,competencia:'2025-04',centavos:10000,vencimento:'2025-04-10',eventos:[{id:'pix-historico',tipo:'pagamento',centavos:10000,data:'2025-04-10'}],regularizacao:{dataPagamento:'2025-04-10'}};
+ records.set(`AdminConfiguracoes:${part}:${pid}`,{partitionKey:part,rowKey:pid,json:JSON.stringify(p),etag:'1'});records.set(`AdminDocumentos:${part}:${cid}`,{partitionKey:part,rowKey:cid,json:JSON.stringify(c),etag:'1'});
+ for(const acao of ['pagamento','estorno']){const r=await POST(request({acao,id:cid,operacaoId:randomUUID(),data:hoje,centavos:10000,referencia:'pix-historico',detalhe:'Não duplicar'}));assert.equal(r.status,400);assert.match((await r.json()).erro,/pagamento histórico/);}
+ const future=await POST(request({...plan,clienteId:clientId,inicio:mes,fim:'',email:'qa@example.com'}));assert.equal(future.status,201,'histórico avulso não impede iniciar uma recorrência futura');
+ records.delete(`AdminClientes:sysney:${clientId}`);records.delete(`AdminConfiguracoes:${part}:${pid}`);records.delete(`AdminDocumentos:${part}:${cid}`);for(const [key,row] of records)if(key.startsWith('AdminConfiguracoes:'+part+':')&&row.json?.includes(doc))records.delete(key);
+});

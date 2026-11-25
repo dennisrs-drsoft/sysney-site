@@ -9,7 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { usuarioAdministrador } from "../_auth";
 import { encaminharAdmin } from "../_remote";
-import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, exigeBoleto, tentativaBancariaDeOutraPO, normalizarDadosDeposito, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
+import { novoEmail, emailsValidos, destinatarios, htmlEmail, resolverTextoEmail, validarModeloEmail, validarPagamento, validarDocumentosEmail, validarRegularizacaoEmail, mimeAnexo, exigeBoleto, tentativaBancariaDeOutraPO, normalizarDadosDeposito, type EmailCobranca, type TentativaEmail } from "@/lib/emails-cobranca";
 import { mesValido, dataValida, hojeBrasil, prevista, validarAlteracaoVencimento, integrarPagamentosInter, integrarPagamentosPix, type VinculoPix, type Cobranca, type Plano } from "@/lib/cobrancas";
 import {AUDITORIA_AVISOS,prepararAviso,conferirAviso,type TipoAviso} from "@/lib/avisos-cobranca";
 
@@ -70,7 +70,7 @@ async function hashDocumentos(e: EmailCobranca) {
   validarDocumentosEmail(e);
   if (!e.fluxo?.nota || (exigeBoleto(e) && !e.fluxo.boleto)) throw new Error("Registre o número da nota e, para pagamento por boleto, o nosso número antes de conferir os documentos.");
   const anexos = await Promise.all(e.anexos.map(async a=>({tipo:a.tipo,hash:createHash("sha256").update(await container().getBlockBlobClient(a.blob).downloadToBuffer()).digest("hex")})));
-  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:e.formaPagamento==="deposito"?{formaPagamento:"deposito",dadosDeposito:e.dadosDeposito}:{})})).digest("hex");
+  return createHash("sha256").update(JSON.stringify({empresa:e.empresa,cliente:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,po:e.po || "",cobrancaId:e.fluxo.cobrancaId,nota:e.fluxo.nota,boleto:e.fluxo.boleto,anexos,...(e.regularizacao?{regularizacao:e.regularizacao,notaChave:e.fluxo.notaChave}:{}),...(e.formaPagamento==="pix"?{formaPagamento:"pix",pixChave:e.pixChave,pixBeneficiario:e.pixBeneficiario}:e.formaPagamento==="deposito"?{formaPagamento:"deposito",dadosDeposito:e.dadosDeposito}:{})})).digest("hex");
 }
 async function conferirFluxo(e: EmailCobranca) {
   if(e.aviso) {
@@ -82,6 +82,7 @@ async function conferirFluxo(e: EmailCobranca) {
   if (e.fluxo && (!e.fluxo.documentos || e.fluxo.documentos.hash !== await hashDocumentos(e))) throw new Error("Confira e aprove primeiro os documentos existentes desta cobrança. Nenhuma nova emissão será realizada.");
   if (e.fluxo) {
     const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${e.empresa}`,e.fluxo.cobrancaId)).json);
+    validarRegularizacaoEmail(e,c);
     if (c.competencia !== e.competencia || c.centavos !== e.centavos || c.vencimento !== e.vencimento || c.nota !== e.fluxo.nota || c.boleto !== e.fluxo.boleto) throw new Error("O acompanhamento mudou. Confira os documentos da cobrança novamente antes de enviar.");
     return c;
   }
@@ -138,7 +139,7 @@ export async function GET(req: NextRequest) {
       const a = email.anexos.find(x => x.tipo === tipo);
       if (!a) return reply({ erro: "Anexo não encontrado." }, 404);
       const bytes = await container().getBlockBlobClient(a.blob).downloadToBuffer();
-      return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${a.tipo}.pdf"`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
+      return new NextResponse(new Uint8Array(bytes), { headers: { "Content-Type": mimeAnexo(a), "Content-Disposition": `${a.tipo==="xml"?"attachment":"inline"}; filename="${a.tipo}.${a.tipo==="xml"?"xml":"pdf"}"`, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" } });
     }
     const emails: EmailCobranca[] = [];
     for await (const r of table().listEntities<{ json: string }>({ queryOptions: { filter: `PartitionKey eq 'emails-${empresa}'` } })) emails.push(JSON.parse(r.json));
@@ -166,6 +167,7 @@ export async function POST(req: NextRequest) {
       const { email, etag } = await ler(empresa, id);
       if (email.status !== "rascunho" && email.status !== "revisado") throw new Error("Crie outra mensagem para alterar documentos após o envio.");
       if (!(file instanceof File) || file.size > 5_000_000 || (tipo !== "nota" && tipo !== "boleto" && tipo !== "ordem-servico")) throw new Error("Selecione um PDF de até 5 MB.");
+      if(email.regularizacao&&tipo!=="ordem-servico")throw Error("O PDF e o XML desta regularização são vinculados à nota confirmada. Não substitua os documentos emitidos.");
       if(tipo==="boleto"&&!exigeBoleto(email))throw new Error("Esta forma de pagamento não recebe boleto. Confira a cobrança.");
       const data = Buffer.from(await file.arrayBuffer());
       if (!data.subarray(0,5).equals(Buffer.from("%PDF-"))) throw new Error("O arquivo não é um PDF reconhecido.");
@@ -205,6 +207,7 @@ export async function POST(req: NextRequest) {
       try { atual = await ler(empresa,id); } catch(e) {if ((e as {statusCode?:number}).statusCode !== 404) throw e;}
       if (body.emailId && !atual) throw new Error("Rascunho não encontrado.");
       if (atual?.email.fluxo?.cobrancaId === c.id) return reply({email:atual.email});
+      if(c.regularizacao)throw Error("Organize o histórico no lote de regularização para recuperar o mesmo rascunho e seus documentos.");
       const email = atual?.email || {...novoEmail(empresa,c.clienteNome),id,para:c.email,responderPara:empresa === "sysney" ? "financeiro@sysney.com" : "financeiro@drsoftinformatica.com",competencia:c.competencia,vencimento:c.vencimento,centavos:c.centavos,descricao:c.descricao};
       if (email.aviso || email.fluxo || !["rascunho","revisado"].includes(email.status) || email.competencia !== c.competencia || email.vencimento !== c.vencimento || email.centavos !== c.centavos) throw new Error("O rascunho não corresponde à cobrança ou já foi processado. Confira cliente, referência, valor e vencimento.");
       if (!link) await table().createEntity({partitionKey:`fila-${empresa}`,rowKey:linkKey,emailId:id});
@@ -221,11 +224,13 @@ export async function POST(req: NextRequest) {
       const e = { ...body.email, id: anterior?.email.id || randomUUID(), empresa, anexos: anterior?.email.anexos || [], tentativas: anterior?.email.tentativas || [], status: "rascunho", atualizadoEm: new Date().toISOString() } as EmailCobranca;
       e.fluxo = anterior?.email.fluxo;
       e.aviso = anterior?.email.aviso;
+      e.regularizacao = anterior?.email.regularizacao; // Metadados protegidos nunca vêm do editor.
+      if(e.regularizacao&&anterior&&(["formaPagamento","pixChave","pixBeneficiario","descontoCentavos","descontoMotivo"].some(k=>e[k as keyof EmailCobranca]!==anterior.email[k as keyof EmailCobranca])||JSON.stringify(e.dadosDeposito)!==JSON.stringify(anterior.email.dadosDeposito)))throw Error("Pagamento histórico quitado: os dados financeiros da regularização são preservados.");
       if(e.aviso && anterior && ["cliente","competencia","centavos","vencimento","formaPagamento","pixChave","pixBeneficiario"].some(k=>e[k as keyof EmailCobranca]!==anterior.email[k as keyof EmailCobranca]))throw new Error("Os dados financeiros do aviso são vinculados à cobrança original. Prepare um aviso atualizado para refletir mudanças.");
       if(e.aviso && anterior && JSON.stringify(e.dadosDeposito)!==JSON.stringify(anterior.email.dadosDeposito))throw new Error("A conta do aviso está vinculada à cobrança original.");
       if(e.formaPagamento==="deposito")e.dadosDeposito=normalizarDadosDeposito(e.dadosDeposito,empresa);
       validarPagamento(e);
-      if(e.fluxo && !exigeBoleto(e)) {
+      if(e.fluxo && !exigeBoleto(e) && !e.regularizacao) {
         const {c}=await buscarCobranca(empresa,e.fluxo.cobrancaId);
         if(c.boleto)throw new Error("Há boleto registrado no acompanhamento. Confira a baixa antes de mudar a forma de pagamento.");
         const plano:Plano=JSON.parse((await new TableClient(`https://${conta()}.table.core.windows.net`,"AdminConfiguracoes",cred).getEntity<{json:string}>(`cobrancas-${empresa}`,c.planoId)).json);
@@ -255,6 +260,7 @@ export async function POST(req: NextRequest) {
     }
     const { email, etag } = await ler(empresa, body.id);
     if (body.atualizadoEm !== email.atualizadoEm) throw new Error("Revise a versão atual da mensagem antes de continuar.");
+    if(email.regularizacao&&["alterar-vencimento","registrar-documento-manual","remover-anexo","duplicar"].includes(body.acao))throw Error("Este registro preserva pagamento e nota já confirmados. Confira os documentos existentes sem alterar o histórico financeiro.");
     if (body.acao === "alterar-vencimento") {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status) || email.tentativas.length) throw new Error("A cobrança já está em processamento ou possui tentativa de envio. Consulte o resultado antes de alterar.");
       const {c,etag:cetag} = await buscarCobranca(empresa,email.fluxo.cobrancaId);
@@ -314,6 +320,7 @@ export async function POST(req: NextRequest) {
     if (body.acao === "conferir-documentos") {
       if (!email.fluxo || !["rascunho","revisado"].includes(email.status)) throw new Error("Cobrança indisponível para conferência.");
       const c: Cobranca = JSON.parse((await table().getEntity<{json:string}>(`cobrancas-${empresa}`,email.fluxo.cobrancaId)).json);
+      validarRegularizacaoEmail(email,c);
       if (c.competencia !== email.competencia || c.vencimento !== email.vencimento || c.centavos !== email.centavos) throw new Error("A cobrança mudou. Confira os dados antes de continuar.");
       email.fluxo.nota = c.nota; email.fluxo.boleto = c.boleto;
       email.fluxo.documentos = {hash:await hashDocumentos(email),por:responsavel(req),em:new Date().toISOString()};
@@ -359,13 +366,13 @@ export async function POST(req: NextRequest) {
     // Download dos anexos pode levar tempo: conferir o saldo novamente antes da trava de envio.
     if(email.aviso)await conferirFluxo(email);
     const { config, logo } = material;
-    const anexos = email.anexos.map((a,i) => ({ content:material.buffers[i].toString("base64"), filename:a.nome, type:"application/pdf", disposition:"attachment" }));
+    const anexos = email.anexos.map((a,i) => ({ content:material.buffers[i].toString("base64"), filename:a.nome, type:mimeAnexo(a), disposition:"attachment" }));
     const html = htmlEmail(email, "cid:logo-sysney");
     const visiveis = new Set([...destinatarios(email.para), ...destinatarios(email.cc)].map(v=>v.toLowerCase()));
     const bcc = config.auditoria && !visiveis.has(config.auditoria.toLowerCase()) ? config.auditoria : "";
     const assunto = resolverTextoEmail(email.assunto,email);
     const tentativa: TentativaEmail = { id: randomUUID(), data: new Date().toISOString(), destino: email.para, cc:email.cc, bcc, remetente:config.from, assunto, html: htmlEmail(email), status: "processando" };
-    if (cobrancaEnvio?.nota && !cobrancaEnvio.boleto && !email.aviso && email.formaPagamento === "pix") {
+    if (cobrancaEnvio?.nota && !cobrancaEnvio.boleto && !email.aviso && !email.regularizacao && email.formaPagamento === "pix") {
       const configs = new TableClient(`https://${conta()}.table.core.windows.net`, "AdminConfiguracoes", cred);
       const plano = JSON.parse((await configs.getEntity<{json:string}>(`cobrancas-${empresa}`, cobrancaEnvio.planoId)).json) as Plano;
       const documento = plano.documento.replace(/\D/g, "");

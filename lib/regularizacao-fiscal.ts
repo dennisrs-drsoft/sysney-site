@@ -6,6 +6,7 @@ export type RegularizacaoFiscal = {
   evidenciaCompetencia: string; emissaoPlanejada: string; nota: string;
   notasCandidatas: { numero: string; emissao: string; descricao: string; centavos: number; situacao: string }[];
   importadoEm: string; atualizadoEm: string;
+  cobrancaId?: string; emailId?: string;
   revisoes?: { data: string; responsavel: string; competencia: string; evidenciaCompetencia: string; emissaoPlanejada: string; nota: string }[];
 };
 export function centavosExtrato(v: unknown) {

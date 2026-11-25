@@ -55,6 +55,10 @@ export async function POST(req:NextRequest) {
   try {
     const emp=empresa(req),raw=await req.text();if(raw.length>2000)throw new Error("Solicitação muito grande.");
     const b=JSON.parse(raw);
+    if(typeof b.id==="string"&&/^[a-f0-9-]{36}$/.test(b.id)){
+      const r=await opcional<{json:string}>(`emails-${emp}`,b.id);
+      if(r&&JSON.parse(r.json).regularizacao)throw Error("Regularização já paga: use o PDF e o XML vinculados ao lote, sem nova emissão fiscal ou bancária.");
+    }
     if(!["preparar-boleto","emitir-boleto","consultar-boleto","baixar-nota"].includes(b.acao))throw new Error("Operação indisponível.");
     if(b.acao==="baixar-nota") {
       if(typeof b.id!=="string"||!/^[a-f0-9-]{36}$/.test(b.id))throw Error("Mensagem inválida.");

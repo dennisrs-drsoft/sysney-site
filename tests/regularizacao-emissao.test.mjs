@@ -4,14 +4,14 @@ process.env.NFSE_NACIONAL_PRODUCAO_HABILITADA='true';process.env.NFSE_SP_PRODUCA
 import {fixture,req,hoje,manifestoLote,entidadeLoteFiscal,lerLoteFiscal} from './helpers/regularizacao-emissao-fixture.mjs';
 async function validar(f,l){for(let count=0;count<15&&!l.itens.every(i=>i.status==='pronta');count++){l=await f.service.avancar(f.empresa,l.id,{modo:'validar',hash:l.hash},req);assert.notEqual(l.estado,'revisar',JSON.stringify(l));}assert.ok(l.itens.every(i=>i.status==='pronta'));return l;}
 async function aprovar(f,l){return f.service.aprovar(f.empresa,l.id,{hash:l.hash,confirmado:true},req);}
-for(const empresa of ['sysney','drsoft'])test(`${empresa}: lote usa os emissores existentes, preserva PIX e não cria cobrança/e-mail`,async()=>{
+for(const empresa of ['sysney','drsoft'])test(`${empresa}: lote usa os emissores existentes, preserva PIX e cria histórico quitado com rascunho após confirmação`,async()=>{
  const f=fixture(empresa,{assincrono:empresa==='sysney'});let l=await f.service.criar(empresa,f.body(),req);
  assert.equal(l.dataFiscal,hoje());assert.equal(l.itens[0].referencia,'2025-01');assert.match(l.itens[0].descricao,/Serviço já pago/);
  await assert.rejects(f.service.avancar(empresa,l.id,{hash:l.hash,modo:'emitir'},req),/Aprove/);l=await validar(f,l);assert.equal(f.emits.size,0);l=await aprovar(f,l);
  for(let count=0;count<15&&l.estado!=='concluido';count++)l=await f.service.avancar(empresa,l.id,{hash:l.hash,modo:'emitir'},req);
  assert.equal(l.estado,'concluido',JSON.stringify(l));assert.equal(f.emits.size,2);
  for(const i of l.itens){const r=JSON.parse((await f.table().getEntity('regularizacao-'+empresa,i.recebimentoId)).json);assert.equal(r.nota,i.nota);assert.equal(r.centavos,10000);assert.equal(r.competencia,'2025-01');assert.equal(r.recebimento,'2025-01-10');assert.equal(r.emissaoFiscal,hoje());}
- assert.ok([...f.table().rows.keys()].every(k=>!k.startsWith('emails-')&&!k.startsWith('cobrancas-')));
+ assert.equal([...f.table().rows.keys()].filter(k=>k.startsWith('emails-')).length,2);assert.equal([...f.table().rows.keys()].filter(k=>k.startsWith('cobrancas-')).length,2);assert.ok(l.itens.every(i=>i.historicoCobranca&&!i.erroHistorico),JSON.stringify(l));
  const again=await f.service.avancar(empresa,l.id,{hash:l.hash,modo:'emitir'},req);assert.equal(again.estado,'concluido');assert.equal([...f.emits.values()].reduce((a,b)=>a+b,0),2);
 });
 

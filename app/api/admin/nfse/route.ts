@@ -22,6 +22,7 @@ async function opcional<T extends object>(part:string,id:string,nome="AdminDocum
 async function contexto(emp:"sysney"|"drsoft",id:unknown){
   if(typeof id!=="string"||!/^[a-f0-9-]{36}$/.test(id))throw Error("Cobrança inválida.");
   const row=await table().getEntity<{json:string}>(`emails-${emp}`,id),email:EmailCobranca=JSON.parse(row.json);
+  if(email.regularizacao)throw Error("Esta nota de regularização já foi emitida. Consulte os documentos no lote original, sem preparar nova emissão.");
   if(email.empresa!==emp||!email.fluxo||!/^[a-f0-9]{64}_20\d{2}-(0[1-9]|1[0-2])$/.test(email.fluxo.cobrancaId))throw Error("Selecione uma cobrança vinculada à fila.");
   const [planoId,competencia]=email.fluxo.cobrancaId.split("_");
   const plano:Plano=JSON.parse((await table("AdminConfiguracoes").getEntity<{json:string}>(`cobrancas-${emp}`,planoId)).json);

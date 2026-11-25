@@ -4,10 +4,10 @@ import {mkdir,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {memoryTable} from './atp-municipal-fixture.mjs';
 
-const bundle=await build({entryPoints:['lib/regularizacao-emissao.ts','lib/regularizacao-emissao-modelo.ts','lib/regularizacao-emissao-store.ts'],bundle:true,outdir:'unused',write:false,platform:'node',format:'esm',packages:'external',outExtension:{'.js':'.mjs'}});
+const bundle=await build({entryPoints:['lib/regularizacao-emissao.ts','lib/regularizacao-emissao-modelo.ts','lib/regularizacao-emissao-store.ts','lib/regularizacao-cobranca.ts'],bundle:true,outdir:'unused',write:false,platform:'node',format:'esm',packages:'external',outExtension:{'.js':'.mjs'}});
 await mkdir(new URL('../../output/regularizacao-test/',import.meta.url),{recursive:true});
 const modules={};for(const file of bundle.outputFiles){const name=file.path.split(/[\\/]/).at(-1);const url=new URL('../../output/regularizacao-test/'+process.pid+'-'+name,import.meta.url);await writeFile(url,file.text);Object.assign(modules,await import(url.href+'?'+process.pid));}
-export const {criarRegularizacaoEmissao,identidadesItem,digestFiscal,manifestoLote,entidadeLoteFiscal,lerLoteFiscal}=modules;
+export const {criarRegularizacaoEmissao,identidadesItem,digestFiscal,manifestoLote,entidadeLoteFiscal,lerLoteFiscal,identidadesHistorico,criarCobrancaRegularizada}=modules;
 export const hoje=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 export const perfil={codigoNacional:'170201',codigoMunicipal:'099',nbs:'118064000',serie:'41027',regimeEspecial:'0',apuracaoSimples:'1',retencaoIss:'1',aliquotaIss:'',transparencia:{tipo:'simples',percentual:'6.00'}};
 export const endereco={tipo:'R',logradouro:'Rua de teste',numero:'1',complemento:'',bairro:'Centro',municipio:'3550308',uf:'SP',cep:'01000000'};
@@ -53,7 +53,7 @@ export function fixture(empresa='sysney',opts={}){
   }else if(action==='consultar')await confirm();
   return {trabalho:w,mensagem:'Resultado sintético local; sem transmissão real.'};
  }
- const service=criarRegularizacaoEmissao({table,nacional:execute,municipal:execute});
+ const service=criarRegularizacaoEmissao({table,nacional:execute,municipal:execute,arquivo:opts.arquivo|| (async()=>({tamanho:500}))});
  const fiscal={regime:'presumido',serie:'SB001',numeroInicial:'4',dataEmissao:hoje(),codigoServico:'03158',aliquota:'0',issRetido:false,nbs:'118064000',indicadorOperacao:'100301',classificacaoTributaria:'000001',consumidorFinal:false,municipioPrestacao:'3550308',deducoes:0,pis:0,cofins:0,inss:0,ir:0,csll:0,ipi:0,retencaoPisCofins:'0',endereco};
  const config=empresa==='sysney'?{emissor:'nacional',ambiente:'producao',perfil,endereco}:{emissor:'municipal',ambiente:'producao',fiscal};
  const body=()=>({confirmado:true,recebimentos:recebimentos.map(r=>{const real=JSON.parse(table().rows.get(`regularizacao-${empresa}|${r.id}`).json);return {id:r.id,atualizadoEm:real.atualizadoEm};}),configuracao:config});

@@ -18,7 +18,7 @@ export function compativelPix(c, regra, pix) {
 }
 
 export function regraPixDoEnvio(c, email) {
-  if (email.status !== "aceito" || email.aviso || email.formaPagamento !== "pix" ||
+  if (email.status !== "aceito" || email.aviso || email.regularizacao || email.formaPagamento !== "pix" ||
       email.fluxo?.cobrancaId !== c.id || !c.nota || email.fluxo.nota !== c.nota ||
       email.centavos !== c.centavos || email.vencimento !== c.vencimento || !dia(c.vencimento)) return null;
   const tentativa = email.tentativas?.find(t => t.status === "aceito" &&

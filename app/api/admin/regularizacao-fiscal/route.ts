@@ -48,8 +48,8 @@ export async function POST(req:NextRequest){
   try{
     const emp=empresa(req),raw=await req.text();if(raw.length>20000)throw Error("Solicitação muito grande.");
     const body=JSON.parse(raw);
-    const l=body.acao==="preparar"?await service.criar(emp,body,req):body.acao==="aprovar"?await service.aprovar(emp,body.loteId,body,req):body.acao==="avancar"?await service.avancar(emp,body.loteId,body,req):null;
+    const l=body.acao==="preparar"?await service.criar(emp,body,req):body.acao==="aprovar"?await service.aprovar(emp,body.loteId,body,req):body.acao==="avancar"?await service.avancar(emp,body.loteId,body,req):body.acao==="organizar-historico"?await service.organizarHistorico(emp,body.loteId,body,req):null;
     if(!l)throw Error("Operação inválida.");
-    return reply({lote:l,emailEnviado:false,novaCobrancaCriada:false});
+    return reply({lote:l,emailEnviado:false,novaDividaCriada:false,cobrancasPagas:l.itens.filter(i=>i.historicoCobranca).length});
   }catch(e){return falha(e);}
 }

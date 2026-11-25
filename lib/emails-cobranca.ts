@@ -1,4 +1,4 @@
-import { moeda, dataBr, type Empresa } from "./cobrancas";
+import { moeda, dataBr, dataValida, pago, type Empresa, type Cobranca, type RegularizacaoDocumental } from "./cobrancas";
 
 export type FormaPagamento = "boleto" | "pix" | "deposito";
 export type DadosDeposito = { banco: string; agencia: string; conta: string; cnpj: string; razaoSocial: string };
@@ -8,11 +8,13 @@ export function contaDepositoPadrao(empresa: Empresa): DadosDeposito {
     : { banco:"077 - Inter", agencia:"0001", conta:"9439596-9", cnpj:"09.365.785/0001-70", razaoSocial:"DRSOFT SERVICOS DE INFORMATICA LTDA" };
 }
 export const rotulosPagamento: Record<FormaPagamento,string> = {boleto:"Boleto",pix:"PIX",deposito:"Depósito/Transferência"};
-export function exigeBoleto(e: Pick<EmailCobranca,"formaPagamento">) { return !e.formaPagamento || e.formaPagamento === "boleto"; }
-export type AnexoEmail = { tipo: "nota" | "boleto" | "ordem-servico"; nome: string; blob: string; tamanho: number };
-export const nomesAnexos = {nota:"Nota fiscal",boleto:"Boleto","ordem-servico":"Ordem de serviço"};
+export function exigeBoleto(e: Pick<EmailCobranca,"formaPagamento"|"regularizacao">) { return !e.regularizacao && (!e.formaPagamento || e.formaPagamento === "boleto"); }
+export type AnexoEmail = { tipo: "nota" | "xml" | "boleto" | "ordem-servico"; nome: string; blob: string; tamanho: number };
+export const nomesAnexos = {nota:"Nota fiscal (PDF)",xml:"XML da nota",boleto:"Boleto","ordem-servico":"Ordem de serviço"};
+export const mimeAnexo = (a:Pick<AnexoEmail,"tipo">) => a.tipo === "xml" ? "application/xml" : "application/pdf";
 export type TentativaEmail = { id: string; data: string; destino: string; cc?: string; bcc?: string; remetente?: string; assunto: string; html: string; status: "processando" | "aceito" | "incerto"; messageId?: string; documentoConciliacaoPix?: string };
 export type EmailCobranca = {
+  regularizacao?: RegularizacaoDocumental;
   aviso?: {tipo:"lembrete"|"vencimento"|"atraso"|"reenvio";cobrancaId:string;origemId:string;recebidoCentavos:number;saldoCentavos:number;data:string};
   id: string; empresa: Empresa; cliente: string; para: string; cc: string; responderPara?: string;
   assunto: string; saudacao: string; introducao: string; descricao: string;
@@ -26,7 +28,14 @@ export type EmailCobranca = {
   aprovacaoEnvio?: { hash: string; por: string; em: string; remetente: string };
   fluxo?: { cobrancaId: string; nota: string; notaEmissor?:"municipal"|"nacional"; notaChave?:string; boleto: string; documentos?: {hash: string; por: string; em: string} };
 };
+export function validarRegularizacaoEmail(e:EmailCobranca,c?:Cobranca) {
+  const r=e.regularizacao;
+  if(!r){if(c?.regularizacao)throw Error("Abra o rascunho de regularização vinculado ao pagamento.");return;}
+  if(!/^emissao-[a-f0-9]{64}$/.test(r.loteId)||!/^\d{14}$/.test(r.documento)||!r.transacao||!dataValida(r.dataPagamento)||!dataValida(r.emissaoFiscal)||!Number.isFinite(Date.parse(r.registradoEm))||e.vencimento!==r.dataPagamento||e.competencia!==r.dataPagamento.slice(0,7)||!e.fluxo?.nota||e.fluxo.boleto||e.aviso||e.formaPagamento!=="pix")throw Error("Os dados da regularização não correspondem ao pagamento e à nota emitida.");
+  if(c&&(JSON.stringify(c.regularizacao)!==JSON.stringify(r)||c.id!==e.fluxo.cobrancaId||c.nota!==e.fluxo.nota||c.notaChave!==e.fluxo.notaChave||c.centavos!==e.centavos||c.vencimento!==e.vencimento||c.competencia!==e.competencia||pago(c)!==c.centavos))throw Error("O vínculo da regularização ou a baixa do pagamento mudou. Confira antes de aprovar ou enviar.");
+}
 export function validarPagamento(e:EmailCobranca) {
+  if(e.regularizacao){validarRegularizacaoEmail(e);if(e.anexos.some(a=>a.tipo==="boleto"))throw Error("Regularização de pagamento quitado não recebe boleto.");return;}
   if(e.formaPagamento!==undefined && !["boleto","pix","deposito"].includes(e.formaPagamento))throw new Error("Forma de pagamento inválida.");
   for(const v of [e.pixChave,e.pixBeneficiario])if(v!==undefined&&(typeof v!=="string"||v.length>150||/[\x00-\x1f]/.test(v)))throw new Error("Confira a chave e o beneficiário do PIX (máximo 150 caracteres).");
   if(e.formaPagamento==="pix" && (!e.pixChave?.trim()||!e.pixBeneficiario?.trim()))throw new Error("Preencha a chave e o beneficiário do PIX.");
@@ -60,12 +69,14 @@ export function tentativaBancariaDeOutraPO(registro: {json?:string}, e: EmailCob
   } catch { return false; }
 }
 export function documentosCompletos(e:EmailCobranca) {
+  if(e.regularizacao)return e.anexos.some(a=>a.tipo==="nota")&&e.anexos.some(a=>a.tipo==="xml");
   if(e.formaPagamento==="deposito")return e.anexos.some(a=>a.tipo==="nota");
   const requerido=e.formaPagamento==="pix"?"ordem-servico":"boleto";
   return e.anexos.some(a=>a.tipo==="nota")&&e.anexos.some(a=>a.tipo===requerido);
 }
 export function validarDocumentosEmail(e:EmailCobranca) {
   validarPagamento(e);
+  if(e.regularizacao&&!documentosCompletos(e))throw Error("Confira o PDF e o XML da nota de regularização já emitida.");
   if(!documentosCompletos(e))throw new Error(e.formaPagamento==="deposito"?"Anexe o PDF da nota fiscal. A proposta ou ordem de serviço pode ser anexada como documento de apoio.":e.formaPagamento==="pix"?"Anexe os PDFs da nota e da ordem de serviço. Cobrança por PIX não exige boleto.":"Anexe os PDFs da nota e do boleto desta cobrança.");
 }
 export function novoEmail(empresa: Empresa, cliente = ""): EmailCobranca {
@@ -119,19 +130,25 @@ export function htmlEmail(e: EmailCobranca, logo = "https://www.sysney.com/logo.
     atraso: "Aviso de pagamento em atraso",
     reenvio: "Reenvio de cobrança",
   };
-  const titulo = e.aviso ? titulosAviso[e.aviso.tipo] : "Demonstrativo de cobrança";
+  const titulo = e.regularizacao ? "Regularização de serviço já pago" : e.aviso ? titulosAviso[e.aviso.tipo] : "Demonstrativo de cobrança";
   const linhas: { rotulo: string; valor: string; destaque?: boolean }[] = [];
   if (e.detalhado) linhas.push({ rotulo: "Descrição", valor: e.descricao });
   if (e.po) linhas.push({ rotulo: "Pedido de compra (PO)", valor: e.po });
-  linhas.push({ rotulo: "Competência", valor: e.competencia ? e.competencia.split("-").reverse().join("/") : "A confirmar" });
+  linhas.push({ rotulo: e.regularizacao ? "Referência do pagamento" : "Competência", valor: e.competencia ? e.competencia.split("-").reverse().join("/") : "A confirmar" });
   const desconto = e.descontoCentavos || 0;
   if (desconto > 0) {
     linhas.push({ rotulo: "Valor original", valor: moeda(e.centavos + desconto) });
     linhas.push({ rotulo: "Desconto comercial", valor: `− ${moeda(desconto)} · ${e.descontoMotivo || ""}` });
   }
-  linhas.push({ rotulo: desconto > 0 ? "Total com desconto" : "Valor", valor: e.centavos > 0 ? moeda(e.centavos) : "A confirmar", destaque: !e.aviso });
-  linhas.push({ rotulo: "Vencimento", valor: e.vencimento ? dataBr(e.vencimento) : "A confirmar" });
-  if (e.formaPagamento === "pix") {
+  linhas.push({ rotulo: e.regularizacao ? "Valor já pago" : desconto > 0 ? "Total com desconto" : "Valor", valor: e.centavos > 0 ? moeda(e.centavos) : "A confirmar", destaque: !e.aviso });
+  if(e.regularizacao){
+    linhas.push({rotulo:"Pagamento recebido por PIX",valor:dataBr(e.regularizacao.dataPagamento)});
+    linhas.push({rotulo:"NFS-e",valor:e.fluxo?.nota||"A confirmar"});
+    linhas.push({rotulo:"Data de emissão da NFS-e",valor:dataBr(e.regularizacao.emissaoFiscal)});
+    if(e.regularizacao.referenciaHistorica)linhas.push({rotulo:"Referência histórica do serviço",valor:e.regularizacao.referenciaHistorica.split("-").reverse().join("/")});
+    linhas.push({rotulo:"Saldo a pagar",valor:moeda(0),destaque:true});
+  }else linhas.push({ rotulo: "Vencimento", valor: e.vencimento ? dataBr(e.vencimento) : "A confirmar" });
+  if (e.formaPagamento === "pix" && !e.regularizacao) {
     linhas.push({ rotulo: "Forma de pagamento", valor: "PIX" });
     linhas.push({ rotulo: "Chave PIX", valor: e.pixChave || "A confirmar" });
     linhas.push({ rotulo: "Beneficiário", valor: e.pixBeneficiario || "A confirmar" });
@@ -175,6 +192,7 @@ export function htmlEmail(e: EmailCobranca, logo = "https://www.sysney.com/logo.
           <h1 style="margin:0 0 16px;color:#061d29;font-family:Georgia,'Times New Roman',serif;font-size:26px;font-weight:normal;line-height:1.25">${titulo}</h1>
           <p style="margin:0 0 10px">${esc(saudacao)}</p>
           <p style="margin:0 0 18px;color:#3e5b67">${esc(e.introducao)}</p>
+          ${e.regularizacao ? `<p style="padding:14px;border-left:3px solid #21846c;background:#eef9f4;color:#185442;font-weight:bold">Regularização documental de serviço anterior, quitado por PIX em ${esc(dataBr(e.regularizacao.dataPagamento))}. A nota foi emitida em ${esc(dataBr(e.regularizacao.emissaoFiscal))}. Este envio não solicita novo pagamento.</p>` : ""}
           ${e.detalhado ? `<p style="margin:0 0 8px;color:#3e5b67;font-size:13px">Cliente: ${esc(e.cliente || "A confirmar")}</p>` : ""}
           <table aria-label="Dados da cobrança" width="100%" cellspacing="0" cellpadding="0" style="table-layout:fixed;font-size:14px;border:1px solid #d1e2e4">${resumo}</table>
           ${e.confirmarRecebimento ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin-top:18px"><tr><td bgcolor="#eaf4f8" style="padding:12px;border-left:3px solid #5099cc;color:#183f57;font-size:14px;font-weight:bold">Por favor, confirme o recebimento desta mensagem e dos documentos.</td></tr></table>` : ""}

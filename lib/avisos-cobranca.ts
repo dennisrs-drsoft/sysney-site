@@ -4,6 +4,7 @@ export const AUDITORIA_AVISOS="drsoft.log@gmail.com";
 export type TipoAviso="lembrete"|"vencimento"|"atraso"|"reenvio";
 export const tiposAviso:Record<TipoAviso,string>={lembrete:"Lembrete de pagamento",vencimento:"Aviso de vencimento",atraso:"Pagamento em atraso",reenvio:"Reenvio da cobrança"};
 export function saldoAviso(c:Cobranca,tipo:TipoAviso,hoje:string){
+ if(c.regularizacao)throw Error("Regularização de serviço já pago não recebe aviso de cobrança.");
  if(!Object.hasOwn(tiposAviso,tipo)||!dataValida(hoje)||!dataValida(c.vencimento))throw Error("Confira o tipo de aviso e o vencimento da cobrança.");
  const recebido=pago(c),saldo=c.centavos-recebido;
  if(!Number.isSafeInteger(saldo)||saldo<=0||saldo>c.centavos)throw Error("A cobrança já foi quitada ou o saldo precisa ser conferido. Aviso bloqueado.");

@@ -681,6 +681,7 @@ function ListaRascunhos({
 
 export function AdminDashboard() {
   const [empresaId, setEmpresaId] = useState<EmpresaId>("drsoft");
+  const [filaRegularizacao,setFilaRegularizacao] = useState(false);
   const [secao, setSecao] = useState<SecaoId>("visao-geral");
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [clientesAzure, setClientesAzure] = useState<Cliente[]>([]);
@@ -779,7 +780,7 @@ export function AdminDashboard() {
   } else if (secao === "nfse-nacional") {
     conteudo = <><CertificadoFiscal key={empresaId} empresa={empresaId} /><NfseNacional empresa={empresaId} /></>;
   } else if (secao === "regularizacao") {
-    conteudo = <RegularizacaoFiscalPainel key={empresaId} empresa={empresaId} />;
+    conteudo = <RegularizacaoFiscalPainel key={empresaId} empresa={empresaId} abrirFila={()=>{setFilaRegularizacao(true);setSecao("cobrancas");window.scrollTo({top:0});}} />;
   } else if (secao === "historico-inter") {
     conteudo = <HistoricoInter key={empresaId} empresa={empresaId} />;
   } else if (secao === "atp-fiscal") {
@@ -791,7 +792,7 @@ export function AdminDashboard() {
   } else if (secao === "emails") {
     conteudo = <LaboratorioEmails key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "cobrancas") {
-    conteudo = <FilaCobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
+    conteudo = <FilaCobrancas regularizacaoInicial={filaRegularizacao} key={empresaId} empresa={empresaId} clientes={clientesEmpresa} carregandoClientes={atualizandoClientes} erroClientes={erroClientes} atualizarClientes={carregarClientesAzure} />;
   } else if (secao === "acompanhamento") {
     conteudo = <Cobrancas key={empresaId} empresa={empresaId} clientes={clientesEmpresa} />;
   } else if (secao === "nova-emissao") {
@@ -828,13 +829,13 @@ export function AdminDashboard() {
       <VisaoFinanceira
         key={empresaId}
         empresa={empresaId}
-        navegar={setSecao}
+        navegar={id=>{setFilaRegularizacao(false);setSecao(id);}}
       />
     );
   }
 
   return (
-    <AdminShell empresa={empresaId} regime={empresa.regime} secao={secao} secoes={secoes} onEmpresa={setEmpresaId} onSecao={setSecao} aviso={aviso} onFecharAviso={()=>setAviso("")}>
+    <AdminShell empresa={empresaId} regime={empresa.regime} secao={secao} secoes={secoes} onEmpresa={setEmpresaId} onSecao={id=>{setFilaRegularizacao(false);setSecao(id);}} aviso={aviso} onFecharAviso={()=>setAviso("")}>
       {conteudo}
     </AdminShell>
   );

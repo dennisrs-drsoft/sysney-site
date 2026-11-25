@@ -13,6 +13,7 @@ export type ItemLoteFiscal = {
   recebimento:string; referencia:string; descricao:string; fonteHash:string;
   status:"pendente"|"validando"|"pronta"|"processando"|"incerta"|"rejeitada"|"emitida"|"homologada";
   nota?:string; chave?:string; mensagem?:string; pdf?:string; xml?:string; consultaPendente?:boolean;
+  historicoCobranca?:{cobrancaId:string;emailId:string;criadoEm:string}; erroHistorico?:string;
 };
 export type LoteEmissaoFiscal = {
   id:string; tipo:"emissao-regularizacao"; empresa:Empresa; dataFiscal:string;

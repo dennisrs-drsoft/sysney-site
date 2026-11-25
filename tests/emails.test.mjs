@@ -17,7 +17,7 @@ async updateEntity(e,mode,o){const k=this.key(e.partitionKey,e.rowKey);if(record
 async *listEntities(o){const part=o.queryOptions.filter.split("'")[1];for(const e of records.values())if(e.partitionKey===part)yield structuredClone(e)} }`);
 let source=compile("../app/api/admin/emails/route.ts");
 for(const [name,target] of Object.entries({
-  "next/server":uri("export const NextResponse={json:(data,options)=>Response.json(data,options)}"),
+  "next/server":uri("export class NextResponse extends Response {static json(data,options){return Response.json(data,options)}}"),
   "@azure/data-tables":db,
   "@azure/identity":uri("export class DefaultAzureCredential {}"),
   "@azure/keyvault-secrets":uri("export class SecretClient {async getSecret(){return {value:'test'}}}"),
@@ -336,4 +336,28 @@ test('envio de depósito empacota a conta da empresa e os PDFs sem boleto ou reg
    const send=await POST(request({acao:'enviar',id:e.id,atualizadoEm:e.atualizadoEm},empresa));assert.equal(send.status,200);e=(await send.json()).email;assert.equal(sends,1);assert.equal(e.status,'aceito');assert.equal(e.tentativas[0].documentoConciliacaoPix,undefined);records.delete(key);
   }
  }finally{globalThis.fetch=originalFetch;}
+});
+
+test('regularização exige PDF/XML, preserva a baixa e envia MIME correto somente após duas aprovações',async()=>{
+ const originalFetch=globalThis.fetch,empresa='sysney',id='11111111-1111-4111-a111-111111111111',pid='f'.repeat(64),cid=pid+'_2025-04',em=new Date().toISOString();
+ const regularizacao={loteId:'emissao-'+'a'.repeat(64),recebimentoId:'a'.repeat(64),documento:'11111111111111',dataPagamento:'2025-04-10',emissaoFiscal:'2026-11-25',referenciaHistorica:'',transacao:'transacao-qa',endToEndId:'E-qa',registradoEm:em};
+ let e={...novoEmail(empresa,'Cliente QA'),id,para:'cliente@example.com',responderPara:'financeiro@example.com',competencia:'2025-04',vencimento:'2025-04-10',centavos:147384,formaPagamento:'pix',regularizacao,assunto:'Regularização QA',atualizadoEm:em,fluxo:{cobrancaId:cid,nota:'8',notaChave:'chave-qa',boleto:''},anexos:[{tipo:'nota',nome:'NFSe_8.pdf',blob:'nota-qa',tamanho:100},{tipo:'xml',nome:'NFSe_8.xml',blob:'xml-qa',tamanho:100}]};
+ const c={id:cid,planoId:pid,clienteNome:e.cliente,competencia:e.competencia,vencimento:e.vencimento,centavos:e.centavos,nota:'8',notaChave:'chave-qa',boleto:'',regularizacao,eventos:[{tipo:'pagamento',id:'pix-qa',data:regularizacao.dataPagamento,registradoEm:em,centavos:e.centavos}]};
+ const ek=`AdminDocumentos:emails-${empresa}:${id}`,ck=`AdminDocumentos:cobrancas-${empresa}:${cid}`;
+ records.set(ek,{partitionKey:'emails-sysney',rowKey:id,json:JSON.stringify(e),etag:'1'});records.set(ck,{json:JSON.stringify(c),etag:'1'});
+ try{
+  let sends=0;globalThis.fetch=async(url,options)=>{assert.equal(url,'https://api.sendgrid.com/v3/mail/send');const body=JSON.parse(options.body);assert.equal(body.attachments.find(a=>a.filename==='NFSe_8.xml').type,'application/xml');assert.equal(body.attachments.find(a=>a.filename==='NFSe_8.pdf').type,'application/pdf');assert.match(body.content[0].value,/não solicita novo pagamento/);assert.doesNotMatch(body.content[0].value,/Chave PIX/);sends++;return new Response(null,{status:202});};
+  assert.equal((await POST(request({acao:'enviar',id,atualizadoEm:e.atualizadoEm}))).status,400);assert.equal(sends,0);
+  assert.equal((await POST(request({acao:'revisar',id,atualizadoEm:e.atualizadoEm,remetente:'sender@example.com'}))).status,400);
+  const checked=await POST(request({acao:'conferir-documentos',id,atualizadoEm:e.atualizadoEm}));assert.equal(checked.status,200);e=(await checked.json()).email;
+  const revised=await POST(request({acao:'revisar',id,atualizadoEm:e.atualizadoEm,remetente:'sender@example.com'}));assert.equal(revised.status,200);e=(await revised.json()).email;assert.equal(sends,0);
+  const send=await POST(request({acao:'enviar',id,atualizadoEm:e.atualizadoEm}));assert.equal(send.status,200);e=(await send.json()).email;assert.equal(sends,1);assert.equal(e.tentativas[0].documentoConciliacaoPix,undefined);assert.equal(JSON.parse(records.get(ck).json).eventos.length,1);
+  assert.equal((await POST(request({acao:'enviar',id,atualizadoEm:e.atualizadoEm}))).status,400);assert.equal(sends,1);
+  const rq=request(null);rq.nextUrl.searchParams.set('id',id);rq.nextUrl.searchParams.set('anexo','xml');const download=await GET(rq);assert.equal(download.headers.get('content-type'),'application/xml');assert.match(download.headers.get('content-disposition'),/attachment.*xml/);
+ }finally{globalThis.fetch=originalFetch;records.delete(ek);records.delete(ck);}
+});
+
+test('editor não permite forjar regularização nem remover metadados de rascunho protegido',async()=>{
+ const draft={...novoEmail('sysney','Teste'),regularizacao:{dataPagamento:'2025-01-01'},formaPagamento:'pix'};
+ const res=await POST(request({acao:'salvar',email:draft}));assert.equal(res.status,400,'sem metadados do servidor, PIX continua exigindo chave e beneficiário');
 });
