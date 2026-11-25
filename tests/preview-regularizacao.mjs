@@ -12,7 +12,7 @@ process.env.NFSE_NACIONAL_PRODUCAO_HABILITADA='true';
 process.env.NFSE_SP_PRODUCAO_HABILITADA='true';process.env.NFSE_SP_VM_PRODUCAO_HABILITADA='true';
 await mkdir(new URL('../output/regularizacao-lote-20261125/',import.meta.url),{recursive:true});
 for(const [empresa,f] of Object.entries(states)){
-  f.recebimentos.forEach((r,index)=>{Object.assign(r,{cliente:empresa==='sysney'?'Cliente Exemplo de Tecnologia Ltda.':'Cliente Exemplo de Serviços e Consultoria Ltda.',centavos:index?147384:231456,recebimento:index?'2025-02-10':'2025-01-10',competencia:index?'2025-02':'2025-01'});f.row('regularizacao-'+empresa,r.id,r);});
+  f.recebimentos.forEach((r,index)=>{Object.assign(r,{cliente:empresa==='sysney'?'Cliente Exemplo de Tecnologia Ltda.':'Cliente Exemplo de Serviços e Consultoria Ltda.',centavos:index?147384:2730575,recebimento:index?'2025-02-10':'2025-01-10',competencia:index?'2025-02':'2025-01'});f.row('regularizacao-'+empresa,r.id,r);});
   let l=await f.service.criar(empresa,f.body(),fixtureRequest);
   for(let n=0;n<12&&!l.itens.every(i=>i.status==='pronta');n++)l=await f.service.avancar(empresa,l.id,{modo:'validar',hash:l.hash},fixtureRequest);
 }
