@@ -3,7 +3,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
 const source = ts.transpileModule(readFileSync(new URL('../app/tour-sisblink/motion.ts', import.meta.url), 'utf8'), { compilerOptions: { module: ts.ModuleKind.ESNext } }).outputText;
-const { advanceProgress, swanFrame } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+const { advanceProgress, swanFrame, journeyPhase } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+
+test('a full scroll journey needs fewer than 40 semantic React updates, not one per frame', () => {
+  let last = journeyPhase(0), updates = 0;
+  for (let i = 1; i <= 6000; i++) {
+    const phase = journeyPhase(i / 6000);
+    if (phase !== last) { updates++; last = phase; }
+  }
+  assert.ok(updates > 15 && updates < 40);
+  assert.equal(journeyPhase(.70), journeyPhase(.73));
+  assert.notEqual(journeyPhase(.73), journeyPhase(.75));
+  assert.notEqual(journeyPhase(.939), journeyPhase(.941));
+});
 
 test('a discrete scroll jump travels through intermediate frames, including after scroll stops', () => {
   let p = .1;

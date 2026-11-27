@@ -16,3 +16,9 @@ export function swanFrame(progress: number) {
 }
 
 export type TourFrame = (time: number, progress: number) => void;
+
+// React updates text/accessibility only at semantic boundaries, never per frame.
+const boundaries = [0, .14, .26*.56, .37*.56, .51*.56, .57*.56, .33, .44, .85*.56, .92*.56, .56, .65, .69, .74, .79, .88, .89, .94, 1].sort((a,b)=>a-b);
+export function journeyPhase(progress: number) {
+  return boundaries.reduce((phase, boundary) => phase + (progress > boundary ? 2 : progress === boundary ? 1 : 0), 0);
+}

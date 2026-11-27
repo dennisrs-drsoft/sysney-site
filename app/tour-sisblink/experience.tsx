@@ -4,7 +4,7 @@ import Image from "../components/site-image";
 import Link from "next/link";
 import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SwanScene from "./swan-scene";
-import { advanceProgress, type TourFrame } from "./motion";
+import { advanceProgress, journeyPhase, type TourFrame } from "./motion";
 import "./experience.css";
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -30,7 +30,10 @@ const TourScreens = memo(function TourScreens({ active, onLoaded, onFailed }: {
 });
 
 export default function CollectionExperience() {
+  const root = useRef<HTMLElement>(null);
   const track = useRef<HTMLDivElement>(null);
+  const paintFrame = useRef<TourFrame | null>(null);
+  const liveProgress = useRef(0);
   const renderSwan = useRef<TourFrame | null>(null);
   const frameTime = useRef(0);
   const guidePath = useRef<SVGPathElement>(null);
@@ -43,10 +46,6 @@ export default function CollectionExperience() {
   const [reduced, setReduced] = useState(false);
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
 
-  useLayoutEffect(() => {
-    renderSwan.current?.(frameTime.current, progress);
-  }, [progress, viewport, reduced, loaded]);
-
   useEffect(() => {
     // Honor the device preference; the visitor can still change the reading mode.
     const preference = matchMedia("(prefers-reduced-motion: reduce)");
@@ -56,42 +55,59 @@ export default function CollectionExperience() {
     const restoration = history.scrollRestoration;
     history.scrollRestoration = "manual";
     window.scrollTo({ top: 0, behavior: "instant" });
-    const resize = () => setViewport({ width: document.documentElement.clientWidth, height: track.current?.querySelector<HTMLElement>(".collection-stage")?.clientHeight ?? innerHeight });
-    resize();
-    addEventListener("resize", resize);
-    let frame = 0, lastTime = 0, current = 0, target = 0, measure = true;
+    let scrollStart = 0, scrollDistance = 1, frozenHeight = 0, lastWidth = 0;
+    let frame = 0, lastTime = 0, current = 0, target = 0, measure = true, phase = journeyPhase(0);
     const stageElement = track.current?.querySelector<HTMLElement>(".collection-stage");
-    const update = (time: number) => {
-      if (measure && track.current) {
-        const bounds = track.current.getBoundingClientRect();
-        target = clamp(-bounds.top / Math.max(1, bounds.height - (stageElement?.clientHeight ?? innerHeight)));
-        measure = false;
+    const touch = matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const resize = () => {
+      const width = document.documentElement.clientWidth;
+      const measuredHeight = Math.max(620, Math.round(window.visualViewport?.height ?? innerHeight));
+      const reframe = !frozenHeight || width !== lastWidth || (!touch.matches && measuredHeight !== frozenHeight);
+      const preserve = frozenHeight > 0 && reframe && !root.current?.classList.contains("collection-reduced");
+      // Ignore toolbar-only height changes on touch: keep one pixel-sized stage
+      // throughout a gesture, including browsers where svh changes with chrome.
+      if (reframe) {
+        frozenHeight = measuredHeight;
+        lastWidth = width;
+        root.current?.style.setProperty("--tour-height", `${frozenHeight}px`);
+        root.current?.style.setProperty("--tour-track-height", `${frozenHeight * 9.4}px`);
+        const height = frozenHeight;
+        setViewport(previous => previous.width === width && previous.height === height ? previous : { width, height });
       }
+      if (track.current) {
+        scrollStart = track.current.getBoundingClientRect().top + scrollY;
+        scrollDistance = Math.max(1, track.current.offsetHeight - (stageElement?.clientHeight ?? frozenHeight));
+        if (preserve) window.scrollTo({ top: scrollStart + current * scrollDistance, behavior: "instant" });
+      }
+      measure = true;
+    };
+    const update = (time: number) => {
+      if (measure) { target = clamp((scrollY - scrollStart) / scrollDistance); measure = false; }
       const dt = lastTime ? (time - lastTime) / 1000 : 1 / 60;
       lastTime = time;
-      const next = advanceProgress(current, target, dt);
+      current = advanceProgress(current, target, dt);
+      liveProgress.current = current;
       frameTime.current = time;
-      // Draw after the DOM commit while travelling; keep wing motion alive at rest.
-      if (next !== current) { current = next; setProgress(current); }
-      else renderSwan.current?.(time, current);
+      const nextPhase = journeyPhase(current);
+      if (nextPhase !== phase) { phase = nextPhase; setProgress(current); }
+      paintFrame.current?.(time, current);
       frame = requestAnimationFrame(update);
     };
     const scroll = () => { measure = true; };
     const visibility = () => { lastTime = 0; measure = true; };
+    resize();
     document.addEventListener("visibilitychange", visibility);
-    frame = requestAnimationFrame(update);
-    const stage = track.current?.querySelector<HTMLElement>(".collection-stage");
-    const stageObserver = new ResizeObserver(() => { resize(); scroll(); });
-    if (stage) stageObserver.observe(stage);
+    addEventListener("resize", resize);
     addEventListener("scroll", scroll, { passive: true });
-    addEventListener("resize", scroll);
+    const stageObserver = new ResizeObserver(resize);
+    if (stageElement) stageObserver.observe(stageElement);
+    frame = requestAnimationFrame(update);
     return () => {
       document.removeEventListener("visibilitychange", visibility);
       stageObserver.disconnect();
       preference.removeEventListener("change", syncPreference);
       removeEventListener("resize", resize);
       removeEventListener("scroll", scroll);
-      removeEventListener("resize", scroll);
       history.scrollRestoration = restoration;
       cancelAnimationFrame(frame);
     };
@@ -99,8 +115,6 @@ export default function CollectionExperience() {
 
   // Keep the approved collection choreography, then continue into ordering.
   const introProgress = clamp(progress / .56);
-  const collection = ease(range(introProgress, .15, .3));
-  const catalog = ease(range(introProgress, .52, .72));
   const mobile = viewport.width <= 850;
   const observedPiece = introProgress < .37 ? 0 : introProgress < .51 ? 1 : 2;
   const dataStep = introProgress < .85 ? 0 : introProgress < .92 ? 1 : 2;
@@ -126,13 +140,66 @@ export default function CollectionExperience() {
   const catalogLeft = (viewport.width - catalogWidth) / 2;
   const catalogTop = viewport.height * (mobile ? .43 : .34);
   const cardWidth = Math.min(viewport.width * .25, 250);
-  const dock = ease(range(progress, .88, .975));
-  const handoff = ease(range(progress, .978, 1));
   const showFocus = !reduced && progress > .44 && progress < .88;
   const chapter = progress < .14 ? 0 : progress < .33 ? 1 : progress < .56 ? 2 : progress < .65 ? 3 : progress < .79 ? 4 : 5;
 
+  useLayoutEffect(() => {
+    const host = root.current;
+    if (!host) return;
+    const nodes = Object.fromEntries(["orbit", "copy", "swan-fallback", "middle", "catalog", "final-copy", "end-backdrop", "end", "end-logo"].map(name => [name, host.querySelector<HTMLElement>(`.collection-${name}`)]));
+    const pieces = [...host.querySelectorAll<HTMLElement>(".collection-pieces figure")];
+    const bar = host.querySelector<HTMLElement>(".collection-progress span");
+    if (!reduced) {
+      pieces.forEach(piece => { piece.style.width = `${cardWidth}px`; });
+      const element = nodes.catalog;
+      if (element) {
+        element.style.width = `${catalogWidth}px`;
+        element.style.left = `${catalogLeft}px`;
+        element.style.top = `${catalogTop}px`;
+        element.style.aspectRatio = `${screen.width} / ${screen.height + 32 * screen.width / catalogWidth}`;
+      }
+    }
+    const opacity = (name: string, value: number) => { if (nodes[name]) nodes[name]!.style.opacity = String(value); };
+    let lastPainted = -1;
+    const paint: TourFrame = (time, p) => {
+      if (!reduced && p !== lastPainted) {
+        lastPainted = p;
+        const ip = clamp(p / .56), collection = ease(range(ip, .15, .3));
+        if (nodes.orbit) nodes.orbit.style.transform = `translate(-50%, -50%) rotate(${ip * 80}deg) scale(${1 + collection * .3})`;
+        opacity("copy", 1 - range(ip, .12, .25));
+        if (nodes.copy) nodes.copy.style.transform = `translate3d(0,${-ip * 120}px,0)`;
+        opacity("swan-fallback", 1 - range(ip, .6, .8));
+        pieces.forEach((piece, index) => {
+          const merge = ease(range(ip, .56 + index * .035, .78 + index * .035));
+          const appear = ease(range(ip, .16 + index * .04, .29 + index * .04));
+          const startX = viewport.width * (.19 + index * .31) - cardWidth / 2;
+          const endX = catalogLeft + catalogWidth * (261 + index * 263) / 1784;
+          const endY = catalogTop + 32 + catalogWidth * 138 / 1784;
+          const x = lerp(startX, endX, merge);
+          const y = lerp(viewport.height * (.46 + (index === 1 ? -.035 : .025)), endY, merge) + (1 - appear) * 90;
+          const scale = lerp(1, catalogWidth * 251 / 1784 / cardWidth, merge);
+          piece.style.transform = `translate3d(${x}px,${y}px,0) perspective(1000px) rotateY(${Math.sin(ip * 9 + index) * 12 * (1 - merge)}deg) rotateZ(${(index - 1) * 7 * (1 - merge)}deg) scale(${scale})`;
+          piece.style.opacity = String(appear * (1 - ease(range(ip, .84, .89))));
+          const caption = piece.querySelector("figcaption");
+          if (caption) caption.style.opacity = String(1 - merge);
+        });
+        opacity("middle", range(ip, .24, .34) * (1 - range(ip, .54, .64)));
+        opacity("catalog", ease(range(ip, .52, .72)) * (1 - ease(range(p, .875, .91))));
+        opacity("final-copy", range(ip, .78, .9) * (1 - ease(range(p, .875, .9))));
+        opacity("end-backdrop", ease(range(p, .88, .975)));
+        opacity("end", range(p, .89, .95));
+        opacity("end-logo", ease(range(p, .978, 1)));
+        if (bar) bar.style.transform = `scaleX(${p})`;
+      }
+      renderSwan.current?.(time, p);
+    };
+    paintFrame.current = paint;
+    paint(frameTime.current, liveProgress.current);
+    return () => { paintFrame.current = null; };
+  }, [viewport, reduced, loaded, progress, cardWidth, catalogWidth, catalogLeft, catalogTop, screen.width, screen.height]);
+
   return (
-    <main className={`collection-preview ${reduced ? "collection-reduced" : ""}`}>
+    <main ref={root} className={`collection-preview ${reduced ? "collection-reduced" : ""}`}>
       <header className="collection-header">
         <Link href="/" aria-label="Voltar à SYSNEY"><Image src="/sysney-logo.svg" alt="SYSNEY" width={92} height={92} /></Link>
         <button type="button" onClick={() => setReduced(!reduced)} aria-pressed={!reduced}>{reduced ? "Ativar movimento" : "Pausar movimento"}</button>
@@ -141,8 +208,8 @@ export default function CollectionExperience() {
       <div className="collection-track" ref={track}>
         <section className="collection-stage" aria-label="Da coleção à montagem do pedido">
           <div className="collection-light" aria-hidden="true" />
-          <div className="collection-orbit" aria-hidden="true" style={{ transform: `translate(-50%, -50%) rotate(${introProgress * 80}deg) scale(${1 + collection * 0.3})` }} />
-          <div className="collection-copy" style={{ opacity: 1 - range(introProgress, 0.12, 0.25), transform: `translateY(${-introProgress * 120}px)` }}>
+          <div className="collection-orbit" aria-hidden="true" />
+          <div className="collection-copy">
             <p className="collection-eyebrow">TECNOLOGIA COM A SUA IDENTIDADE</p>
             <h1>Sua coleção<br />tem identidade.<br /><em>Sua venda também.</em></h1>
             <p>O SISBlink conecta a apresentação da coleção à construção de cada pedido.</p>
@@ -153,42 +220,29 @@ export default function CollectionExperience() {
             const targetX = catalogLeft + catalogWidth * (detail.x + detail.width) / screen.width + 4;
             const targetY = catalogTop + 32 + catalogWidth * (detail.y + detail.height / 2) / screen.width;
             const controlX = eye.x + (targetX - eye.x) * .3;
-            path.setAttribute("d", `M ${eye.x} ${eye.y} Q ${controlX} ${targetY} ${targetX} ${targetY}`);
+            const d = `M ${eye.x} ${eye.y} Q ${controlX} ${targetY} ${targetX} ${targetY}`;
+            if (path.getAttribute("d") !== d) path.setAttribute("d", d);
           }} />
-          <div className="collection-swan-fallback" style={{ opacity: 1 - range(introProgress, .6, .8) }} aria-hidden="true">
+          <div className="collection-swan-fallback" aria-hidden="true">
             <Image src="/sysney-cisne-3d.png" alt="" width={650} height={650} priority />
           </div>
           <div className="collection-pieces" aria-hidden={!reduced && chapter !== 1}>
             {["Preta · malha fina", "Rosa antigo · chiffon", "Terracota · viscose"].map((label, index) => {
-              const merge = ease(range(introProgress, .56 + index * .035, .78 + index * .035));
-              const appear = ease(range(introProgress, .16 + index * .04, .29 + index * .04));
-              const startX = viewport.width * (.19 + index * .31) - cardWidth / 2;
-              const endX = catalogLeft + catalogWidth * (261 + index * 263) / 1784;
-              const endY = catalogTop + 32 + catalogWidth * 138 / 1784;
-              const width = lerp(cardWidth, catalogWidth * 251 / 1784, merge);
               return (
-                <figure key={label} data-observed={!reduced && introProgress > .26 && introProgress < .57 && observedPiece === index ? "true" : undefined} style={{
-                  left: lerp(startX, endX, merge),
-                  top: lerp(viewport.height * (.46 + (index === 1 ? -.035 : .025)), endY, merge),
-                  width,
-                  opacity: appear * (1 - ease(range(introProgress, .84, .89))),
-                  transform: `perspective(1000px) translateY(${(1 - appear) * 90}px) rotateY(${Math.sin(introProgress * 9 + index) * 12 * (1 - merge)}deg) rotateZ(${(index - 1) * 7 * (1 - merge)}deg)`,
-                  borderRadius: lerp(14, 0, merge),
-                  boxShadow: `0 ${30 * (1 - merge)}px ${60 * (1 - merge)}px #0004`,
-                }}>
+                <figure key={label} data-observed={!reduced && introProgress > .26 && introProgress < .57 && observedPiece === index ? "true" : undefined}>
                   <div className={`collection-product product-${index}`}>
                     <Image src="/sisblink/telas/catalogo-detalhado.webp" alt={label} width={1784} height={937} sizes="(max-width: 850px) 180vw, 1800px" />
                   </div>
-                  <figcaption style={{ opacity: 1 - merge, maxHeight: (1 - merge) * 90, padding: `${(1 - merge) * 16}px 6px` }}>{label}<span>{!reduced && observedPiece === index && introProgress > .26 && introProgress < .57 ? "PEÇA EM DESTAQUE" : "COLEÇÃO DE DEMONSTRAÇÃO"}</span></figcaption>
+                  <figcaption>{label}<span>{!reduced && observedPiece === index && introProgress > .26 && introProgress < .57 ? "PEÇA EM DESTAQUE" : "COLEÇÃO DE DEMONSTRAÇÃO"}</span></figcaption>
                 </figure>
               );
             })}
           </div>
-          <div className="collection-middle" style={{ opacity: range(introProgress, 0.24, 0.34) * (1 - range(introProgress, 0.54, 0.64)) }}>
+          <div className="collection-middle">
             <p className="collection-eyebrow">CADA PEÇA, EM DETALHES</p>
             <h2>Uma coleção.<br /><em>Muitas possibilidades.</em></h2>
           </div>
-          <div className="collection-catalog" data-screen={screen.src} style={reduced ? undefined : { opacity: catalog * (1 - ease(range(progress, .875, .91))), width: catalogWidth, left: catalogLeft, top: catalogTop, aspectRatio: `${screen.width} / ${screen.height + 32 * screen.width / catalogWidth}` }}>
+          <div className="collection-catalog" data-screen={screen.src}>
             <div className="collection-window"><span>● ● ●</span><span>SISBLINK / AMBIENTE REAL</span></div>
             {showFocus && <div className="collection-data-focus" style={{ left: `${detail.x / screen.width * 100}%`, top: `calc(32px + ${detail.y / screen.width * catalogWidth}px)`, width: `${detail.width / screen.width * 100}%`, height: detail.height / screen.width * catalogWidth }} aria-hidden="true" />}
             <TourScreens active={screen.src} onLoaded={onLoaded} onFailed={onFailed} />
@@ -197,16 +251,16 @@ export default function CollectionExperience() {
           {showFocus && <svg className="collection-guide-line" viewBox={`0 0 ${viewport.width} ${viewport.height}`} aria-hidden="true">
             <path ref={guidePath} />
           </svg>}
-          <div className="collection-final-copy" style={{ opacity: range(introProgress, .78, .9) * (1 - ease(range(progress, .875, .90))) }}>
+          <div className="collection-final-copy">
             <p className="collection-eyebrow">{isOrdering ? "DA ESCOLHA À MONTAGEM DO PEDIDO" : "SUA COLEÇÃO, PRONTA PARA VENDER"}</p>
             <h2>{showFocus ? detail.title : <>Do primeiro olhar<br /><em>ao próximo pedido.</em></>}</h2>
             <p>{showFocus ? detail.description : "Imagens, cores, grade e disponibilidade em uma experiência conectada."}</p>
             {showFocus && <span className="collection-focus-label">{detail.label}</span>}
           </div>
           {reduced && <div className="collection-reading-tour">{orderScenes.filter((scene, index) => index === 0 || scene.src !== orderScenes[index - 1].src).map(scene => <section key={scene.start}><p className="collection-eyebrow">DA COLEÇÃO AO PEDIDO</p><h2>{scene.src.includes("grade") ? "Prazo, grade e quantidades." : scene.title}</h2><p>{scene.src.includes("grade") ? "Escolha o prazo, distribua as quantidades por tamanho, confira o total e adicione a peça à sacola." : scene.description}</p><Image src={scene.src} alt={scene.title + " — captura de demonstração do SISBlink"} width={scene.width} height={scene.height} sizes="90vw" /></section>)}</div>}
-          <div className="collection-end-backdrop" style={{ opacity: reduced ? 0 : dock }} aria-hidden="true" />
-          <section className="collection-end" style={{ opacity: reduced ? 1 : range(progress, .89, .95), pointerEvents: reduced || progress > .94 ? "auto" : "none" }} aria-hidden={!reduced && progress < .89}>
-            <Image ref={brandTarget} className="collection-end-logo" src="/sysney-logo.svg" alt="SYSNEY Informática" width={188} height={184} style={{ opacity: reduced ? 1 : handoff }} />
+          <div className="collection-end-backdrop" aria-hidden="true" />
+          <section className="collection-end" style={{ pointerEvents: reduced || progress > .94 ? "auto" : "none" }} aria-hidden={!reduced && progress < .89}>
+            <Image ref={brandTarget} className="collection-end-logo" src="/sysney-logo.svg" alt="SYSNEY Informática" width={188} height={184} />
             <div className="collection-end-copy"><p className="collection-eyebrow">PLATAFORMA DESENVOLVIDA PELA SYSNEY</p>
             <h2>A coleção é sua.<br /><em>O próximo passo também.</em></h2>
             <p className="collection-demo-note">Telas reais do ambiente de demonstração. A visita apresenta o fluxo sem gravar ou enviar pedidos.</p>
@@ -216,7 +270,7 @@ export default function CollectionExperience() {
           <div className="collection-chapters" aria-label="Etapa da experiência">
             {["Identidade", "Coleção", "Catálogo", "Shopping", "Grade", "Pedido"].map((label, index) => <span key={label} aria-current={chapter === index ? "step" : undefined}>{label}</span>)}
           </div>
-          <div className="collection-progress" aria-hidden="true"><span style={{ width: `${progress * 100}%` }} /></div>
+          <div className="collection-progress" aria-hidden="true"><span /></div>
           <p className="collection-scroll">ROLE PARA EXPLORAR ↓</p>
         </section>
       </div>

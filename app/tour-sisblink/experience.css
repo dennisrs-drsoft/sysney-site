@@ -445,3 +445,16 @@
 }
 
 .collection-track { height: 940svh; }
+/* Keep the pinned stage on one stable compositor layer, without a 3D parent. */
+.collection-stage { height: var(--tour-height, 100svh); perspective: none; transform: translateZ(0); backface-visibility: hidden; contain: layout paint; }
+.collection-track { height: var(--tour-track-height, 940svh); }
+.collection-middle, .collection-catalog, .collection-final-copy, .collection-end-backdrop, .collection-end, .collection-end-logo { opacity: 0; }
+.collection-preview:not(.collection-reduced) .collection-pieces figure { left: 0; top: 0; opacity: 0; overflow: visible; transform-origin: 0 0; will-change: transform, opacity; }
+.collection-preview:not(.collection-reduced) .collection-product { border-radius: 12px; }
+.collection-preview:not(.collection-reduced) .collection-pieces figcaption { position: absolute; top: 100%; left: 0; right: 0; padding: 16px 6px; background: #edf4f5; border-radius: 0 0 12px 12px; }
+.collection-progress span { width: 100%; transform: scaleX(0); transform-origin: left; }
+.collection-reduced .collection-stage { height: auto; transform: none; contain: none; }
+.collection-reduced .collection-end, .collection-reduced .collection-end-logo { opacity: 1; }
+.collection-reduced .collection-end, .collection-reduced .collection-end-logo { opacity: 1 !important; }
+.collection-reduced .collection-end-backdrop { display: none; }
+.collection-reduced .collection-catalog { width: 100% !important; left: auto !important; top: auto !important; aspect-ratio: auto !important; }
