@@ -2,8 +2,9 @@
 
 import Image from "../components/site-image";
 import Link from "next/link";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import SwanScene from "./swan-scene";
+import { advanceProgress, type TourFrame } from "./motion";
 import "./experience.css";
 
 const clamp = (value: number) => Math.max(0, Math.min(1, value));
@@ -30,6 +31,8 @@ const TourScreens = memo(function TourScreens({ active, onLoaded, onFailed }: {
 
 export default function CollectionExperience() {
   const track = useRef<HTMLDivElement>(null);
+  const renderSwan = useRef<TourFrame | null>(null);
+  const frameTime = useRef(0);
   const guidePath = useRef<SVGPathElement>(null);
   const brandTarget = useRef<HTMLImageElement>(null);
   const [loaded, setLoaded] = useState<Record<string, boolean>>({});
@@ -39,6 +42,10 @@ export default function CollectionExperience() {
   const [progress, setProgress] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
+
+  useLayoutEffect(() => {
+    renderSwan.current?.(frameTime.current, progress);
+  }, [progress, viewport, reduced, loaded]);
 
   useEffect(() => {
     // Honor the device preference; the visitor can still change the reading mode.
@@ -52,26 +59,34 @@ export default function CollectionExperience() {
     const resize = () => setViewport({ width: document.documentElement.clientWidth, height: track.current?.querySelector<HTMLElement>(".collection-stage")?.clientHeight ?? innerHeight });
     resize();
     addEventListener("resize", resize);
-    let frame = 0, lastUpdate = 0;
-    const touch = matchMedia("(max-width: 1024px), (pointer: coarse)");
-    const update = (time = 0) => {
-      frame = 0;
-      if (touch.matches && time - lastUpdate < 32) { frame = requestAnimationFrame(update); return; }
-      lastUpdate = time;
-      if (!track.current) return;
-      const bounds = track.current.getBoundingClientRect();
-      setProgress(clamp(-bounds.top / Math.max(1, bounds.height - (track.current.querySelector<HTMLElement>(".collection-stage")?.clientHeight ?? innerHeight))));
+    let frame = 0, lastTime = 0, current = 0, target = 0, measure = true;
+    const stageElement = track.current?.querySelector<HTMLElement>(".collection-stage");
+    const update = (time: number) => {
+      if (measure && track.current) {
+        const bounds = track.current.getBoundingClientRect();
+        target = clamp(-bounds.top / Math.max(1, bounds.height - (stageElement?.clientHeight ?? innerHeight)));
+        measure = false;
+      }
+      const dt = lastTime ? (time - lastTime) / 1000 : 1 / 60;
+      lastTime = time;
+      const next = advanceProgress(current, target, dt);
+      frameTime.current = time;
+      // Draw after the DOM commit while travelling; keep wing motion alive at rest.
+      if (next !== current) { current = next; setProgress(current); }
+      else renderSwan.current?.(time, current);
+      frame = requestAnimationFrame(update);
     };
-    const scroll = () => {
-      if (!frame) frame = requestAnimationFrame(update);
-    };
-    update();
+    const scroll = () => { measure = true; };
+    const visibility = () => { lastTime = 0; measure = true; };
+    document.addEventListener("visibilitychange", visibility);
+    frame = requestAnimationFrame(update);
     const stage = track.current?.querySelector<HTMLElement>(".collection-stage");
     const stageObserver = new ResizeObserver(() => { resize(); scroll(); });
     if (stage) stageObserver.observe(stage);
     addEventListener("scroll", scroll, { passive: true });
     addEventListener("resize", scroll);
     return () => {
+      document.removeEventListener("visibilitychange", visibility);
       stageObserver.disconnect();
       preference.removeEventListener("change", syncPreference);
       removeEventListener("resize", resize);
@@ -132,7 +147,7 @@ export default function CollectionExperience() {
             <h1>Sua coleção<br />tem identidade.<br /><em>Sua venda também.</em></h1>
             <p>O SISBlink conecta a apresentação da coleção à construção de cada pedido.</p>
           </div>
-          <SwanScene progress={reduced ? 0 : Math.min(introProgress, .97)} reduced={reduced} dock={reduced ? 0 : dock} handoff={reduced ? 0 : handoff} brandTarget={brandTarget} screenBottom={catalogTop + 32 + catalogWidth * screen.height / screen.width} onEyePosition={eye => {
+          <SwanScene frameRef={renderSwan} reduced={reduced} brandTarget={brandTarget} screenBottom={catalogTop + 32 + catalogWidth * screen.height / screen.width} onEyePosition={eye => {
             const path = guidePath.current;
             if (!path) return;
             const targetX = catalogLeft + catalogWidth * (detail.x + detail.width) / screen.width + 4;

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import { brandMeshes } from "./brand-mesh";
+import { swanFrame, type TourFrame } from "./motion";
 
 type Matrix = number[];
 const identity = (): Matrix => [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
@@ -67,20 +68,17 @@ function flightPosition(progress: number, mobile: boolean) {
   return [a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 }
 
-export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, handoff = 0, brandTarget, screenBottom }: {
-  progress: number;
+export default function SwanScene({ frameRef, reduced, onEyePosition, brandTarget, screenBottom }: {
+  frameRef: RefObject<TourFrame | null>;
   reduced: boolean;
   onEyePosition?: (position: { x: number; y: number }) => void;
-  dock?: number;
-  handoff?: number;
   brandTarget?: RefObject<HTMLImageElement | null>;
   screenBottom?: number;
 }) {
   const canvas=useRef<HTMLCanvasElement>(null);
-  const input=useRef({progress,reduced,dock,handoff,screenBottom});
+  const input=useRef({reduced,screenBottom});
   const eyeCallback=useRef(onEyePosition);
-  useEffect(()=>{eyeCallback.current=onEyePosition;},[onEyePosition]);
-  useEffect(()=>{input.current={progress,reduced,dock,handoff,screenBottom};},[progress,reduced,dock,handoff,screenBottom]);
+  useLayoutEffect(()=>{eyeCallback.current=onEyePosition;input.current={reduced,screenBottom};},[onEyePosition,reduced,screenBottom]);
   useEffect(()=>{
     const element=canvas.current;
     if(!element)return;
@@ -113,7 +111,7 @@ export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, 
       gl.uniformMatrix3fv(uniforms.normalModel,false,new Float32Array(normalMatrix(matrix)));
       gl.uniform3fv(uniforms.color,new Float32Array(color));gl.drawArrays(gl.TRIANGLES,0,meshes[mesh].count);
     };
-    let frame=0,previous=0,lastDraw=0,p=input.current.progress,turn=0;
+    let previousProgress=-1;
     let visible=true,lost=false,dirty=true;
     const touch=matchMedia("(max-width: 1024px), (hover: none), (pointer: coarse)");
     let bounds=element.getBoundingClientRect();
@@ -123,22 +121,15 @@ export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, 
     const visibility=()=>{ visible=document.visibilityState!=="hidden"; dirty=true; };
     document.addEventListener("visibilitychange",visibility);
     const observer=new IntersectionObserver(([entry])=>{visible=entry.isIntersecting && document.visibilityState!=="hidden";dirty=true;});observer.observe(element);
-    const contextLost=(event:Event)=>{event.preventDefault();lost=true;delete element.dataset.ready;cancelAnimationFrame(frame);};
+    const contextLost=(event:Event)=>{event.preventDefault();lost=true;delete element.dataset.ready;};
     element.addEventListener("webglcontextlost",contextLost);
-    const draw=(time:number)=>{
-      if(lost)return;
-      frame=requestAnimationFrame(draw);
-      if(!visible){previous=time;return;}
-      // 30 fps on touch, 60 fps on desktop: regular frame cadence instead of
-      // the old 40ms threshold (which fell to 20 fps on a 60Hz display).
-      const interval=touch.matches?1000/30:1000/60;
-      if(time-lastDraw<interval-1)return;
-      lastDraw=time-(time-lastDraw)%interval;
-      const settled=Math.abs(input.current.progress-p)<.0001;
-      if(input.current.reduced && settled && !dirty)return;
+    const draw: TourFrame = (time, overallProgress) => {
+      if(lost || !visible)return;
+      const sample=swanFrame(input.current.reduced ? 0 : overallProgress);
+      const {progress:p,dock:docking,handoff}=sample;
+      if(input.current.reduced && p===previousProgress && !dirty)return;
+      previousProgress=p;
       dirty=false;
-      const dt=Math.min((time-previous)/1000,.08);previous=time;
-      p+=(input.current.progress-p)*(1-Math.exp(-dt*14));
       const canvasBounds=bounds;
       const {width:w,height:h}=canvasBounds;
       if(!w||!h)return;
@@ -150,7 +141,6 @@ export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, 
       let size=(mobile?Math.min(w*.55,330):Math.min(w*.34,h*.61))*(1-smooth(p,.14,.3)*.35)*(1-inspect*.12);
       const [initialX,y]=flightPosition(p,mobile);
       let x=initialX;
-      const docking=input.current.dock;
       const catalogBottom=input.current.screenBottom ?? h*.43+32+Math.min(w*.94,1100,h*1.05)*937/1784;
       if(mobile){
         const fitted=Math.min(size,Math.max(60,(h-catalogBottom-55)/.8));
@@ -168,11 +158,11 @@ export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, 
         size+=(target.width*570/940-size)*docking;
       }
       gl.uniform4f(uniforms.framing,x*2-1,1-guidedY*2,size/w,size/h);
-      gl.uniform1f(uniforms.opacity,1-input.current.handoff);
+      gl.uniform1f(uniforms.opacity,1-handoff);
       gl.uniform1f(uniforms.flatAmount,docking);
       // Turn the whole animal toward the catalog; the head only makes small glances.
       const targetTurn=inspect*Math.PI;
-      turn+=(targetTurn-turn)*(1-Math.exp(-dt*5));
+      const turn=targetTurn;
       // Preserve the exact SYSNEY silhouette. Move the wing as one solid part.
       const flatten=identity();
       flatten[10]=1-docking*.999;
@@ -188,10 +178,10 @@ export default function SwanScene({ progress, reduced, onEyePosition, dock = 0, 
       const pivot=[.24,-.55,0];
       const wing=compose(root,translation(...pivot as [number,number,number]),rotation("y",beat),translation(-pivot[0],-pivot[1],0));
       render(wing,blue,1);
-      element.dataset.ready="true";
+      if(element.dataset.ready!=="true")element.dataset.ready="true";
     };
-    frame=requestAnimationFrame(draw);
-    return ()=>{cancelAnimationFrame(frame);resizeObserver.disconnect();document.removeEventListener("visibilitychange",visibility);observer.disconnect();element.removeEventListener("webglcontextlost",contextLost);meshes.forEach(mesh=>gl.deleteBuffer(mesh.buffer));gl.deleteProgram(program);gl.deleteShader(vs);gl.deleteShader(fs);};
-  },[brandTarget]);
+    frameRef.current=draw;
+    return ()=>{frameRef.current=null;resizeObserver.disconnect();document.removeEventListener("visibilitychange",visibility);observer.disconnect();element.removeEventListener("webglcontextlost",contextLost);meshes.forEach(mesh=>gl.deleteBuffer(mesh.buffer));gl.deleteProgram(program);gl.deleteShader(vs);gl.deleteShader(fs);};
+  },[brandTarget,frameRef]);
   return <canvas ref={canvas} className="collection-swan-canvas" aria-hidden="true" />;
 }
