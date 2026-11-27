@@ -1,0 +1,1 @@
+@media (max-width: 850px) { .studio-header .site-menu > div { left: 50%; right: auto; transform: translateX(-50%); max-height: calc(100svh - 150px); overflow-y: auto; } }

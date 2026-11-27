@@ -54,6 +54,11 @@ export default function LinksPage() {
         </div>
       </section>
 
+      <Link href="/tour-sisblink" className={`group mt-6 grid gap-6 overflow-hidden rounded-3xl border border-sky-300/30 bg-[#0d2033] p-6 text-white transition hover:border-sky-300/60 sm:p-7 lg:grid-cols-2 lg:items-center ${cardFocus}`}>
+        <div><p className="text-xs font-bold uppercase tracking-[0.15em] text-sky-200">Visita guiada pela rolagem</p><h2 className="mt-3 text-2xl font-black text-white">Tour interativo do SISBlink</h2><p className="mt-3 text-base leading-7 text-slate-200">Da coleção ao pedido: veja o catálogo, as cores, o estoque, a grade e a montagem do pedido com o cisne da SYSNEY como guia.</p><span className="mt-5 inline-flex items-center gap-3 font-bold text-sky-200">Iniciar o tour<Arrow /></span></div>
+        <div className="screen-showcase links-screen" data-reveal=""><Image src="/sisblink/telas/grade.webp" alt="Escolha de tamanhos e quantidades na montagem de um pedido SISBlink" width={1920} height={1080} sizes="(min-width: 1024px) 520px, 90vw" className="h-auto w-full object-contain" /></div>
+      </Link>
+
       <section aria-labelledby="links-sites" className="mt-6 rounded-3xl border border-sky-300/25 bg-[#0d2033] p-6 sm:p-7">
         <h2 id="links-sites" className="text-2xl font-black">Criação de sites com IA</h2>
         <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300">Desenvolvemos sites institucionais e páginas de divulgação com IA e revisão humana. Também remodelamos sites que já estão no ar.</p>

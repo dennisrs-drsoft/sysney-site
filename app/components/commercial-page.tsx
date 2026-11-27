@@ -9,6 +9,7 @@ export type CommercialPageData = {
   processTitle: string; process: { title: string; text: string }[];
   audienceTitle: string; audiences: string[];
   faq: { question: string; answer: string }[];
+  tour?: boolean;
   value?: { title: string; text: string; points: string[] };
 };
 
@@ -20,7 +21,7 @@ export function CommercialPage({ data, children }: { data: CommercialPageData; c
   return <main className="studio solution-page">
     <SiteHeader />
     <section className="studio-hero solution-hero">
-      <div data-reveal><p className="studio-eyebrow">{data.eyebrow}</p><h1>{data.title}</h1><p className="studio-intro">{data.lead}</p><div className="studio-actions"><Link href="/contato" className="studio-button">Solicitar demonstração <span><DirectionalArrow /></span></Link><Link href="/sisblink-em-acao" className="studio-text-link">Explore as telas →</Link></div></div>
+      <div data-reveal><p className="studio-eyebrow">{data.eyebrow}</p><h1>{data.title}</h1><p className="studio-intro">{data.lead}</p><div className="studio-actions"><Link href="/contato" className="studio-button">Solicitar demonstração <span><DirectionalArrow /></span></Link><Link href="/sisblink-em-acao" className="studio-text-link">Explore as telas →</Link>{data.tour && <Link href="/tour-sisblink" className="studio-text-link">Veja como funciona</Link>}</div></div>
       <div className="product-stage" data-reveal><div className="stage-orbit" aria-hidden="true"/><div className="product-window"><div className="window-top"><span>● ● ●</span><span>SISBLINK / SUA OPERAÇÃO</span></div><Image src={data.image.src} alt={data.image.alt} width={data.image.width} height={data.image.height} sizes="(min-width: 1000px) 50vw, 90vw" priority /></div></div>
     </section>
     {children && <div className="solution-detail">{children}</div>}
