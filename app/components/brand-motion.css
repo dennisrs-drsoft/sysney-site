@@ -155,3 +155,12 @@
   letter-spacing: 1px;
 }
 .links-screen::after { content: none; }
+/* Touch devices keep the guided 3D tour, without dozens of decorative loops. */
+@media (max-width: 1024px), (hover: none), (pointer: coarse) {
+  .sysney-experience :is(.screen-showcase,.screen-showcase.is-visible,.stage-orbit,.ambient-core,.closing-emblem img),
+  .sysney-experience .journey-line li::before { animation: none !important; }
+  .sysney-experience .screen-showcase { transform: none; box-shadow: 0 12px 28px #00142130 !important; }
+  .sysney-experience .ambient-core { filter: none; }
+  .sysney-experience .ambient-orbit { will-change: auto; box-shadow: none; }
+  .sysney-experience [data-reveal] { animation-duration: .28s; }
+}

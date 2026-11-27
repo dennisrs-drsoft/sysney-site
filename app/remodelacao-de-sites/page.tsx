@@ -1,6 +1,6 @@
 import { DirectionalArrow } from "../components/directional-arrow";
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "../components/site-image";
 import Link from "next/link";
 import { SiteHeader, SiteFooter } from "../components/site-chrome";
 import "../design-system/studio.css";

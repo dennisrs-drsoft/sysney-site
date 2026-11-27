@@ -4,7 +4,7 @@ import "../design-system/studio.css";
 import "../components/solutions.css";
 import "../components/editorial-pages.css";
 import type { Metadata } from "next";
-import Image from "next/image";
+import Image from "../components/site-image";
 import Link from "next/link";
 
 const title = "Links oficiais da SYSNEY e do SISBlink";

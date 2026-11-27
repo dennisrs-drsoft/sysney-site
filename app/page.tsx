@@ -3,7 +3,7 @@ import { HomeOpening } from "./components/home-opening";
 import "./design-system/studio.css";
 import "./components/solutions.css";
 import "./components/home-redesign.css";
-import Image from "next/image";
+import Image from "./components/site-image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { SisblinkLiveHighlight } from "./components/sisblink-live-highlight";

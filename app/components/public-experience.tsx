@@ -17,39 +17,41 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
   const [audioError, setAudioError] = useState(false);
   const [volume, setVolume] = useState(60);
   const isAdmin = pathname.startsWith("/admin");
+  const isTour = pathname === "/tour-sisblink";
 
   useEffect(() => {
-    if (isAdmin || !root.current) return;
+    if (isAdmin || isTour || !root.current) return;
     const host = root.current;
     const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+    const finePointer = matchMedia("(min-width: 1025px) and (hover: hover) and (pointer: fine)");
+    const ambient = host.querySelector<HTMLElement>(".ambient-stage");
     let frame = 0;
     const update = () => {
       frame = 0;
-      host.style.setProperty("--scroll", `${paused || reduced.matches ? 0 : Math.min(window.scrollY * 0.06, 260)}px`);
-      if (paused || reduced.matches) {
-        host.style.setProperty("--pointer-x", "0px");
-        host.style.setProperty("--pointer-y", "0px");
+      ambient?.style.setProperty("--scroll", `${paused || reduced.matches || !finePointer.matches ? 0 : Math.min(window.scrollY * 0.06, 260)}px`);
+      if (paused || reduced.matches || !finePointer.matches) {
+        ambient?.style.setProperty("--pointer-x", "0px");
+        ambient?.style.setProperty("--pointer-y", "0px");
       }
     };
     const scroll = () => { if (!frame) frame = requestAnimationFrame(update); };
     const pointer = (event: PointerEvent) => {
-      if (paused || reduced.matches) return;
-      host.style.setProperty("--pointer-x", `${(event.clientX / innerWidth - 0.5) * 35}px`);
-      host.style.setProperty("--pointer-y", `${(event.clientY / innerHeight - 0.5) * 25}px`);
+      if (paused || reduced.matches || event.pointerType !== "mouse" || !finePointer.matches) return;
+      ambient?.style.setProperty("--pointer-x", `${(event.clientX / innerWidth - 0.5) * 35}px`);
+      ambient?.style.setProperty("--pointer-y", `${(event.clientY / innerHeight - 0.5) * 25}px`);
     };
     const observer = new IntersectionObserver(entries => entries.forEach(entry => {
       if (entry.isIntersecting) { entry.target.classList.add("is-visible"); observer.unobserve(entry.target); }
-    }), { threshold: 0.08 });
-    host.querySelectorAll("[data-reveal], main > section, article, figure, .journey-line li, .solution-link-row").forEach(element => {
-      element.setAttribute("data-reveal", "");
+    }), { threshold: 0, rootMargin: "120px 0px" });
+    host.querySelectorAll("[data-reveal], .screen-showcase").forEach(element => {
       observer.observe(element);
     });
-    window.addEventListener("scroll", scroll, { passive: true });
+    if (finePointer.matches) window.addEventListener("scroll", scroll, { passive: true });
     window.addEventListener("pointermove", pointer, { passive: true });
     reduced.addEventListener("change", update);
     update();
     return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("scroll", scroll); window.removeEventListener("pointermove", pointer); reduced.removeEventListener("change", update); };
-  }, [pathname, paused, isAdmin]);
+  }, [pathname, paused, isAdmin, isTour]);
 
   useEffect(() => () => { void audio.current?.close(); }, []);
 
@@ -104,7 +106,7 @@ export function PublicExperience({ children }: { children: React.ReactNode }) {
       const previous = event.relatedTarget;
       if (target && (!(previous instanceof Node) || !target.contains(previous))) tone();
     }}>
-    <div className="ambient-stage" aria-hidden="true"><div className="ambient-orbit orbit-one" /><div className="ambient-orbit orbit-two" /><div className="ambient-swan-track"><div className="ambient-core" /></div></div>
+    {!isTour && <div className="ambient-stage" aria-hidden="true"><div className="ambient-orbit orbit-one" /><div className="ambient-orbit orbit-two" /><div className="ambient-swan-track"><div className="ambient-core" /></div></div>}
     <div className="route-surface" key={pathname}>{children}</div>
     <details className="experience-controls">
       <summary aria-label="Preferências de som e movimento" title="Som e movimento">

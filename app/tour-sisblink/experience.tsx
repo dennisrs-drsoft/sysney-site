@@ -1,8 +1,8 @@
 "use client";
 
-import Image from "next/image";
+import Image from "../components/site-image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import SwanScene from "./swan-scene";
 import "./experience.css";
 
@@ -11,37 +11,69 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const ease = (t: number) => t * t * (3 - 2 * t);
 const range = (value: number, start: number, end: number) => clamp((value - start) / (end - start));
 
+const tourScreens = [
+  { src: "/sisblink/telas/catalogo-detalhado.webp", width: 1784, height: 937 },
+  { src: "/sisblink/telas/shopping.webp", width: 1920, height: 1080 },
+  { src: "/sisblink/telas/grade.webp", width: 1920, height: 1080 },
+  { src: "/sisblink/telas/confirmacao.webp", width: 1585, height: 1080 },
+];
+const TourScreens = memo(function TourScreens({ active, onLoaded, onFailed }: {
+  active: string; onLoaded: (src: string) => void; onFailed: (src: string) => void;
+}) {
+  return <div className="collection-screen-stack">{tourScreens.map((screen, index) =>
+    <Image key={screen.src} src={screen.src} alt={active === screen.src ? "Tela real do SISBlink — ambiente de demonstração" : ""}
+      aria-hidden={active !== screen.src} width={screen.width} height={screen.height} sizes="(max-width: 850px) 94vw, 1100px"
+      loading="eager" fetchPriority={index === 0 ? "high" : "low"} onLoad={() => onLoaded(screen.src)} onError={() => onFailed(screen.src)}
+      style={{ opacity: active === screen.src ? 1 : 0 }} />
+  )}</div>;
+});
+
 export default function CollectionExperience() {
   const track = useRef<HTMLDivElement>(null);
   const guidePath = useRef<SVGPathElement>(null);
   const brandTarget = useRef<HTMLImageElement>(null);
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
+  const [failed, setFailed] = useState<Record<string, boolean>>({});
+  const onLoaded = useCallback((src: string) => setLoaded(value => value[src] ? value : { ...value, [src]: true }), []);
+  const onFailed = useCallback((src: string) => setFailed(value => ({ ...value, [src]: true })), []);
   const [progress, setProgress] = useState(0);
   const [reduced, setReduced] = useState(false);
   const [viewport, setViewport] = useState({ width: 1440, height: 900 });
 
   useEffect(() => {
-    // This isolated motion preview is explicitly requested by the visitor.
-    // Pausing remains available without changing the operating system preference.
+    // Honor the device preference; the visitor can still change the reading mode.
+    const preference = matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setReduced(preference.matches);
+    syncPreference();
+    preference.addEventListener("change", syncPreference);
     const restoration = history.scrollRestoration;
     history.scrollRestoration = "manual";
     window.scrollTo({ top: 0, behavior: "instant" });
-    const resize = () => setViewport({ width: document.documentElement.clientWidth, height: innerHeight });
+    const resize = () => setViewport({ width: document.documentElement.clientWidth, height: track.current?.querySelector<HTMLElement>(".collection-stage")?.clientHeight ?? innerHeight });
     resize();
     addEventListener("resize", resize);
-    let frame = 0;
-    const update = () => {
+    let frame = 0, lastUpdate = 0;
+    const touch = matchMedia("(max-width: 1024px), (pointer: coarse)");
+    const update = (time = 0) => {
       frame = 0;
+      if (touch.matches && time - lastUpdate < 32) { frame = requestAnimationFrame(update); return; }
+      lastUpdate = time;
       if (!track.current) return;
       const bounds = track.current.getBoundingClientRect();
-      setProgress(clamp(-bounds.top / Math.max(1, bounds.height - innerHeight)));
+      setProgress(clamp(-bounds.top / Math.max(1, bounds.height - (track.current.querySelector<HTMLElement>(".collection-stage")?.clientHeight ?? innerHeight))));
     };
     const scroll = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
     update();
+    const stage = track.current?.querySelector<HTMLElement>(".collection-stage");
+    const stageObserver = new ResizeObserver(() => { resize(); scroll(); });
+    if (stage) stageObserver.observe(stage);
     addEventListener("scroll", scroll, { passive: true });
     addEventListener("resize", scroll);
     return () => {
+      stageObserver.disconnect();
+      preference.removeEventListener("change", syncPreference);
       removeEventListener("resize", resize);
       removeEventListener("scroll", scroll);
       removeEventListener("resize", scroll);
@@ -69,9 +101,11 @@ export default function CollectionExperience() {
     { start: .74, title: "A peça entra no pedido.", description: "Depois de conferir a grade, use a ação de adicionar à sacola.", label: "Adicionar à sacola", src: "/sisblink/telas/grade.webp", width: 1920, height: 1080, x: 933, y: 871, boxWidth: 568, boxHeight: 61 },
     { start: .79, title: "Confira o pedido montado.", description: "Revise os itens, quantidades, subtotais e prazos antes de concluir.", label: "Revisão dos itens", src: "/sisblink/telas/confirmacao.webp", width: 1585, height: 1080, x: 285, y: 599, boxWidth: 1288, boxHeight: 462 },
   ];
-  const orderScene = [...orderScenes].reverse().find(scene => progress >= scene.start);
+  const requestedScene = [...orderScenes].reverse().find(scene => progress >= scene.start);
+  const orderScene = [...orderScenes].reverse().find(scene => progress >= scene.start && loaded[scene.src]);
+  const preparingScreen = !reduced && requestedScene && !loaded[requestedScene.src];
   const isOrdering = !reduced && Boolean(orderScene);
-  const screen = isOrdering && orderScene ? orderScene : { src: "/sisblink/telas/catalogo-detalhado.png", width: 1784, height: 937 };
+  const screen = isOrdering && orderScene ? orderScene : { src: "/sisblink/telas/catalogo-detalhado.webp", width: 1784, height: 937 };
   const detail = isOrdering && orderScene ? { ...orderScene, width: orderScene.boxWidth, height: orderScene.boxHeight } : details[dataStep];
   const catalogWidth = Math.min(viewport.width * (mobile ? .94 : .82), 1100, viewport.height * .55 * screen.width / screen.height);
   const catalogLeft = (viewport.width - catalogWidth) / 2;
@@ -128,7 +162,7 @@ export default function CollectionExperience() {
                   boxShadow: `0 ${30 * (1 - merge)}px ${60 * (1 - merge)}px #0004`,
                 }}>
                   <div className={`collection-product product-${index}`}>
-                    <Image src="/sisblink/telas/catalogo-detalhado.png" alt={label} width={1784} height={937} sizes="(max-width: 850px) 180vw, 1800px" />
+                    <Image src="/sisblink/telas/catalogo-detalhado.webp" alt={label} width={1784} height={937} sizes="(max-width: 850px) 180vw, 1800px" />
                   </div>
                   <figcaption style={{ opacity: 1 - merge, maxHeight: (1 - merge) * 90, padding: `${(1 - merge) * 16}px 6px` }}>{label}<span>{!reduced && observedPiece === index && introProgress > .26 && introProgress < .57 ? "PEÇA EM DESTAQUE" : "COLEÇÃO DE DEMONSTRAÇÃO"}</span></figcaption>
                 </figure>
@@ -139,10 +173,11 @@ export default function CollectionExperience() {
             <p className="collection-eyebrow">CADA PEÇA, EM DETALHES</p>
             <h2>Uma coleção.<br /><em>Muitas possibilidades.</em></h2>
           </div>
-          <div className="collection-catalog" key={screen.src} data-screen={screen.src} style={reduced ? undefined : { opacity: catalog * (1 - ease(range(progress, .875, .91))), width: catalogWidth, left: catalogLeft, top: catalogTop }}>
+          <div className="collection-catalog" data-screen={screen.src} style={reduced ? undefined : { opacity: catalog * (1 - ease(range(progress, .875, .91))), width: catalogWidth, left: catalogLeft, top: catalogTop, aspectRatio: `${screen.width} / ${screen.height + 32 * screen.width / catalogWidth}` }}>
             <div className="collection-window"><span>● ● ●</span><span>SISBLINK / AMBIENTE REAL</span></div>
             {showFocus && <div className="collection-data-focus" style={{ left: `${detail.x / screen.width * 100}%`, top: `calc(32px + ${detail.y / screen.width * catalogWidth}px)`, width: `${detail.width / screen.width * 100}%`, height: detail.height / screen.width * catalogWidth }} aria-hidden="true" />}
-            <Image src={screen.src} alt={isOrdering ? detail.title + " — tela real do SISBlink" : "Catálogo real do SISBlink com produtos, cores, tamanhos e detalhe da blusa terracota"} width={screen.width} height={screen.height} sizes="90vw" priority />
+            <TourScreens active={screen.src} onLoaded={onLoaded} onFailed={onFailed} />
+            {preparingScreen && <span className="collection-loading" role="status">{failed[requestedScene.src] ? "Não foi possível carregar a próxima tela. A etapa anterior foi mantida." : "Preparando a próxima tela…"}</span>}
           </div>
           {showFocus && <svg className="collection-guide-line" viewBox={`0 0 ${viewport.width} ${viewport.height}`} aria-hidden="true">
             <path ref={guidePath} />

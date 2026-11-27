@@ -8,7 +8,7 @@
 .orbit-two{left:-35vw;top:48vh;transform:translate(calc(-1 * var(--pointer-x)),calc(-0.5 * var(--scroll))) scaleY(.65);border-width:80px;border-color:#54d7a00c}
 .ambient-core{position:absolute;right:12%;top:35%;width:130px;height:130px;border-radius:38%;background:linear-gradient(145deg,#6af5cb,#1f809b 48%,#061d29);box-shadow:inset -20px -20px 40px #001c2c,0 30px 100px #40dce633;animation:ambient-drift 18s ease-in-out infinite alternate}
 @keyframes ambient-drift{to{transform:translate(-90px,130px) rotate(100deg)}}
-.route-surface{animation:route-enter .55s both}
+.route-surface{position:relative}
 @keyframes route-enter{from{opacity:.4;transform:translateY(12px)}to{opacity:1;transform:none}}
 .sysney-experience :is(a,button,summary){transition:transform .22s ease,background-color .22s,color .22s,box-shadow .22s}
 .sysney-experience :is(a,button,summary):hover{transform:translateY(-2px)}

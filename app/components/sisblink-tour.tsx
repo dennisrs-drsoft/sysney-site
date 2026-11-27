@@ -1,6 +1,6 @@
 "use client";
 
-import Image from "next/image";
+import Image from "./site-image";
 import { useRef, useState } from "react";
 
 const screens = [
